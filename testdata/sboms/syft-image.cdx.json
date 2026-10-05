@@ -1,0 +1,50 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b00",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-01T10:00:00Z",
+    "tools": {
+      "components": [
+        { "type": "application", "author": "anchore", "name": "syft", "version": "1.14.0" }
+      ]
+    },
+    "component": {
+      "bom-ref": "pkg:oci/agent-api@sha256:aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666aaaa7777bbbb8888",
+      "type": "container",
+      "name": "123456789012.dkr.ecr.us-east-1.amazonaws.com/agent-api",
+      "version": "sha256:aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666aaaa7777bbbb8888",
+      "purl": "pkg:oci/agent-api@sha256:aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666aaaa7777bbbb8888?repository_url=123456789012.dkr.ecr.us-east-1.amazonaws.com%2Fagent-api",
+      "properties": [
+        { "name": "org.opencontainers.image.source", "value": "https://github.com/bellu/agent-api" }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:pypi/langchain@0.2.1",
+      "type": "library",
+      "name": "langchain",
+      "version": "0.2.1",
+      "purl": "pkg:pypi/langchain@0.2.1"
+    },
+    {
+      "bom-ref": "pkg:pypi/requests@2.31.0",
+      "type": "library",
+      "name": "requests",
+      "version": "2.31.0",
+      "purl": "pkg:pypi/requests@2.31.0"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:oci/agent-api@sha256:aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666aaaa7777bbbb8888",
+      "dependsOn": ["pkg:pypi/langchain@0.2.1", "pkg:pypi/requests@2.31.0"]
+    },
+    {
+      "ref": "pkg:pypi/langchain@0.2.1",
+      "dependsOn": ["pkg:pypi/requests@2.31.0"]
+    }
+  ]
+}

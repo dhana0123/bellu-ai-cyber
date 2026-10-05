@@ -1,0 +1,85 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:11112222-3333-4444-5555-666677778888",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-01T10:10:00Z",
+    "tools": {
+      "components": [
+        { "type": "application", "group": "@cyclonedx", "name": "cdxgen", "version": "11.0.0" }
+      ]
+    },
+    "component": {
+      "bom-ref": "repo:bellu/agent-api",
+      "type": "application",
+      "name": "agent-api",
+      "version": "1.0.0",
+      "externalReferences": [
+        { "type": "vcs", "url": "https://github.com/bellu/agent-api.git" }
+      ],
+      "properties": [
+        { "name": "org.opencontainers.image.source", "value": "https://github.com/bellu/agent-api" }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:pypi/langchain@0.2.1",
+      "type": "library",
+      "name": "langchain",
+      "version": "0.2.1",
+      "purl": "pkg:pypi/langchain@0.2.1"
+    },
+    {
+      "bom-ref": "model:huggingface/meta-llama/Llama-3-8B",
+      "type": "machine-learning-model",
+      "name": "meta-llama/Llama-3-8B",
+      "version": "main",
+      "purl": "pkg:huggingface/meta-llama/Llama-3-8B@main",
+      "modelCard": {
+        "modelParameters": { "task": "text-generation" },
+        "properties": [
+          { "name": "ai:model:format", "value": "gguf" }
+        ]
+      },
+      "properties": [
+        { "name": "ai:source", "value": "huggingface" }
+      ]
+    },
+    {
+      "bom-ref": "prompt:system-agent",
+      "type": "data",
+      "name": "system_prompt.txt",
+      "properties": [
+        { "name": "ai:prompt:role", "value": "system" }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "bom-ref": "service:openai",
+      "name": "OpenAI API",
+      "endpoints": ["https://api.openai.com/v1"],
+      "properties": [
+        { "name": "ai:service:type", "value": "llm-api" }
+      ]
+    },
+    {
+      "bom-ref": "service:mcp-filesystem",
+      "name": "filesystem",
+      "group": "mcp",
+      "description": "MCP server exposing filesystem tools",
+      "properties": [
+        { "name": "ai:mcp:transport", "value": "stdio" },
+        { "name": "ai:mcp:command", "value": "npx @modelcontextprotocol/server-filesystem" }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "repo:bellu/agent-api",
+      "dependsOn": ["pkg:pypi/langchain@0.2.1", "model:huggingface/meta-llama/Llama-3-8B"]
+    }
+  ]
+}
