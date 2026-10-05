@@ -53,6 +53,10 @@ func (s *Sink) flushBuf(ctx context.Context) error {
 // Written returns the number of newly inserted rows so far.
 func (s *Sink) Written() int { return s.written }
 
+// Persisted implements pipeline.Persister: the count of rows actually inserted
+// (duplicates excluded).
+func (s *Sink) Persisted() int { return s.written }
+
 // Status returns the run status to record: "failed" if any write errored,
 // else "completed".
 func (s *Sink) Status() string {

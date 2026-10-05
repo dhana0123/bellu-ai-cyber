@@ -19,6 +19,13 @@ type Sink interface {
 	Flush(ctx context.Context) error
 }
 
+// Persister is an optional Sink capability that reports how many rows were
+// actually persisted (as opposed to accepted/deduplicated). Sinks that back a
+// store implement it so the run summary can show the true insert count.
+type Persister interface {
+	Persisted() int
+}
+
 // Stage transforms an event before it reaches the sink (e.g. redaction).
 type Stage interface {
 	Apply(ev rawevent.RawEvent) (rawevent.RawEvent, error)
@@ -27,8 +34,9 @@ type Stage interface {
 // Result summarizes a completed run.
 type Result struct {
 	RunID     string
-	Collected int
-	Written   int
+	Collected int // events read from the source and validated
+	Written   int // events accepted by the sink (before dedupe)
+	Persisted int // rows actually persisted (nil-safe; 0 if sink can't report)
 	Errors    []error
 }
 
@@ -100,6 +108,9 @@ func (p *Pipeline) Run(ctx context.Context, runID string) (Result, error) {
 
 	if err := p.Sink.Flush(ctx); err != nil {
 		return res, fmt.Errorf("flush: %w", err)
+	}
+	if p, ok := p.Sink.(Persister); ok {
+		res.Persisted = p.Persisted()
 	}
 	return res, nil
 }

@@ -71,8 +71,8 @@ func runIngest(ctx context.Context, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "run %s: collected=%d written=%d errors=%d\n",
-		res.RunID, res.Collected, res.Written, len(res.Errors))
+	fmt.Fprintf(os.Stderr, "run %s: collected=%d accepted=%d persisted=%d errors=%d\n",
+		res.RunID, res.Collected, res.Written, res.Persisted, len(res.Errors))
 	for _, e := range res.Errors {
 		fmt.Fprintf(os.Stderr, "  - %v\n", e)
 	}
