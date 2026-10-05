@@ -47,7 +47,7 @@ services:
       MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
       MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
     healthcheck:
-      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --output-format=csv || exit 1"]
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --username=${MEMGRAPH_USER:-bellu} --password=${MEMGRAPH_PASSWORD:-bellu} --output-format=csv || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 15

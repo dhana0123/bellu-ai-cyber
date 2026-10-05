@@ -10,6 +10,10 @@ import (
 func buildNormalizers() *normalize.Registry {
 	r := normalize.NewRegistry()
 	r.Register(normalize.CycloneDX{})
+	r.Register(normalize.AWS{})
+	r.Register(normalize.Azure{})
+	r.Register(normalize.GCP{})
+	r.Register(normalize.K8s{})
 	return r
 }
 

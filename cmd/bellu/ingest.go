@@ -31,25 +31,15 @@ func runIngest(ctx context.Context, args []string) error {
 		return err
 	}
 
-	// Per-source config: start from bellu.yaml then overlay CLI flags.
-	scfg := map[string]any{}
-	for k, v := range cfg.Sources[*sourceName] {
-		scfg[k] = v
-	}
+	overrides := map[string]any{}
 	if *file != "" {
-		scfg["file"] = *file
+		overrides["file"] = *file
 	}
 	if *dir != "" {
-		scfg["dir"] = *dir
+		overrides["dir"] = *dir
 	}
 	if *connection != "" {
-		scfg["connection"] = *connection
-	}
-
-	reg := buildRegistry()
-	src, err := reg.Build(*sourceName, scfg)
-	if err != nil {
-		return err
+		overrides["connection"] = *connection
 	}
 
 	rid := *runID
@@ -57,16 +47,7 @@ func runIngest(ctx context.Context, args []string) error {
 		rid = pipeline.NewRunID(time.Now())
 	}
 
-	// Task 1 sink: stdout. Task 2 replaces this with the Postgres store when
-	// a DSN is reachable.
-	sink, stages, closeFn, err := buildSink(ctx, cfg, rid, *sourceName)
-	if err != nil {
-		return err
-	}
-	defer closeFn()
-
-	p := &pipeline.Pipeline{Source: src, Stages: stages, Sink: sink}
-	res, err := p.Run(ctx, rid)
+	res, err := ingestOne(ctx, cfg, *sourceName, overrides, rid)
 	if err != nil {
 		return err
 	}
@@ -77,4 +58,32 @@ func runIngest(ctx context.Context, args []string) error {
 		fmt.Fprintf(os.Stderr, "  - %v\n", e)
 	}
 	return nil
+}
+
+// ingestOne runs a single source through the pipeline into the evidence store.
+// It is shared by the `ingest` and `run` commands.
+func ingestOne(ctx context.Context, cfg config.Config, sourceName string, overrides map[string]any, runID string) (pipeline.Result, error) {
+	// Per-source config: start from bellu.yaml then overlay overrides.
+	scfg := map[string]any{}
+	for k, v := range cfg.Sources[sourceName] {
+		scfg[k] = v
+	}
+	for k, v := range overrides {
+		scfg[k] = v
+	}
+
+	reg := buildRegistry()
+	src, err := reg.Build(sourceName, scfg)
+	if err != nil {
+		return pipeline.Result{}, err
+	}
+
+	sink, stages, closeFn, err := buildSink(ctx, cfg, runID, sourceName)
+	if err != nil {
+		return pipeline.Result{}, err
+	}
+	defer closeFn()
+
+	p := &pipeline.Pipeline{Source: src, Stages: stages, Sink: sink}
+	return p.Run(ctx, runID)
 }

@@ -1,0 +1,43 @@
+# Steampipe GCP catalog. Columns follow the Steampipe GCP plugin schema.
+# Confirm with `.inspect <table>` for a given plugin version.
+provider: gcp
+connection: gcp
+
+tables:
+  - table: gcp_project
+    id_column: project_id
+    scope_column: project_id
+
+  - table: gcp_service_account
+    id_column: email
+    scope_column: project
+
+  - table: gcp_project_iam_policy
+    resource_type: gcp_iam_binding
+    id_column: project_id
+    scope_column: project_id
+
+  - table: gcp_storage_bucket
+    id_column: id
+    scope_column: project
+    region_column: location
+
+  - table: gcp_compute_instance
+    id_column: self_link
+    scope_column: project
+    region_column: zone
+
+  - table: gcp_kubernetes_cluster
+    id_column: self_link
+    scope_column: project
+    region_column: location
+
+  - table: gcp_cloud_run_service
+    id_column: self_link
+    scope_column: project
+    region_column: location
+
+  - table: gcp_vertex_ai_model
+    id_column: name
+    scope_column: project
+    region_column: location

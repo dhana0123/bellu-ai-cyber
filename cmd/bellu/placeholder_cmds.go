@@ -10,6 +10,4 @@ import "context"
 // explainCmd    -> Task 12
 
 func resolveCmd(_ context.Context, _ []string) error { return notImplemented("resolve") }
-func syncCmd(_ context.Context, _ []string) error      { return notImplemented("sync") }
-func runAllCmd(_ context.Context, _ []string) error    { return notImplemented("run") }
-func explainCmd(_ context.Context, _ []string) error   { return notImplemented("explain") }
+func explainCmd(_ context.Context, _ []string) error { return notImplemented("explain") }

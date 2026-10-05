@@ -34,28 +34,28 @@ type Normalizer interface {
 	Normalize(events []rawevent.RawEvent) (Result, error)
 }
 
-// Registry dispatches events to normalizers by their Source field.
+// Registry dispatches events to normalizers by their Source field. Multiple
+// normalizers may claim the same source (e.g. AWS, Azure and GCP all consume
+// "steampipe"); each filters internally by provider.
 type Registry struct {
-	bySource map[string]Normalizer
+	bySource map[string][]Normalizer
 }
 
 // NewRegistry returns an empty registry.
 func NewRegistry() *Registry {
-	return &Registry{bySource: make(map[string]Normalizer)}
+	return &Registry{bySource: make(map[string][]Normalizer)}
 }
 
 // Register adds a normalizer for each of its declared sources.
 func (r *Registry) Register(n Normalizer) {
 	for _, s := range n.Sources() {
-		if _, ok := r.bySource[s]; ok {
-			panic(fmt.Sprintf("normalize: duplicate normalizer for source %q", s))
-		}
-		r.bySource[s] = n
+		r.bySource[s] = append(r.bySource[s], n)
 	}
 }
 
-// Normalize groups events by source, dispatches each group to its normalizer,
-// and merges the results. Events from unknown sources are skipped.
+// Normalize groups events by source, dispatches each group to every normalizer
+// registered for that source, and merges the results. Events from unknown
+// sources are skipped.
 func (r *Registry) Normalize(events []rawevent.RawEvent) (Result, error) {
 	groups := make(map[string][]rawevent.RawEvent)
 	for _, e := range events {
@@ -71,15 +71,13 @@ func (r *Registry) Normalize(events []rawevent.RawEvent) (Result, error) {
 
 	var out Result
 	for _, s := range srcs {
-		n, ok := r.bySource[s]
-		if !ok {
-			continue
+		for _, n := range r.bySource[s] {
+			res, err := n.Normalize(groups[s])
+			if err != nil {
+				return out, fmt.Errorf("normalize %s: %w", s, err)
+			}
+			out.Add(res)
 		}
-		res, err := n.Normalize(groups[s])
-		if err != nil {
-			return out, fmt.Errorf("normalize %s: %w", s, err)
-		}
-		out.Add(res)
 	}
 	return out, nil
 }
