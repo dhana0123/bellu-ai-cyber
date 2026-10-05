@@ -1,0 +1,6 @@
+/bin/
+/out/
+deploy/zeek/logs/
+deploy/zeek/pcaps/
+*.local.yaml
+.env

@@ -1,0 +1,110 @@
+# Bellu local stack. Each major infrastructure service runs in its own
+# container; the Go application is a single bellu-core container.
+#
+#   bellu-core   the Go application (ingest/normalize/resolve/sync/run)
+#   postgres     evidence + normalized history
+#   memgraph     the AI Security Graph
+#   memgraph-lab graph UI
+#   steampipe    cloud/K8s collector (added/used from Task 6)
+#   zeek         network sensor (added/used from Task 11)
+#
+# Nothing binds to 0.0.0.0 implicitly beyond the published ports below, and all
+# datastores have auth enabled.
+
+name: bellu
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bellu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bellu}
+      POSTGRES_DB: bellu
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bellu -d bellu"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  memgraph:
+    image: memgraph/memgraph:2.18.1
+    # Auth is enabled by creating the bellu user on first boot via the
+    # init query (see deploy/memgraph/init.cypher) plus module auth flags.
+    command:
+      - "--bolt-port=7687"
+      - "--log-level=WARNING"
+      - "--also-log-to-stderr"
+    ports:
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+    environment:
+      # Memgraph reads these on first start to seed credentials.
+      MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
+      MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --output-format=csv || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  memgraph-lab:
+    image: memgraph/lab:2.18.1
+    depends_on:
+      - memgraph
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      QUICK_CONNECT_MG_HOST: memgraph
+      QUICK_CONNECT_MG_PORT: 7687
+
+  steampipe:
+    image: turbot/steampipe:latest
+    # The service exposes Postgres on 9193. Connections and read-only creds are
+    # provided via mounted .spc files. Used from Task 6 onward.
+    entrypoint: ["steampipe", "service", "start", "--foreground", "--database-listen", "network", "--database-port", "9193", "--database-password", "${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}"]
+    ports:
+      - "127.0.0.1:9193:9193"
+    volumes:
+      - ./steampipe:/home/steampipe/.steampipe/config:ro
+    profiles:
+      - collectors
+
+  zeek:
+    image: zeek/zeek:latest
+    # Development uses PCAP replay (see `make zeek-replay`). Live capture runs
+    # on a Linux host, not in Docker Desktop. Used from Task 11 onward.
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./zeek/logs:/logs
+      - ./zeek/pcaps:/pcaps:ro
+    profiles:
+      - collectors
+
+  bellu-core:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      memgraph:
+        condition: service_started
+    environment:
+      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres:5432/bellu?sslmode=disable
+      BELLU_MEMGRAPH_URI: bolt://memgraph:7687
+      BELLU_MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
+      BELLU_MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
+    volumes:
+      - ../testdata:/app/testdata:ro
+      - ../out:/app/out
+    # Long-running by default so you can exec bellu subcommands into it.
+    command: ["sleep", "infinity"]
+
+volumes:
+  pgdata:
+  memgraph_data:

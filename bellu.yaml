@@ -1,0 +1,45 @@
+# Bellu configuration. Environment variables override these values:
+#   BELLU_POSTGRES_DSN, BELLU_MEMGRAPH_URI, BELLU_MEMGRAPH_USER,
+#   BELLU_MEMGRAPH_PASSWORD
+
+postgres:
+  dsn: "postgres://bellu:bellu@localhost:5432/bellu?sslmode=disable"
+
+memgraph:
+  uri: "bolt://localhost:7687"
+  username: "bellu"
+  password: "bellu"
+
+redaction:
+  # Case-insensitive regexes matched against JSON object keys. Matching values
+  # are replaced with a redaction marker.
+  key_patterns:
+    - "(?i)secret"
+    - "(?i)password"
+    - "(?i)token"
+    - "(?i)api[-_]?key"
+    - "(?i)access[-_]?key"
+    - "(?i)private[-_]?key"
+    - "(?i)credential"
+  # Dotted JSON paths (with * wildcards) whose values are removed entirely.
+  json_paths:
+    - "environment.variables"       # Lambda / Functions / Cloud Run env
+    - "environment_variables"
+    - "data"                        # K8s Secret data
+    - "string_data"                 # K8s Secret stringData
+    - "configuration.environment"   # ECS container env
+
+sources:
+  fixture:
+    file: "testdata/sample.jsonl"
+  cyclonedx:
+    dir: "out/sboms"
+  steampipe:
+    # host/port of the steampipe service; connection selects the .spc.
+    host: "localhost"
+    port: 9193
+    user: "steampipe"
+    password: "bellu_steampipe"
+    database: "steampipe"
+  zeek:
+    dir: "deploy/zeek/logs"
