@@ -41,6 +41,10 @@ func Open(ctx context.Context, uri, user, password string) (*Writer, error) {
 // Close releases the driver.
 func (w *Writer) Close(ctx context.Context) error { return w.driver.Close(ctx) }
 
+// Driver exposes the underlying driver for read queries (used by tests and the
+// explain path).
+func (w *Writer) Driver() neo4j.DriverWithContext { return w.driver }
+
 func (w *Writer) session(ctx context.Context) neo4j.SessionWithContext {
 	return w.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 }

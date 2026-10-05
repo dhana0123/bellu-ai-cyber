@@ -63,14 +63,22 @@ func runAllCmd(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	rres, err := buildResolver().Resolve(nres)
+	resolver := buildResolver()
+	rres, err := resolver.Resolve(nres)
 	if err != nil {
 		return err
 	}
+	agentEnts, agentEdges := deriveAgents(rres.Entities, rres.Edges)
+	rres.Entities = append(rres.Entities, agentEnts...)
+	rres.Edges = append(rres.Edges, agentEdges...)
 	if err := st.PersistNormalized(ctx, rres.Entities, rres.Edges); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "  normalize entities=%d edges=%d\n", len(rres.Entities), len(rres.Edges))
+	if err := persistResolution(ctx, st, resolver); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "  normalize entities=%d edges=%d aliases=%d conflicts=%d agents=%d\n",
+		len(rres.Entities), len(rres.Edges), len(resolver.Aliases), len(resolver.Conflicts), len(agentEnts))
 
 	// 4) Sync.
 	if *skipSync {

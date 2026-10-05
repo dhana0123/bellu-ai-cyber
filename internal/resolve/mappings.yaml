@@ -1,0 +1,6 @@
+# Fallback repository -> image digest mappings, used only when an image lacks
+# the OCI org.opencontainers.image.source label. This is the weakest resolution
+# link; edges derived here carry confidence 0.7. Keys are repository URLs
+# (normalized), values are image digests.
+repo_to_image: {}
+#  https://github.com/bellu/agent-api: "sha256:aaaa1111..."

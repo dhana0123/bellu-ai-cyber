@@ -46,4 +46,7 @@ sources:
     connection: "aws"
     catalog_dir: "internal/source/steampipe/catalog"
   zeek:
+    # Live/replayed logs land in deploy/zeek/logs; testdata/zeek has fixtures.
     dir: "deploy/zeek/logs"
+    # offset_dir defaults to dir; set it to keep offset sidecars out of a
+    # read-only log mount if needed.

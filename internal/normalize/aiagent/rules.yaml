@@ -1,0 +1,22 @@
+# AI agent detection rules. A repository becomes an AIAgent when it depends on
+# an agent framework package, uses an AI model, or owns an MCP server / prompt.
+framework_purl_substrings:
+  - langchain
+  - langgraph
+  - llama-index
+  - llama_index
+  - openai
+  - anthropic
+  - autogen
+  - crewai
+  - semantic-kernel
+  - haystack
+  - dspy
+  - guidance
+framework_names:
+  - langchain
+  - openai
+  - anthropic
+  - autogen
+  - crewai
+require_mcp: true

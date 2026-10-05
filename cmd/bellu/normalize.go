@@ -47,11 +47,19 @@ func normalizeCmd(ctx context.Context, args []string) error {
 		return err
 	}
 
+	// Derive AIAgents from repositories with AI-BOM signals (post-resolution).
+	agentEnts, agentEdges := deriveAgents(rres.Entities, rres.Edges)
+	rres.Entities = append(rres.Entities, agentEnts...)
+	rres.Edges = append(rres.Edges, agentEdges...)
+
 	if err := st.PersistNormalized(ctx, rres.Entities, rres.Edges); err != nil {
 		return err
 	}
+	if err := persistResolution(ctx, st, resolver); err != nil {
+		return err
+	}
 
-	fmt.Fprintf(os.Stderr, "normalize: raw=%d entities=%d edges=%d\n",
-		len(events), len(rres.Entities), len(rres.Edges))
+	fmt.Fprintf(os.Stderr, "normalize: raw=%d entities=%d edges=%d aliases=%d conflicts=%d agents=%d\n",
+		len(events), len(rres.Entities), len(rres.Edges), len(resolver.Aliases), len(resolver.Conflicts), len(agentEnts))
 	return nil
 }

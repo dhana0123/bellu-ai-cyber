@@ -4,3 +4,4 @@ deploy/zeek/logs/
 deploy/zeek/pcaps/
 *.local.yaml
 .env
+testdata/**/.*.offset

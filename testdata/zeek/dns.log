@@ -1,0 +1,2 @@
+{"ts":1790000000.100,"uid":"DnsAAA0","query":"api.openai.com","qtype_name":"A","answers":["104.18.6.192","104.18.7.192"]}
+{"ts":1790000010.700,"uid":"DnsBBB1","query":"example.com","qtype_name":"A","answers":["93.184.216.34"]}

@@ -28,8 +28,17 @@ func (K8s) Normalize(events []rawevent.RawEvent) (Result, error) {
 	var res Result
 
 	// Map service account "namespace/name" -> canonical SA key, so pods and
-	// deployments that reference a SA by name can link to it.
+	// deployments that reference a SA by name can link to it. Built in a first
+	// pass because the input order is not guaranteed (the evidence store may
+	// return pods before service accounts).
 	saByName := map[string]string{}
+	for _, e := range events {
+		if e.Provider != "k8s" || e.ResourceType != "kubernetes_service_account" {
+			continue
+		}
+		attrs := payloadMap(e)
+		saByName[saNameKey(stringAttr(attrs, "namespace"), stringAttr(attrs, "name"))] = "k8s:sa:" + e.ResourceID
+	}
 
 	for _, e := range events {
 		if e.Provider != "k8s" {
@@ -42,7 +51,6 @@ func (K8s) Normalize(events []rawevent.RawEvent) (Result, error) {
 		case "kubernetes_service_account":
 			ent, bindings := k8sServiceAccount(e, attrs)
 			res.Entities = append(res.Entities, ent)
-			saByName[saNameKey(stringAttr(attrs, "namespace"), stringAttr(attrs, "name"))] = ent.Key
 			// AUTHENTICATES_AS edges to cloud identities.
 			for _, b := range bindings {
 				res.Edges = append(res.Edges, model.Edge{
@@ -87,15 +95,35 @@ func (K8s) Normalize(events []rawevent.RawEvent) (Result, error) {
 	return res, nil
 }
 
-// k8sWorkload builds a Workload entity for a pod or deployment.
+// k8sWorkload builds a Workload entity for a pod or deployment. The pod IP is
+// surfaced as "pod_ip" so the resolver can map Zeek flows to this workload.
 func k8sWorkload(e rawevent.RawEvent, attrs map[string]any, subtype string) model.Entity {
 	a := attrs
 	a["workload_subtype"] = subtype
+	if ip := podIP(attrs); ip != "" {
+		a["pod_ip"] = ip
+	}
 	return model.Entity{
 		Kind: model.KindWorkload, Key: "k8s:" + e.ResourceID, Provider: "k8s",
 		Name: firstNonEmpty(stringAttr(attrs, "name"), e.ResourceID),
 		Attributes: a, Evidence: EvidenceFrom(e),
 	}
+}
+
+// podIP extracts the pod IP from common Steampipe shapes.
+func podIP(attrs map[string]any) string {
+	if ip := stringAttr(attrs, "pod_ip"); ip != "" {
+		return ip
+	}
+	if st, ok := attrs["status"].(map[string]any); ok {
+		if ip, ok := st["podIP"].(string); ok {
+			return ip
+		}
+		if ip, ok := st["pod_ip"].(string); ok {
+			return ip
+		}
+	}
+	return ""
 }
 
 // k8sServiceAccount builds an Identity entity and parses WI bindings.

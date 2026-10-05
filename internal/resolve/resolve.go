@@ -114,8 +114,29 @@ func mergeEntity(dst *model.Entity, src model.Entity) {
 		dst.Attributes = map[string]any{}
 	}
 	for k, v := range src.Attributes {
-		if _, exists := dst.Attributes[k]; !exists {
+		existing, exists := dst.Attributes[k]
+		// Add missing keys, and prefer a non-empty value over an empty one so
+		// a richer source (e.g. an SBOM with the OCI source label) fills gaps
+		// left by a sparser one (e.g. a scanner without the label). Never
+		// overwrite an existing non-empty value with an empty one.
+		if !exists || (isEmptyValue(existing) && !isEmptyValue(v)) {
 			dst.Attributes[k] = v
 		}
 	}
+}
+
+// isEmptyValue reports whether an attribute value is "empty" for merge
+// purposes (nil, empty string, empty collection).
+func isEmptyValue(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case string:
+		return t == ""
+	case []any:
+		return len(t) == 0
+	case map[string]any:
+		return len(t) == 0
+	}
+	return false
 }

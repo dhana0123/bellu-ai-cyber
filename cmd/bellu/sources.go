@@ -5,6 +5,7 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/source/cyclonedx"
 	"github.com/bellu/bellu-ai-cyber/internal/source/fixture"
 	"github.com/bellu/bellu-ai-cyber/internal/source/steampipe"
+	"github.com/bellu/bellu-ai-cyber/internal/source/zeek"
 )
 
 // buildRegistry wires all available sources. New sources are registered here
@@ -14,5 +15,6 @@ func buildRegistry() *source.Registry {
 	r.Register("fixture", fixture.Factory)
 	r.Register("cyclonedx", cyclonedx.Factory)
 	r.Register("steampipe", steampipe.Factory)
+	r.Register("zeek", zeek.Factory)
 	return r
 }
