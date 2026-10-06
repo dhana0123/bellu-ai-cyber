@@ -17,9 +17,9 @@ export default function Shell({ children }) {
   const topRole = principal?.memberships?.[0]?.role_name || 'User'
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r bg-card/40 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-card/40 md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-5">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-background">
             <ShieldCheck className="h-4 w-4" />

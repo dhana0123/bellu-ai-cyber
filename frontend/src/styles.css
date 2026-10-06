@@ -24,11 +24,11 @@
     --radius: 0.5rem;
   }
 
-  /* OpenAI-style neutral dark: near-black background, white primary. */
+  /* OpenAI-style neutral dark: pitch-black background, white primary. */
   .dark {
-    --background: 0 0% 4%;            /* ~#0a0a0a near-pure black */
+    --background: 0 0% 0%;            /* pure black #000 */
     --foreground: 0 0% 98%;
-    --card: 0 0% 7%;                  /* ~#121212 */
+    --card: 0 0% 5%;                  /* ~#0d0d0d */
     --card-foreground: 0 0% 98%;
     --primary: 0 0% 98%;             /* near-white primary */
     --primary-foreground: 0 0% 9%;   /* dark text on white button */

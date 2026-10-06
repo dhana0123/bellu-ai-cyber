@@ -1,44 +1,40 @@
 import React from 'react'
-import { ArrowRight } from 'lucide-react'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card.jsx'
 import { Badge, Table, THead, TBody, TR, TH, TD, Spinner } from '../components/ui/misc.jsx'
+import AttackPathGraph from '../components/graph/AttackPathGraph.jsx'
 
 export default function AttackPaths() {
   const paths = useAsync(() => api.attackPaths(), [])
   const calls = useAsync(() => api.aiCalls(), [])
 
+  const loading = paths.loading || calls.loading
+  const err = paths.error || calls.error
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Attack Paths</h1>
-        <p className="text-sm text-muted-foreground">How AI agents can reach sensitive data and external services.</p>
+        <p className="text-sm text-muted-foreground">
+          How AI agents can reach sensitive data and external services, from the internet inward.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Agent → Identity → Data store</CardTitle>
-          <CardDescription>AI agents whose workload identity can read a sensitive data store.</CardDescription>
+          <CardTitle className="text-base">Attack Path Visualization</CardTitle>
+          <CardDescription>
+            Internet → agent → workload → identity → data store, plus external AI API calls.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {paths.loading && <Spinner />}
-          {paths.error && <p className="text-sm text-destructive">{paths.error}</p>}
-          {paths.data && (paths.data.paths || []).map((p, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-1.5">
-              <Node kind="AIAgent" label={p.agent} />
-              <Edge label="RUNS_IN" />
-              <Node kind="Workload" label={p.workload} />
-              <Edge label="USES" />
-              <Node kind="Identity" label={p.service_account} />
-              <Edge label="AUTH_AS" />
-              <Node kind="Identity" label={p.cloud_identity} />
-              <Edge label={p.access} />
-              <Node kind="DataStore" label={p.datastore} />
-            </div>
-          ))}
-          {paths.data && (paths.data.paths || []).length === 0 && (
-            <p className="text-sm text-muted-foreground">No agent → data store paths found.</p>
+        <CardContent>
+          {loading && (
+            <div className="flex h-[200px] items-center justify-center"><Spinner /></div>
+          )}
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          {!loading && !err && (
+            <AttackPathGraph paths={paths.data?.paths} calls={calls.data?.calls} />
           )}
         </CardContent>
       </Card>
@@ -70,24 +66,6 @@ export default function AttackPaths() {
           )}
         </CardContent>
       </Card>
-    </div>
-  )
-}
-
-function Node({ kind, label }) {
-  return (
-    <div className="flex flex-col rounded-lg border bg-muted/40 px-3 py-1.5">
-      <span className="text-[10px] uppercase tracking-wide text-primary">{kind}</span>
-      <span className="text-sm">{label}</span>
-    </div>
-  )
-}
-
-function Edge({ label }) {
-  return (
-    <div className="flex flex-col items-center px-1 text-muted-foreground">
-      <span className="text-[9px]">{label}</span>
-      <ArrowRight className="h-3.5 w-3.5" />
     </div>
   )
 }
