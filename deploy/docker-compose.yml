@@ -2,11 +2,15 @@
 # container; the Go application is a single bellu-core container.
 #
 #   bellu-core   the Go application (ingest/normalize/resolve/sync/run)
+#   bellu-api    the Go HTTP control-panel API (:8080)
+#   frontend     the React control panel served by nginx (:8081), proxies /api
 #   postgres     evidence + normalized history
 #   memgraph     the AI Security Graph
 #   memgraph-lab graph UI
 #   steampipe    cloud/K8s collector (added/used from Task 6)
 #   zeek         network sensor (added/used from Task 11)
+#
+# Control panel: `docker compose up -d` then open http://localhost:8081
 #
 # Nothing binds to 0.0.0.0 implicitly beyond the published ports below, and all
 # datastores have auth enabled.
@@ -47,7 +51,7 @@ services:
       MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
       MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
     healthcheck:
-      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --username=${MEMGRAPH_USER:-bellu} --password=${MEMGRAPH_PASSWORD:-bellu} --output-format=csv || exit 1"]
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --output-format=csv || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 15
@@ -104,6 +108,37 @@ services:
       - ../out:/app/out
     # Long-running by default so you can exec bellu subcommands into it.
     command: ["sleep", "infinity"]
+
+  bellu-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      memgraph:
+        condition: service_started
+    environment:
+      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres:5432/bellu?sslmode=disable
+      BELLU_MEMGRAPH_URI: bolt://memgraph:7687
+      BELLU_MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
+      BELLU_MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
+      BELLU_API_ADDR: ":8080"
+      BELLU_API_CORS_ORIGIN: "*"
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    depends_on:
+      - bellu-api
+    ports:
+      # Dev: served on port 80 (open in the EC2 security group). The nginx in
+      # this container proxies /api to bellu-api internally, so only this port
+      # needs to be public.
+      - "80:80"
 
 volumes:
   pgdata:

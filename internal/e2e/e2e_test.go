@@ -237,23 +237,29 @@ func TestEndToEndAttackPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 4) Assert the exact attack paths exist, each with evidence on every edge.
-	assertPathWithEvidence(ctx, t, w,
-		`MATCH path=(a:AIAgent)-[:RUNS_IN]->(:Workload)-[:USES]->(:Identity)
-		   -[:AUTHENTICATES_AS]->(:Identity)-[:CAN_READ]->(:DataStore)
-		 RETURN [r IN relationships(path) | size(coalesce(r.evidence_ids, []))] AS ev_counts`,
+	// 4) Assert the exact attack paths exist, and that every edge on each path
+	// carries evidence. We bind each relationship explicitly and check its
+	// evidence_ids list (Memgraph does not support list comprehension over
+	// relationships(path) in this form).
+	assertPath(ctx, t, w,
+		`MATCH (a:AIAgent)-[r1:RUNS_IN]->(w:Workload)-[r2:USES]->(sa:Identity)
+		   -[r3:AUTHENTICATES_AS]->(cl:Identity)-[r4:CAN_READ]->(d:DataStore)
+		 RETURN size(r1.evidence_ids) AS e1, size(r2.evidence_ids) AS e2,
+		        size(r3.evidence_ids) AS e3, size(r4.evidence_ids) AS e4`,
+		[]string{"e1", "e2", "e3", "e4"},
 		"agent -> workload -> identity -> role -> datastore")
 
-	assertPathWithEvidence(ctx, t, w,
-		`MATCH path=(a:AIAgent)-[:RUNS_IN]->(:Workload)-[:CONNECTS_TO]->(s:ExternalService)
+	assertPath(ctx, t, w,
+		`MATCH (a:AIAgent)-[r1:RUNS_IN]->(w:Workload)-[r2:CONNECTS_TO]->(s:ExternalService)
 		 WHERE s.attr_is_ai_api = true
-		 RETURN [r IN relationships(path) | size(coalesce(r.evidence_ids, []))] AS ev_counts`,
+		 RETURN size(r1.evidence_ids) AS e1, size(r2.evidence_ids) AS e2`,
+		[]string{"e1", "e2"},
 		"agent -> workload -> external AI API")
 }
 
-// assertPathWithEvidence runs a query returning per-edge evidence counts and
-// fails if no row is returned or any edge on the path lacks evidence.
-func assertPathWithEvidence(ctx context.Context, t *testing.T, w *graph.Writer, cypher, name string) {
+// assertPath runs a query that returns one evidence-count column per edge and
+// fails if no row is returned or any edge lacks evidence.
+func assertPath(ctx context.Context, t *testing.T, w *graph.Writer, cypher string, cols []string, name string) {
 	t.Helper()
 	res, err := neo4j.ExecuteQuery(ctx, w.Driver(), cypher, nil,
 		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(""))
@@ -263,15 +269,12 @@ func assertPathWithEvidence(ctx context.Context, t *testing.T, w *graph.Writer, 
 	if len(res.Records) == 0 {
 		t.Fatalf("%s: path not found", name)
 	}
-	counts, _ := res.Records[0].AsMap()["ev_counts"].([]any)
-	if len(counts) == 0 {
-		t.Fatalf("%s: no relationships on path", name)
-	}
-	for i, c := range counts {
-		n, _ := c.(int64)
+	m := res.Records[0].AsMap()
+	for _, c := range cols {
+		n, _ := m[c].(int64)
 		if n < 1 {
-			t.Fatalf("%s: edge %d on path has no evidence", name, i)
+			t.Fatalf("%s: edge %s on path has no evidence (count=%v)", name, c, m[c])
 		}
 	}
-	t.Logf("%s: path present, all %d edges carry evidence", name, len(counts))
+	t.Logf("%s: path present, all %d edges carry evidence", name, len(cols))
 }

@@ -1,4 +1,4 @@
-.PHONY: build test test-integration lint tidy up down migrate ingest-fixture sbom zeek-replay clean
+.PHONY: build test test-integration lint tidy up up-collectors panel down migrate ingest-fixture sbom zeek-replay clean api frontend-build
 
 GO            ?= go
 COMPOSE       ?= docker compose -f deploy/docker-compose.yml
@@ -26,6 +26,11 @@ lint:
 
 up:
 	$(COMPOSE) up -d postgres memgraph memgraph-lab
+
+# Bring up the control panel (API + React UI) and its datastores.
+panel:
+	$(COMPOSE) up -d postgres memgraph bellu-api frontend
+	@echo "control panel: http://localhost:8081  (API: http://localhost:8080)"
 
 up-collectors:
 	$(COMPOSE) --profile collectors up -d
@@ -69,5 +74,14 @@ zeek-replay:
 		-w /logs zeek/zeek:latest \
 		zeek -r /cap.pcap LogAscii::use_json=T
 
+# Build/run the control-panel API locally (needs postgres + memgraph up).
+api:
+	$(GO) build -o bin/bellu-api ./backend/cmd/bellu-api
+	./bin/bellu-api
+
+# Build the React frontend bundle.
+frontend-build:
+	cd frontend && npm install && npm run build
+
 clean:
-	rm -rf bin out
+	rm -rf bin out frontend/dist
