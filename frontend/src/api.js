@@ -1,27 +1,62 @@
-// Thin client for the Bellu control-panel API. The base URL is empty so
-// requests go to the same origin (dev server proxies /api to the backend;
-// in production the API is served behind the same host).
+// Client for the Bellu control-panel API. Attaches the stored JWT as a Bearer
+// token. The base URL is empty so requests hit the same origin (dev proxies
+// /api to the backend; in prod nginx proxies it).
 const BASE = import.meta.env.VITE_API_BASE || ''
 
-async function get(path) {
-  const res = await fetch(`${BASE}${path}`)
+const TOKEN_KEY = 'bellu-token'
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY)
+}
+export function setToken(t) {
+  if (t) localStorage.setItem(TOKEN_KEY, t)
+  else localStorage.removeItem(TOKEN_KEY)
+}
+
+async function request(method, path, body) {
+  const headers = {}
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+
+  if (res.status === 401) {
+    // Token invalid/expired — clear it so the app redirects to login.
+    setToken(null)
+    throw new Error('unauthorized')
+  }
   if (!res.ok) {
     let detail = res.statusText
     try {
-      const body = await res.json()
-      if (body.error) detail = body.error
+      const b = await res.json()
+      if (b.error) detail = b.error
     } catch {
       /* ignore */
     }
-    throw new Error(`${res.status}: ${detail}`)
+    throw new Error(detail)
   }
+  if (res.status === 204) return null
   return res.json()
 }
 
+const get = (p) => request('GET', p)
+const post = (p, b) => request('POST', p, b)
+const patch = (p, b) => request('PATCH', p, b)
+
 export const api = {
+  // auth
+  login: (email, password) => post('/api/auth/login', { email, password }),
+  me: () => get('/api/auth/me'),
+
+  // graph / evidence
   health: () => get('/api/health'),
   stats: () => get('/api/stats'),
-  entities: (kind, limit = 200) =>
+  entities: (kind, limit = 300) =>
     get(`/api/entities?limit=${limit}${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`),
   runs: (limit = 50) => get(`/api/runs?limit=${limit}`),
   conflicts: (limit = 100) => get(`/api/conflicts?limit=${limit}`),
@@ -34,4 +69,14 @@ export const api = {
         `${like ? `&like=${encodeURIComponent(like)}` : ''}`,
     ),
   explainEdge: (id) => get(`/api/edges/explain?id=${id}`),
+
+  // admin
+  users: () => get('/api/users'),
+  createUser: (payload) => post('/api/users', payload),
+  setUserActive: (id, active) => patch(`/api/users/${id}/active`, { active }),
+  roles: () => get('/api/roles'),
+  createRole: (payload) => post('/api/roles', payload),
+  permissions: () => get('/api/permissions'),
+  projects: () => get('/api/projects'),
+  createProject: (key, name) => post('/api/projects', { key, name }),
 }

@@ -125,6 +125,10 @@ services:
       BELLU_MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
       BELLU_API_ADDR: ":8080"
       BELLU_API_CORS_ORIGIN: "*"
+      # Auth / RBAC. Change these before any real deployment.
+      BELLU_JWT_SECRET: ${BELLU_JWT_SECRET:-dev-insecure-change-me}
+      BELLU_ADMIN_EMAIL: ${BELLU_ADMIN_EMAIL:-admin@bellu.local}
+      BELLU_ADMIN_PASSWORD: ${BELLU_ADMIN_PASSWORD:-admin12345}
     ports:
       - "127.0.0.1:8080:8080"
 

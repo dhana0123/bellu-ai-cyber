@@ -1,24 +1,27 @@
-// Package server implements the Bellu control-panel HTTP API. It is a thin
-// read layer over the existing Postgres evidence store and the Memgraph graph,
-// reusing internal/store and internal/graph. It serves JSON for the React UI.
+// Package server implements the Bellu control-panel HTTP API using Gin. It is a
+// read/management layer over the Postgres evidence store, the Memgraph graph,
+// and the auth/RBAC model, serving JSON for the React UI.
 package server
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+
+	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 
 // Server holds the dependencies for the control-panel API.
 type Server struct {
-	store    *store.Store
-	graph    *graph.Writer // may be nil if Memgraph is unavailable
+	store       *store.Store
+	graph       *graph.Writer // may be nil if Memgraph is unavailable
+	auth        *auth.Service
 	allowOrigin string
 }
 
@@ -26,7 +29,8 @@ type Server struct {
 type Options struct {
 	Store       *store.Store
 	Graph       *graph.Writer
-	AllowOrigin string // CORS allow-origin, e.g. "*" or a specific host
+	Auth        *auth.Service
+	AllowOrigin string
 }
 
 // New builds a Server.
@@ -35,164 +39,178 @@ func New(opts Options) *Server {
 	if origin == "" {
 		origin = "*"
 	}
-	return &Server{store: opts.Store, graph: opts.Graph, allowOrigin: origin}
+	return &Server{store: opts.Store, graph: opts.Graph, auth: opts.Auth, allowOrigin: origin}
 }
 
-// Handler returns the HTTP handler with all routes registered.
+// Handler returns the Gin engine with all routes registered.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/health", s.handleHealth)
-	mux.HandleFunc("/api/stats", s.handleStats)
-	mux.HandleFunc("/api/entities", s.handleEntities)
-	mux.HandleFunc("/api/runs", s.handleRuns)
-	mux.HandleFunc("/api/conflicts", s.handleConflicts)
-	mux.HandleFunc("/api/edges/find", s.handleFindEdges)
-	mux.HandleFunc("/api/edges/explain", s.handleExplainEdge)
-	mux.HandleFunc("/api/graph/attack-paths", s.handleAttackPaths)
-	mux.HandleFunc("/api/graph/ai-calls", s.handleAICalls)
-	return s.withMiddleware(mux)
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	corsCfg := cors.DefaultConfig()
+	if s.allowOrigin == "*" {
+		corsCfg.AllowAllOrigins = true
+	} else {
+		corsCfg.AllowOrigins = []string{s.allowOrigin}
+	}
+	corsCfg.AllowHeaders = []string{"Authorization", "Content-Type"}
+	corsCfg.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	r.Use(cors.New(corsCfg))
+
+	api := r.Group("/api")
+	{
+		// Public.
+		api.GET("/health", s.handleHealth)
+		api.POST("/auth/login", s.handleLogin)
+
+		// Authenticated.
+		authed := api.Group("")
+		authed.Use(s.auth.Authenticate())
+		{
+			authed.GET("/auth/me", s.handleMe)
+
+			// Graph / evidence reads require graph:read.
+			gr := authed.Group("")
+			gr.Use(s.auth.RequirePermission(auth.PermGraphRead))
+			{
+				gr.GET("/stats", s.handleStats)
+				gr.GET("/entities", s.handleEntities)
+				gr.GET("/runs", s.handleRuns)
+				gr.GET("/conflicts", s.handleConflicts)
+				gr.GET("/graph/attack-paths", s.handleAttackPaths)
+				gr.GET("/graph/ai-calls", s.handleAICalls)
+			}
+
+			// Investigation.
+			inv := authed.Group("")
+			inv.Use(s.auth.RequirePermission(auth.PermInvestigate))
+			{
+				inv.GET("/edges/find", s.handleFindEdges)
+				inv.GET("/edges/explain", s.handleExplainEdge)
+			}
+
+			// Admin: users / roles / projects.
+			s.registerAdminRoutes(authed)
+		}
+	}
+
+	return r
 }
 
-// --- handlers ---
+// --- data handlers ---
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	health := map[string]any{"status": "ok", "graph": s.graph != nil}
-	s.writeJSON(w, http.StatusOK, health)
+func (s *Server) handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "graph": s.graph != nil})
 }
 
-func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+func (s *Server) handleStats(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 	st, err := s.store.GetStats(ctx)
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, st)
+	c.JSON(http.StatusOK, st)
 }
 
-func (s *Server) handleEntities(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+func (s *Server) handleEntities(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	kind := r.URL.Query().Get("kind")
-	limit := queryInt(r, "limit", 200)
+	kind := c.Query("kind")
+	limit := queryInt(c, "limit", 200)
 	ents, err := s.store.ListEntities(ctx, kind, limit)
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{"entities": ents})
+	c.JSON(http.StatusOK, gin.H{"entities": ents})
 }
 
-func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+func (s *Server) handleRuns(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	runs, err := s.store.ListRuns(ctx, queryInt(r, "limit", 50))
+	runs, err := s.store.ListRuns(ctx, queryInt(c, "limit", 50))
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+	c.JSON(http.StatusOK, gin.H{"runs": runs})
 }
 
-func (s *Server) handleConflicts(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+func (s *Server) handleConflicts(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	c, err := s.store.Conflicts(ctx, queryInt(r, "limit", 100))
+	conf, err := s.store.Conflicts(ctx, queryInt(c, "limit", 100))
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{"conflicts": c})
+	c.JSON(http.StatusOK, gin.H{"conflicts": conf})
 }
 
-func (s *Server) handleFindEdges(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+func (s *Server) handleFindEdges(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	relation := r.URL.Query().Get("relation")
-	like := r.URL.Query().Get("like")
-	edges, err := s.store.FindEdges(ctx, relation, like, queryInt(r, "limit", 100))
+	edges, err := s.store.FindEdges(ctx, c.Query("relation"), c.Query("like"), queryInt(c, "limit", 100))
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{"edges": edges})
+	c.JSON(http.StatusOK, gin.H{"edges": edges})
 }
 
-func (s *Server) handleExplainEdge(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+func (s *Server) handleExplainEdge(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
-	idStr := r.URL.Query().Get("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := strconv.ParseInt(c.Query("id"), 10, 64)
 	if err != nil {
-		s.writeErr(w, http.StatusBadRequest, errors.New("invalid or missing edge id"))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or missing edge id"})
 		return
 	}
 	d, err := s.store.ExplainEdge(ctx, id)
 	if err != nil {
-		s.writeErr(w, http.StatusNotFound, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, d)
+	c.JSON(http.StatusOK, d)
 }
 
-func (s *Server) handleAttackPaths(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAttackPaths(c *gin.Context) {
 	if s.graph == nil {
-		s.writeErr(w, http.StatusServiceUnavailable, errors.New("graph not available"))
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "graph not available"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	rows, err := s.graph.AttackPaths(ctx)
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{"paths": rows})
+	c.JSON(http.StatusOK, gin.H{"paths": rows})
 }
 
-func (s *Server) handleAICalls(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAICalls(c *gin.Context) {
 	if s.graph == nil {
-		s.writeErr(w, http.StatusServiceUnavailable, errors.New("graph not available"))
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "graph not available"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	rows, err := s.graph.ExternalAICalls(ctx)
 	if err != nil {
-		s.writeErr(w, http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	s.writeJSON(w, http.StatusOK, map[string]any{"calls": rows})
+	c.JSON(http.StatusOK, gin.H{"calls": rows})
 }
 
-// --- middleware + helpers ---
+// --- helpers ---
 
-func (s *Server) withMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", s.allowOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (s *Server) writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func (s *Server) writeErr(w http.ResponseWriter, code int, err error) {
-	s.writeJSON(w, code, map[string]string{"error": err.Error()})
-}
-
-func queryInt(r *http.Request, key string, def int) int {
-	v := r.URL.Query().Get(key)
+func queryInt(c *gin.Context, key string, def int) int {
+	v := c.Query(key)
 	if v == "" {
 		return def
 	}

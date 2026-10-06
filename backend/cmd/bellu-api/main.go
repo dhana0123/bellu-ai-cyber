@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bellu/bellu-ai-cyber/backend/server"
+	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/config"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
@@ -54,7 +55,21 @@ func run() error {
 		defer gw.Close(context.Background())
 	}
 
-	srv := server.New(server.Options{Store: st, Graph: gw, AllowOrigin: allowOrigin})
+	// Auth / RBAC: seed the catalog + default admin, then build the service.
+	authStore := auth.NewStore(st.Pool())
+	jwtSecret := getenv("BELLU_JWT_SECRET", "dev-insecure-change-me")
+	adminEmail := getenv("BELLU_ADMIN_EMAIL", "admin@bellu.local")
+	adminPassword := getenv("BELLU_ADMIN_PASSWORD", "admin12345")
+	created, err := authStore.Seed(ctx, adminEmail, adminPassword, "Bellu")
+	if err != nil {
+		return fmt.Errorf("seed rbac: %w", err)
+	}
+	if created {
+		log.Printf("seeded default admin user: %s", adminEmail)
+	}
+	authSvc := auth.NewService(authStore, auth.NewTokenManager(jwtSecret, 12*time.Hour))
+
+	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, AllowOrigin: allowOrigin})
 
 	httpSrv := &http.Server{
 		Addr:              addr,

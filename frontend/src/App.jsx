@@ -1,77 +1,57 @@
-import React, { useEffect, useState } from 'react'
-import { api } from './api.js'
-import Dashboard from './components/Dashboard.jsx'
-import Entities from './components/Entities.jsx'
-import AttackPaths from './components/AttackPaths.jsx'
-import Explain from './components/Explain.jsx'
+import React from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useAuth } from './auth.jsx'
+import { Spinner } from './components/ui/misc.jsx'
+import Shell from './components/Shell.jsx'
+import Login from './pages/Login.jsx'
+import Dashboard from './pages/Dashboard.jsx'
+import Entities from './pages/Entities.jsx'
+import AttackPaths from './pages/AttackPaths.jsx'
+import Explain from './pages/Explain.jsx'
+import UsersPage from './pages/Users.jsx'
+import ProjectsPage from './pages/Projects.jsx'
+import RolesPage from './pages/Roles.jsx'
 
-const TABS = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'entities', label: 'Entities' },
-  { id: 'paths', label: 'Attack Paths' },
-  { id: 'explain', label: 'Explain Edge' },
-]
+// RequireAuth gates a route; redirects to /login when not authenticated and
+// shows a 403 notice when the user lacks the required permission.
+function RequireAuth({ permission, children }) {
+  const { principal, loading, can } = useAuth()
+  const location = useLocation()
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner className="h-6 w-6" />
+      </div>
+    )
+  }
+  if (!principal) {
+    return <Navigate to="/login" replace state={{ from: location }} />
+  }
+  if (permission && !can(permission)) {
+    return (
+      <Shell>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
+          You don't have permission to view this page.
+        </div>
+      </Shell>
+    )
+  }
+  return <Shell>{children}</Shell>
+}
 
 export default function App() {
-  const [tab, setTab] = useState('dashboard')
-  const [health, setHealth] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    api
-      .health()
-      .then(setHealth)
-      .catch((e) => setError(e.message))
-  }, [])
-
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="logo">◆</span>
-          <div>
-            <h1>Bellu</h1>
-            <p>AI Security Graph — Control Panel</p>
-          </div>
-        </div>
-        <div className="health">
-          {error ? (
-            <span className="pill pill-bad">API unreachable</span>
-          ) : health ? (
-            <>
-              <span className="pill pill-ok">API ok</span>
-              <span className={`pill ${health.graph ? 'pill-ok' : 'pill-warn'}`}>
-                graph {health.graph ? 'connected' : 'offline'}
-              </span>
-            </>
-          ) : (
-            <span className="pill">connecting…</span>
-          )}
-        </div>
-      </header>
-
-      <nav className="tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={tab === t.id ? 'tab active' : 'tab'}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      <main className="content">
-        {tab === 'dashboard' && <Dashboard />}
-        {tab === 'entities' && <Entities />}
-        {tab === 'paths' && <AttackPaths />}
-        {tab === 'explain' && <Explain />}
-      </main>
-
-      <footer className="footer">
-        Evidence-backed graph of multi-cloud, Kubernetes, SBOM/AI-BOM and network data.
-      </footer>
-    </div>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<RequireAuth permission="graph:read"><Dashboard /></RequireAuth>} />
+      <Route path="/entities" element={<RequireAuth permission="graph:read"><Entities /></RequireAuth>} />
+      <Route path="/attack-paths" element={<RequireAuth permission="graph:read"><AttackPaths /></RequireAuth>} />
+      <Route path="/explain" element={<RequireAuth permission="investigate"><Explain /></RequireAuth>} />
+      <Route path="/users" element={<RequireAuth permission="users:read"><UsersPage /></RequireAuth>} />
+      <Route path="/projects" element={<RequireAuth permission="projects:read"><ProjectsPage /></RequireAuth>} />
+      <Route path="/roles" element={<RequireAuth permission="users:read"><RolesPage /></RequireAuth>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
