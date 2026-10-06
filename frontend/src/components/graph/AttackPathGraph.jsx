@@ -70,7 +70,7 @@ function buildGraph(paths, calls) {
       labelStyle: { fill: '#d4d4d8', fontSize: 9, fontWeight: 500 },
       labelBgPadding: [4, 2],
       labelBgBorderRadius: 4,
-      labelBgStyle: { fill: '#0a0a0a', fillOpacity: 0.9 },
+      labelBgStyle: { fill: '#2d2d2d', fillOpacity: 0.95 },
       style: { stroke: color, strokeWidth: 2 },
     })
   }
@@ -114,7 +114,7 @@ export default function AttackPathGraph({ paths, calls }) {
   }
 
   return (
-    <div className="h-[520px] w-full overflow-hidden rounded-lg border" style={{ background: '#000' }}>
+    <div className="h-[520px] w-full overflow-hidden rounded-lg border" style={{ background: '#1a1a1a' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -126,10 +126,10 @@ export default function AttackPathGraph({ paths, calls }) {
         minZoom={0.3}
         maxZoom={1.75}
       >
-        <Background color="#1a1a1a" gap={22} size={1} />
+        <Background color="#333" gap={22} size={1} />
         <Controls
           showInteractive={false}
-          className="!border-border [&>button]:!border-border [&>button]:!bg-[#0d0d0d] [&>button:hover]:!bg-[#1a1a1a] [&>button]:!fill-foreground"
+          className="!border-border [&>button]:!border-border [&>button]:!bg-[#2d2d2d] [&>button:hover]:!bg-[#3a3a3a] [&>button]:!fill-foreground"
         />
       </ReactFlow>
     </div>

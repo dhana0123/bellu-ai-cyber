@@ -19,12 +19,12 @@ export default function Shell({ children }) {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-card/40 md:flex">
+      <aside className="cg-sidebar sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-background">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <ShieldCheck className="h-4 w-4" />
           </div>
-          <span className="font-semibold tracking-tight">Bellu</span>
+          <span className="text-base font-semibold tracking-tight">Bellu</span>
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto p-3">
@@ -44,10 +44,10 @@ export default function Shell({ children }) {
                       end={it.end}
                       className={({ isActive }) =>
                         cn(
-                          'flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors',
+                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
                           isActive
-                            ? 'bg-accent text-foreground'
-                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                            ? 'bg-accent font-medium text-foreground'
+                            : 'font-normal text-muted-foreground hover:bg-accent hover:text-foreground',
                         )
                       }
                     >
