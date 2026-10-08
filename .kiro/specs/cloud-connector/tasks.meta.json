@@ -1,0 +1,192 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create `internal/store/migrations/00007_connector.sql`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460215350
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460327637
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460435590
+      }
+    ],
+    "2.1 Create `internal/connector/errors.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460219149
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460332631
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460437391
+      }
+    ],
+    "2.2 Create `internal/connector/connection.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460222569
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460449449
+      }
+    ],
+    "3.1 Create `internal/connector/capability/capability.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460226580
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460450993
+      }
+    ],
+    "4.1 Create `internal/connector/session/session.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460233250
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460452389
+      }
+    ],
+    "5.1 Create `internal/connector/provider/provider.go` and `internal/connector/provider/registry.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460239949
+      },
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460453792
+      }
+    ],
+    "6.1 Create `internal/connector/provider/aws/policy.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460248585
+      }
+    ],
+    "6.2 Create `internal/connector/provider/aws/setup.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460253030
+      }
+    ],
+    "6.3 Create `internal/connector/provider/aws/auth.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460260889
+      }
+    ],
+    "6.4 Create `internal/connector/provider/aws/verify.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460265490
+      }
+    ],
+    "6.5 Create `internal/connector/provider/aws/adapter.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460269338
+      }
+    ],
+    "7. Checkpoint": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460272649
+      }
+    ],
+    "8.1 Create `internal/connector/repository.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460276309
+      }
+    ],
+    "9.1 Create `internal/connector/discovery/session.go` and `internal/connector/discovery/orchestrator.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460279890
+      }
+    ],
+    "10.1 Create `internal/connector/manager.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460283584
+      }
+    ],
+    "11. Checkpoint": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460286596
+      }
+    ],
+    "12.1 Extend `backend/server/server.go` with a nil-safe connector": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460291224
+      }
+    ],
+    "12.2 Create `backend/server/connector_handlers.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460294404
+      }
+    ],
+    "12.3 Construct the manager in `backend/cmd/bellu-api/main.go`": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460297735
+      }
+    ],
+    "13. Final verification and formatting": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460301153
+      }
+    ],
+    "1. Add the connector database migration": [
+      {
+        "executionId": "8c7ac0a6-55e6-40a3-9f4e-defdbf411580",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791460438744
+      }
+    ]
+  }
+}

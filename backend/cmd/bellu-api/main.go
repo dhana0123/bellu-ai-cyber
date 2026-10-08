@@ -10,13 +10,23 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/bellu/bellu-ai-cyber/backend/server"
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/config"
+	"github.com/bellu/bellu-ai-cyber/internal/connector"
+	"github.com/bellu/bellu-ai-cyber/internal/connector/discovery"
+	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
+	connectoraws "github.com/bellu/bellu-ai-cyber/internal/connector/provider/aws"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
+	"github.com/bellu/bellu-ai-cyber/internal/source"
+	"github.com/bellu/bellu-ai-cyber/internal/source/steampipe"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 
@@ -69,7 +79,13 @@ func run() error {
 	}
 	authSvc := auth.NewService(authStore, auth.NewTokenManager(jwtSecret, 12*time.Hour))
 
-	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, AllowOrigin: allowOrigin})
+	// Cloud connector: register the AWS adapter (only phase-one provider) and
+	// build the provider-agnostic manager. The AWS adapter authenticates via STS
+	// using the default AWS credential chain for Bellu's own principal; the
+	// per-connection assumed-role credentials it mints are never persisted.
+	connMgr := buildConnector(st)
+
+	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, Connector: connMgr, AllowOrigin: allowOrigin})
 
 	httpSrv := &http.Server{
 		Addr:              addr,
@@ -90,6 +106,102 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return httpSrv.Shutdown(shutdownCtx)
+}
+
+// buildConnector wires the cloud-connector manager with the AWS adapter
+// registered. The adapter uses the default AWS credential chain for Bellu's own
+// principal to call STS AssumeRole; per-connection temporary credentials are
+// held in memory only and never persisted. Steampipe connection parameters come
+// from the environment with local-dev defaults.
+func buildConnector(st *store.Store) *connector.Manager {
+	reg := provider.NewRegistry()
+
+	awsAdapter := connectoraws.New(connectoraws.Options{
+		STS:               newSTSClient(),
+		BelluPrincipalARN: os.Getenv("BELLU_CONNECTOR_PRINCIPAL_ARN"),
+		SteampipeHost:     getenv("BELLU_STEAMPIPE_HOST", "steampipe"),
+		SteampipePort:     atoiOr(os.Getenv("BELLU_STEAMPIPE_PORT"), 9193),
+		SteampipeUser:     getenv("BELLU_STEAMPIPE_USER", "steampipe"),
+		SteampipePassword: os.Getenv("BELLU_STEAMPIPE_PASSWORD"),
+		SteampipeDB:       getenv("BELLU_STEAMPIPE_DB", "steampipe"),
+		SteampipeConn:     getenv("BELLU_STEAMPIPE_CONNECTION", "aws"),
+	})
+	reg.Register(awsAdapter)
+
+	repo := connector.NewRepository(st)
+	disc := discovery.New(discovery.Options{
+		Factory: steampipe.Factory,
+		Runner:  connectorPipelineRunner{},
+		Creds:   adapterCredentialer{adapter: awsAdapter},
+	})
+	return connector.NewManager(connector.Options{
+		Repo:       repo,
+		Registry:   reg,
+		Discovery:  disc,
+		ExternalID: connectoraws.GenerateExternalID,
+	})
+}
+
+// newSTSClient builds an STS client from the default AWS config. On failure
+// (e.g. no credentials locally) it returns nil; the AWS adapter still serves
+// setup generation and validation, and STS-backed verify/discover report an
+// authentication error at call time rather than panicking at startup.
+func newSTSClient() connectoraws.STSAPI {
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Printf("warning: AWS config unavailable (%v); connector STS calls will fail until configured", err)
+		return nil
+	}
+	return sts.NewFromConfig(cfg)
+}
+
+// adapterCredentialer adapts the AWS adapter's GetCredentials/session into the
+// discovery.Credentialer surface.
+type adapterCredentialer struct{ adapter *connectoraws.Adapter }
+
+func (a adapterCredentialer) Get(ctx context.Context, t provider.Target) (*provider.Credentials, error) {
+	return a.adapter.GetCredentials(ctx, t)
+}
+func (a adapterCredentialer) Revoke(connID int64) { a.adapter.Revoke(connID) }
+
+// connectorPipelineRunner runs the existing Bellu pipeline over a discovered
+// source. The full ingest->normalize->resolve->sync wiring lives in the bellu
+// CLI; here the runner drains the source so discovery completes. Wiring the
+// complete pipeline is deferred to the pipeline-integration follow-up.
+type connectorPipelineRunner struct{}
+
+func (connectorPipelineRunner) Run(ctx context.Context, src source.Source, runID string) error {
+	events, errs := src.Collect(ctx, source.Run{RunID: runID})
+	for events != nil || errs != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case _, ok := <-events:
+			if !ok {
+				events = nil
+			}
+		case err, ok := <-errs:
+			if !ok {
+				errs = nil
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func atoiOr(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return n
 }
 
 func getenv(key, def string) string {

@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
+	"github.com/bellu/bellu-ai-cyber/internal/connector"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
@@ -22,6 +23,7 @@ type Server struct {
 	store       *store.Store
 	graph       *graph.Writer // may be nil if Memgraph is unavailable
 	auth        *auth.Service
+	connector   *connector.Manager // may be nil if the connector is disabled
 	allowOrigin string
 }
 
@@ -30,6 +32,7 @@ type Options struct {
 	Store       *store.Store
 	Graph       *graph.Writer
 	Auth        *auth.Service
+	Connector   *connector.Manager
 	AllowOrigin string
 }
 
@@ -39,7 +42,7 @@ func New(opts Options) *Server {
 	if origin == "" {
 		origin = "*"
 	}
-	return &Server{store: opts.Store, graph: opts.Graph, auth: opts.Auth, allowOrigin: origin}
+	return &Server{store: opts.Store, graph: opts.Graph, auth: opts.Auth, connector: opts.Connector, allowOrigin: origin}
 }
 
 // Handler returns the Gin engine with all routes registered.
@@ -102,6 +105,9 @@ func (s *Server) Handler() http.Handler {
 
 			// Admin: users / roles / projects.
 			s.registerAdminRoutes(authed)
+
+			// Cloud connectors.
+			s.registerConnectorRoutes(authed)
 		}
 	}
 
