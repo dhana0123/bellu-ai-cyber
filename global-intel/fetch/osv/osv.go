@@ -29,7 +29,7 @@ const (
 
 	// DefaultBaseURL is the public OSV bulk-export bucket. Per-ecosystem
 	// archives live at "<base>/<Ecosystem>/all.zip".
-	DefaultBaseURL = "https://osv-vulns.storage.googleapis.com"
+	DefaultBaseURL = "https://osv-vulnerabilities.storage.googleapis.com"
 
 	// DefaultRateLimit is the sustained request rate applied to upstream
 	// requests (Requirement 1.5). OSV's bucket is generous, but a modest cap

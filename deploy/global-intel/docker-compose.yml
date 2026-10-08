@@ -1,0 +1,109 @@
+# Bellu GLOBAL INTELLIGENCE plane (local dev). This stack is fully independent
+# of the customer plane (deploy/docker-compose.yml): its own PostgreSQL
+# container, volume, database, credentials, and Docker network. This mirrors the
+# production boundary — separate customer RDS and Global Intelligence RDS — so
+# nothing here can accidentally read or write the customer security graph.
+#
+# Services:
+#   postgres-intel         dedicated intel PostgreSQL (host :5433, db bellu_intel)
+#   global-intel           the Global Intelligence pipeline/CLI (cmd/global-intel)
+#   opensearch             the search/index layer (:9200)
+#   opensearch-dashboards  index UI (:5601)
+#
+# Start independently:
+#   docker compose -f deploy/global-intel/docker-compose.yml up -d --build
+#
+# Then run the pipeline / migrations inside the long-running container:
+#   docker compose -f deploy/global-intel/docker-compose.yml exec global-intel global-intel migrate
+#   docker compose -f deploy/global-intel/docker-compose.yml exec global-intel global-intel run --mode daily
+#
+# The build context is the repository root (two levels up) so the Dockerfile can
+# see the whole Go module.
+
+name: bellu-intel
+
+services:
+  # Dedicated Global Intelligence PostgreSQL. SEPARATE container, volume
+  # (intel_pgdata — never pgdata), database (bellu_intel), and credentials
+  # (bellu_intel) from the customer postgres-customer. Published on host 5433 to
+  # avoid colliding with the customer Postgres on 5432; inside the network it
+  # still listens on the standard 5432, which is what global-intel connects to.
+  postgres-intel:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bellu_intel
+      POSTGRES_PASSWORD: ${INTEL_POSTGRES_PASSWORD:-bellu_intel}
+      POSTGRES_DB: bellu_intel
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - intel_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bellu_intel -d bellu_intel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # The search/index layer. Single-node, security plugin disabled (DEV ONLY) so
+  # no TLS/creds are needed on localhost. global-intel indexes into this via
+  # BELLU_SEARCH_ENDPOINT using the Docker service name (http://opensearch:9200).
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # OpenSearch Dashboards for eyeballing the index during dev.
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.13.0
+    depends_on:
+      - opensearch
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "127.0.0.1:5601:5601"
+
+  # The Global Intelligence pipeline/CLI (cmd/global-intel). Connects ONLY to
+  # the dedicated postgres-intel (never the customer Postgres) and indexes into
+  # the local OpenSearch by service name. Long-running so you can exec the
+  # migrate / run / update subcommands into it.
+  global-intel:
+    build:
+      # Repository root so the Dockerfile sees the whole Go module.
+      context: ../..
+      dockerfile: deploy/global-intel/Dockerfile.intel
+    depends_on:
+      postgres-intel:
+        condition: service_healthy
+      opensearch:
+        condition: service_started
+    environment:
+      # Point ONLY at the dedicated intel Postgres (service name + internal
+      # 5432). Do not point this back at the customer database.
+      BELLU_POSTGRES_DSN: postgres://bellu_intel:${INTEL_POSTGRES_PASSWORD:-bellu_intel}@postgres-intel:5432/bellu_intel?sslmode=disable
+      # Index into the local OpenSearch via the Docker service name (never
+      # localhost from inside the container). Folded indexing uses this on run.
+      BELLU_SEARCH_ENDPOINT: http://opensearch:9200
+    volumes:
+      - ../../testdata:/app/testdata:ro
+    entrypoint: ["sleep", "infinity"]
+
+volumes:
+  intel_pgdata:
+  opensearch_data:

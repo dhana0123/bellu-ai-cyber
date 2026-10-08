@@ -12,6 +12,7 @@ package epss
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,7 +32,7 @@ const source = "epss"
 // appends "epss_scores-YYYY-MM-DD.csv.gz" to this base. It is overridable via
 // Option so tests can point at a local test server and never touch the live
 // network.
-const DefaultBaseURL = "https://epss.cyentia.com/"
+const DefaultBaseURL = "https://epss.empiricalsecurity.com/"
 
 // dateLayout is the scored-date layout EPSS uses in its daily file names and
 // that this Fetcher uses for its cursor.
@@ -54,6 +55,18 @@ const maxBackfillDays = 30
 // 256 MiB is a generous ceiling that still protects against a hostile or
 // runaway response (upstream data is untrusted).
 const maxFileBytes = 256 << 20
+
+// maxLatestLookback bounds how far back a full (empty-cursor) fetch will walk
+// to find the most recent PUBLISHED daily file. EPSS publishes "today" with a
+// lag, so the current date can legitimately 404/403 for a day or two; rather
+// than fail the run we step back to the latest available day. It also makes the
+// fetcher robust to a skewed host clock.
+const maxLatestLookback = 7
+
+// errNotAvailable marks a daily file that the upstream does not have yet
+// (HTTP 404 or 403), as opposed to a genuine transport/5xx error. The
+// latest-day resolver treats it as "try an earlier day".
+var errNotAvailable = errors.New("epss: daily file not available")
 
 // Fetcher pulls FIRST EPSS daily score files and streams their raw bytes to a
 // RawStore. It satisfies fetch.Fetcher. The zero value is not usable;
@@ -148,10 +161,16 @@ func (f *Fetcher) Fetch(ctx context.Context, rawStore raw.RawStore, cur fetch.Cu
 
 	latest := f.now().UTC().Truncate(24 * time.Hour)
 
-	// Determine which scored dates to fetch, oldest first.
-	dates, err := f.datesToFetch(cur, latest)
-	if err != nil {
-		return fetch.FetchResult{Source: source}, err
+	// For a full (empty-cursor) fetch, "today" may not be published yet (EPSS
+	// lags, or the host clock is ahead), so resolve the latest AVAILABLE day by
+	// probing backward from latest. This keeps a daily run from failing just
+	// because the current date's file does not exist yet.
+	if cur == "" {
+		if avail, ok, err := f.resolveLatest(ctx, latest); err != nil {
+			return fetch.FetchResult{Source: source}, err
+		} else if ok {
+			latest = avail
+		}
 	}
 
 	result := fetch.FetchResult{
@@ -160,6 +179,11 @@ func (f *Fetcher) Fetch(ctx context.Context, rawStore raw.RawStore, cur fetch.Cu
 		FetchedAt: f.now(),
 	}
 
+	// Determine which scored dates to fetch, oldest first.
+	dates, err := f.datesToFetch(cur, latest)
+	if err != nil {
+		return fetch.FetchResult{Source: source}, err
+	}
 	// No newer day than the cursor: nothing to do (no-op).
 	if len(dates) == 0 {
 		return result, nil
@@ -177,6 +201,14 @@ func (f *Fetcher) Fetch(ctx context.Context, rawStore raw.RawStore, cur fetch.Cu
 
 		payload, err := f.get(ctx, f.fileURL(d))
 		if err != nil {
+			// A day the upstream has not published yet is tolerated during
+			// backfill (incremental cursor walks a date window): skip it and
+			// keep going rather than failing the whole run. A full (empty-
+			// cursor) fetch handles not-available via resolveLatest below, so
+			// by the time we get here the single resolved day exists.
+			if errors.Is(err, errNotAvailable) {
+				continue
+			}
 			return fetch.FetchResult{Source: source}, err
 		}
 
@@ -187,6 +219,12 @@ func (f *Fetcher) Fetch(ctx context.Context, rawStore raw.RawStore, cur fetch.Cu
 		}
 		refs = append(refs, ref)
 		newest = d
+	}
+
+	// Nothing resolved (every candidate day was unavailable): a no-op, not a
+	// failure — report no refs and keep the incoming cursor.
+	if len(refs) == 0 {
+		return result, nil
 	}
 
 	result.RawRefs = refs
@@ -227,6 +265,52 @@ func (f *Fetcher) datesToFetch(cur fetch.Cursor, latest time.Time) ([]time.Time,
 	return dates, nil
 }
 
+// resolveLatest walks back from `from` (inclusive) up to maxLatestLookback days
+// and returns the newest date whose daily file the upstream actually has. It
+// uses a cheap HEAD request so it does not download a file just to probe. ok is
+// false when no published file is found in the window (the caller then no-ops).
+func (f *Fetcher) resolveLatest(ctx context.Context, from time.Time) (time.Time, bool, error) {
+	for i := 0; i <= maxLatestLookback; i++ {
+		d := from.AddDate(0, 0, -i)
+		if f.limiter != nil {
+			if err := f.limiter.Wait(ctx); err != nil {
+				return time.Time{}, false, fmt.Errorf("epss: rate limiter: %w", err)
+			}
+		}
+		ok, err := f.headAvailable(ctx, f.fileURL(d))
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		if ok {
+			return d, true, nil
+		}
+	}
+	return time.Time{}, false, nil
+}
+
+// headAvailable reports whether a daily file exists via a HEAD request. A
+// 404/403 means "not published"; 200 means available; other statuses are a
+// transport error worth surfacing.
+func (f *Fetcher) headAvailable(ctx context.Context, url string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return false, fmt.Errorf("epss: build head request: %w", err)
+	}
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("epss: head %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusNotFound, http.StatusForbidden:
+		return false, nil
+	default:
+		return false, fmt.Errorf("epss: unexpected status %d probing %s", resp.StatusCode, url)
+	}
+}
+
 // fileURL builds the daily-file URL for a scored date, joining the base URL
 // with the date-stamped file name.
 func (f *Fetcher) fileURL(d time.Time) string {
@@ -254,6 +338,11 @@ func (f *Fetcher) get(ctx context.Context, url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
+		// The file for this date is not published yet (EPSS lags, or the host
+		// clock is ahead). Signal "try an earlier day" rather than failing.
+		return nil, fmt.Errorf("%w: status %d for %s", errNotAvailable, resp.StatusCode, url)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("epss: unexpected status %d fetching %s", resp.StatusCode, url)
 	}

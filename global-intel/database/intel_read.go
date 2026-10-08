@@ -65,6 +65,79 @@ func (s *IntelStore) AllVulns(ctx context.Context) ([]canonical.CanonicalVuln, e
 	return s.hydrateVulns(ctx, ids)
 }
 
+// VulnFilter bounds a ListVulns read. Zero-value fields are unset: an empty
+// Severity or Purl is not filtered on, KEV filters only when KEVOnly is set,
+// and a non-positive Limit falls back to defaultListLimit. The filter is
+// pushed into SQL so the list endpoint hydrates only the bounded page rather
+// than the whole corpus.
+type VulnFilter struct {
+	Severity canonical.Severity
+	Purl     string
+	KEVOnly  bool
+	HasKEV   bool
+	Limit    int
+}
+
+// defaultListLimit caps an unbounded ListVulns request so the list endpoint
+// never hydrates the entire corpus by accident.
+const defaultListLimit = 200
+
+// ListVulns returns a bounded, filtered page of canonical vulns for the read
+// API. Severity, KEV, and purl are applied as a SQL WHERE so the id set is
+// narrowed and LIMIT-ed before hydration — only the resulting page is hydrated
+// (base row + aliases + affected). This replaces the previous "AllVulns then
+// filter in Go" path that hydrated all rows and timed out on large corpora.
+//
+// AllVulns is retained for Rebuild/correlation, which legitimately need the
+// whole corpus; ListVulns is the API read path.
+func (s *IntelStore) ListVulns(ctx context.Context, f VulnFilter) ([]canonical.CanonicalVuln, error) {
+	limit := f.Limit
+	if limit <= 0 {
+		limit = defaultListLimit
+	}
+
+	// Build a parameterized WHERE from the set filters. Args are bound, never
+	// interpolated. When a purl is given, the id set is constrained to vulns
+	// that name the purl via a subquery against intel_affected_packages.
+	var (
+		where []string
+		args  []any
+	)
+	add := func(cond string, val any) {
+		args = append(args, val)
+		where = append(where, fmt.Sprintf(cond, len(args)))
+	}
+	if f.Severity != "" {
+		add("v.severity = $%d", string(f.Severity))
+	}
+	if f.HasKEV {
+		add("v.known_exploited = $%d", f.KEVOnly)
+	}
+	if f.Purl != "" {
+		add("EXISTS (SELECT 1 FROM intel_affected_packages ap WHERE ap.vuln_id = v.id AND ap.purl = $%d)", f.Purl)
+	}
+
+	query := "SELECT v.id FROM intel_vulnerabilities v"
+	if len(where) > 0 {
+		query += " WHERE " + where[0]
+		for _, w := range where[1:] {
+			query += " AND " + w
+		}
+	}
+	args = append(args, limit)
+	query += fmt.Sprintf(" ORDER BY v.id LIMIT $%d", len(args))
+
+	rows, err := s.store.Pool().Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("database: list vulns: %w", err)
+	}
+	ids, err := scanIDs(rows)
+	if err != nil {
+		return nil, fmt.Errorf("database: list vulns: %w", err)
+	}
+	return s.hydrateVulns(ctx, ids)
+}
+
 // VulnByID loads a single canonical vulnerability by its canonical id,
 // hydrated from the intel_* tables (base row + aliases + affected ranges). It
 // is the single-vuln read the correlate/score stages use to resolve the

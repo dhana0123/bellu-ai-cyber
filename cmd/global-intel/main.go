@@ -81,6 +81,8 @@ func main() {
 		err = runScore(ctx, args)
 	case "release":
 		err = runRelease(ctx, args)
+	case "migrate":
+		err = runMigrate(ctx, args)
 	case "run":
 		err = runPipeline(ctx, args)
 	case "update":
@@ -112,6 +114,7 @@ commands:
   correlate   dedup + upsert into the intel_* tables
   score       run the risk engine and upsert findings
   release     build, sign, or import a release bundle
+  migrate     apply database migrations to the intel store (bellu_intel)
   run         fetch -> parse -> normalize -> correlate
   update      index canonical intelligence into OpenSearch (search layer)
 
@@ -1073,4 +1076,32 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// runMigrate applies the embedded schema migrations against the configured
+// Postgres (BELLU_POSTGRES_DSN / bellu.yaml). The Global Intelligence plane
+// runs its own database (bellu_intel) separate from the customer store, so the
+// intel pipeline needs to be able to migrate it without the customer `bellu`
+// binary. The migration set is shared and idempotent; only the intel_* /
+// findings tables are used by this CLI, the rest sit empty and harmless.
+func runMigrate(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	cfgPath := fs.String("config", defaultConfigPath, "path to bellu.yaml")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		return err
+	}
+	st, err := store.Open(ctx, cfg.Postgres.DSN)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "migrations applied to %s\n", redactDSN(cfg.Postgres.DSN))
+	return nil
 }

@@ -1,16 +1,24 @@
-# Bellu local stack. Each major infrastructure service runs in its own
-# container; the Go application is a single bellu-core container.
+# Bellu CUSTOMER plane (local dev). This stack holds the customer / AI Security
+# Graph services only. The Global Intelligence plane is a separate stack with
+# its own PostgreSQL, OpenSearch, and pipeline container:
 #
-#   bellu-core   the Go application (ingest/normalize/resolve/sync/run)
-#   bellu-api    the Go HTTP control-panel API (:8080)
-#   frontend     the React control panel served by nginx (:8081), proxies /api
-#   postgres     evidence + normalized history
-#   memgraph     the AI Security Graph
-#   memgraph-lab graph UI
-#   steampipe    cloud/K8s collector (added/used from Task 6)
-#   zeek         network sensor (added/used from Task 11)
+#   docker compose -f deploy/global-intel/docker-compose.yml up -d --build
 #
-# Control panel: `docker compose up -d` then open http://localhost:8081
+# Keeping the two planes in separate compose projects mirrors the production
+# boundary (separate customer RDS and Global Intelligence RDS), so neither plane
+# shares a database, volume, credentials, or network with the other.
+#
+# Services in this file:
+#   postgres-customer  evidence + normalized history + AI Security Graph store
+#   memgraph           the AI Security Graph
+#   memgraph-lab       graph UI
+#   steampipe          cloud/K8s collector (collectors profile)
+#   zeek               network sensor (collectors profile)
+#   bellu-core         the Go application (ingest/normalize/resolve/sync/run)
+#   bellu-api          the Go HTTP control-panel API (:8080)
+#   frontend           the React control panel served by nginx (:80), proxies /api
+#
+# Start: `docker compose -f deploy/docker-compose.yml up -d` then open http://localhost:80
 #
 # Nothing binds to 0.0.0.0 implicitly beyond the published ports below, and all
 # datastores have auth enabled.
@@ -18,7 +26,11 @@
 name: bellu
 
 services:
-  postgres:
+  # Customer PostgreSQL. Dedicated to customer / security-graph data (evidence,
+  # normalized history, resolution, RBAC, findings). The Global Intelligence
+  # plane uses its OWN postgres-intel container in the global-intel compose
+  # file; the two never share a database or volume.
+  postgres-customer:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: bellu
@@ -51,7 +63,7 @@ services:
       MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
       MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
     healthcheck:
-      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --output-format=csv || exit 1"]
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | mgconsole --username=$${MEMGRAPH_USER:-bellu} --password=$${MEMGRAPH_PASSWORD:-bellu} --output-format=csv || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 15
@@ -66,46 +78,6 @@ services:
       QUICK_CONNECT_MG_HOST: memgraph
       QUICK_CONNECT_MG_PORT: 7687
 
-  # Local search/index layer for the global-intel plane. Single-node, security
-  # plugin disabled (DEV ONLY) so no TLS/creds are needed on localhost. The
-  # global-intel pipeline/CLI index into this via BELLU_SEARCH_ENDPOINT. Opt-in
-  # via the "search" profile so the base `make up` stays lightweight.
-  opensearch:
-    image: opensearchproject/opensearch:2.13.0
-    environment:
-      - discovery.type=single-node
-      - bootstrap.memory_lock=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
-      - DISABLE_SECURITY_PLUGIN=true
-      - DISABLE_INSTALL_DEMO_CONFIG=true
-    ulimits:
-      memlock: { soft: -1, hard: -1 }
-      nofile: { soft: 65536, hard: 65536 }
-    ports:
-      - "127.0.0.1:9200:9200"
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    profiles:
-      - search
-
-  # OpenSearch Dashboards (optional) for eyeballing the index during dev.
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.13.0
-    depends_on:
-      - opensearch
-    environment:
-      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    ports:
-      - "127.0.0.1:5601:5601"
-    profiles:
-      - search
-
   steampipe:
     image: turbot/steampipe:latest
     # The service exposes Postgres on 9193. Connections and read-only creds are
@@ -114,7 +86,9 @@ services:
     ports:
       - "127.0.0.1:9193:9193"
     volumes:
-      - ./steampipe:/home/steampipe/.steampipe/config:ro
+      # Mount only the connection config file (read-only); let steampipe own its
+      # config dir so it can write its workspaces.spc.sample on boot.
+      - ./steampipe/aws.spc:/home/steampipe/.steampipe/config/aws.spc:ro
     profiles:
       - collectors
 
@@ -134,54 +108,34 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     depends_on:
-      postgres:
+      postgres-customer:
         condition: service_healthy
       memgraph:
         condition: service_started
     environment:
-      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres:5432/bellu?sslmode=disable
+      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres-customer:5432/bellu?sslmode=disable
       BELLU_MEMGRAPH_URI: bolt://memgraph:7687
       BELLU_MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
       BELLU_MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
     volumes:
       - ../testdata:/app/testdata:ro
       - ../out:/app/out
-    # Long-running by default so you can exec bellu subcommands into it.
-    command: ["sleep", "infinity"]
-
-  # The Global Intelligence pipeline/CLI (cmd/global-intel). Shares the Postgres
-  # evidence/intel store with bellu-core and indexes into the local OpenSearch
-  # when the "search" profile is up (BELLU_SEARCH_ENDPOINT). Long-running so you
-  # can `docker compose exec global-intel global-intel run --mode daily`, etc.
-  global-intel:
-    build:
-      context: ..
-      dockerfile: deploy/global-intel/Dockerfile.intel
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres:5432/bellu?sslmode=disable
-      # Set to the local OpenSearch when the "search" profile is up; folded
-      # indexing is skipped when this is empty.
-      BELLU_SEARCH_ENDPOINT: ${BELLU_SEARCH_ENDPOINT:-http://opensearch:9200}
-    volumes:
-      - ../testdata:/app/testdata:ro
+    # Long-running by default so you can exec bellu subcommands into it. The
+    # image entrypoint is the `bellu` binary, so override the entrypoint (not
+    # command) to idle — otherwise "sleep" is parsed as a bellu subcommand.
     entrypoint: ["sleep", "infinity"]
-    profiles:
-      - global-intel
 
   bellu-api:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
     depends_on:
-      postgres:
+      postgres-customer:
         condition: service_healthy
       memgraph:
         condition: service_started
     environment:
-      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres:5432/bellu?sslmode=disable
+      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres-customer:5432/bellu?sslmode=disable
       BELLU_MEMGRAPH_URI: bolt://memgraph:7687
       BELLU_MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
       BELLU_MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
@@ -209,4 +163,3 @@ services:
 volumes:
   pgdata:
   memgraph_data:
-  opensearch_data:

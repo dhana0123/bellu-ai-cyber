@@ -99,43 +99,32 @@ func (s *Server) handleFinding(c *gin.Context) {
 
 // handleIntelVulns serves GET /api/intel/vulnerabilities, returning canonical
 // vulnerabilities filterable by severity, kev, and purl (Requirement 13.3).
-// When purl is given the purl-keyed read is used; otherwise the full corpus is
-// scanned. Severity and kev are applied in Go over the hydrated set.
+// All three filters plus the limit are pushed into SQL by ListVulns so only the
+// bounded result page is hydrated — the previous "scan the whole corpus then
+// filter in Go" path hydrated every vuln and timed out on large corpora.
 func (s *Server) handleIntelVulns(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	intel := database.New(s.store)
-
-	var (
-		vulns []canonical.CanonicalVuln
-		err   error
-	)
-	if purl := c.Query("purl"); purl != "" {
-		vulns, err = intel.VulnsByPurl(ctx, purl)
-	} else {
-		vulns, err = intel.AllVulns(ctx)
+	kevOnly, hasKEV := queryBool(c, "kev")
+	filter := database.VulnFilter{
+		Severity: canonical.Severity(c.Query("severity")),
+		Purl:     c.Query("purl"),
+		KEVOnly:  kevOnly,
+		HasKEV:   hasKEV,
+		Limit:    queryInt(c, "limit", 200),
 	}
+
+	vulns, err := database.New(s.store).ListVulns(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	severity := canonical.Severity(c.Query("severity"))
-	kevOnly, hasKEV := queryBool(c, "kev")
-
-	out := make([]canonical.CanonicalVuln, 0, len(vulns))
-	for _, v := range vulns {
-		if severity != "" && v.Severity != severity {
-			continue
-		}
-		if hasKEV && v.KnownExploited != kevOnly {
-			continue
-		}
-		out = append(out, v)
+	if vulns == nil {
+		vulns = []canonical.CanonicalVuln{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"vulnerabilities": out})
+	c.JSON(http.StatusOK, gin.H{"vulnerabilities": vulns})
 }
 
 // handleIntelVuln serves GET /api/intel/vulnerabilities/:id, returning the
