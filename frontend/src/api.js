@@ -70,6 +70,26 @@ export const api = {
     ),
   explainEdge: (id) => get(`/api/edges/explain?id=${id}`),
 
+  // findings / intelligence
+  findings: (filters = {}) => {
+    const q = new URLSearchParams()
+    if (filters.severity) q.set('severity', filters.severity)
+    if (filters.status) q.set('status', filters.status)
+    if (filters.asset_kind) q.set('asset_kind', filters.asset_kind)
+    q.set('limit', filters.limit ?? 200)
+    return get(`/api/findings?${q.toString()}`)
+  },
+  finding: (id) => get(`/api/findings/${id}`),
+  intelVulns: (filters = {}) => {
+    const q = new URLSearchParams()
+    if (filters.severity) q.set('severity', filters.severity)
+    if (filters.kev !== undefined && filters.kev !== '') q.set('kev', filters.kev)
+    if (filters.purl) q.set('purl', filters.purl)
+    const qs = q.toString()
+    return get(`/api/intel/vulnerabilities${qs ? `?${qs}` : ''}`)
+  },
+  intelVuln: (id) => get(`/api/intel/vulnerabilities/${encodeURIComponent(id)}`),
+
   // admin
   users: () => get('/api/users'),
   createUser: (payload) => post('/api/users', payload),

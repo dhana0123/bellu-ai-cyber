@@ -1,0 +1,745 @@
+{
+  "pbtResults": {
+    "3.2 Write unit tests for content-addressed storage": {
+      "status": "passed",
+      "lastRunTimestamp": 1791436195059
+    },
+    "8.2 Write property-based test for dedup": {
+      "status": "passed",
+      "lastRunTimestamp": 1791436876674
+    }
+  },
+  "executionHistory": {
+    "1.1 Implement `CanonicalVuln`, `AffectedPackage`, `CVSS`, `Severity`, `SemverRange` and `Validate`/`NormalizeAlias`/`DedupeAliases` in `bellu-global-intelligence/canonical/model.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435572191
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435683233
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435907276
+      }
+    ],
+    "2.1 Create migration `internal/store/migrations/00005_intel.sql`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435576062
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435929484
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436058279
+      }
+    ],
+    "2.2 Implement idempotent `intel_*` upserts in `bellu-global-intelligence/database/intel_store.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435579070
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436227073
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436455283
+      }
+    ],
+    "3.1 Define the `RawStore` interface and `RawRef` in `bellu-global-intelligence/raw/raw.go` and the filesystem implementation in `raw/fsstore.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435581462
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435684852
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435908814
+      }
+    ],
+    "4.1 Define `Fetcher`, `Cursor`, `FetchResult` in `bellu-global-intelligence/fetch/fetch.go` and `Parser`, `SourceRecord` in `bellu-global-intelligence/parser/parser.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435584091
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435686245
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435910614
+      }
+    ],
+    "5.1 Implement the OSV fetcher in `bellu-global-intelligence/fetch/osv/osv.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435586961
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436228694
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436452474
+      }
+    ],
+    "5.2 Implement the KEV and EPSS fetchers in `bellu-global-intelligence/fetch/kev/kev.go` and `fetch/epss/epss.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435590355
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436230409
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436453912
+      }
+    ],
+    "6.1 Implement the OSV parser in `bellu-global-intelligence/parser/osv/osv.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435593518
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436232059
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436450984
+      }
+    ],
+    "6.2 Implement the KEV and EPSS parsers in `bellu-global-intelligence/parser/kev/kev.go` and `parser/epss/epss.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435596217
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436233834
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436449245
+      }
+    ],
+    "7.1 Implement the `Canonicalizer` interface and per-source implementations in `bellu-global-intelligence/canonical/canonical.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435599472
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436469534
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436716595
+      }
+    ],
+    "8.1 Implement the `Deduper` (union-find over aliases) in `bellu-global-intelligence/correlation/dedup.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435602733
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436471090
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436718234
+      }
+    ],
+    "9. Checkpoint — Phase 1 pipeline components": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435605874
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436971074
+      }
+    ],
+    "10.1 Implement `cmd/bellu-intel/main.go` with subcommands and config loading": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435609002
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436972830
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437215455
+      }
+    ],
+    "10.2 Wire `run` to execute fetch → parse → normalize → correlate in sequence": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435612003
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437231609
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437583994
+      }
+    ],
+    "11.1 Create migration `internal/store/migrations/00006_findings.sql`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435614684
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436472534
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436727215
+      }
+    ],
+    "12.1 Add read-only `ReachesAsset(ctx, canonicalID) (bool, error)` to `internal/graph/query.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435617662
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436474173
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436719954
+      }
+    ],
+    "13.1 Implement `RiskScorer`, `RiskContext`, `RiskResult` in `internal/risk/score.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435620352
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436974069
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437218674
+      }
+    ],
+    "14.1 Implement purl/version/image/AI matching helpers in `bellu-global-intelligence/correlation/match.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435623355
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436975555
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437217104
+      }
+    ],
+    "14.2 Implement the `Matcher` and `Candidate` emission in `internal/intelcorrelate/matcher.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435626898
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437233144
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437580535
+      }
+    ],
+    "14.3 Enrich the graph through the allow-listed paths without fabricating evidence": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435630372
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437597874
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437786596
+      }
+    ],
+    "15.1 Implement `Finding`, `Status`, and store access in `internal/finding/finding.go` and `internal/finding/store.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435633643
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437234595
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437582100
+      }
+    ],
+    "16.1 Extend `cmd/bellu-intel` `correlate` to run the Matcher and `score` to run the Risk Engine and upsert findings": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435636782
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438079040
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438353394
+      }
+    ],
+    "17. Checkpoint — correlation, risk, and findings": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435639951
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438372134
+      }
+    ],
+    "18.1 Implement handlers in `backend/server/findings_handlers.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435642961
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438414134
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438698774
+      }
+    ],
+    "18.2 Register the findings group gated by `findings:read` in `backend/server/server.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435646191
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438708575
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438894194
+      }
+    ],
+    "19.1 Add `frontend/src/pages/Findings.jsx` and the API calls in `frontend/src/api.js`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435649662
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438710185
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438895917
+      }
+    ],
+    "19.2 Add the permission-gated Findings nav entry in `frontend/src/config/nav.js`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435652420
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438908025
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439320515
+      }
+    ],
+    "20. Checkpoint — API and UI": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435654909
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439366155
+      }
+    ],
+    "21.1 Implement fetchers, parsers, and canonical mappings for MITRE ATLAS, OWASP GenAI, AVID, and MCP": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435657547
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439395475
+      }
+    ],
+    "22.1 Implement the release builder in `bellu-global-intelligence/release/release.go`": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435660644
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439396779
+      }
+    ],
+    "22.2 Implement `bellu-intel release import` with verification": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435663672
+      }
+    ],
+    "23.1 Define `bellu-global-intelligence/search/search.go` as an interface only": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435666580
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439398355
+      }
+    ],
+    "24. Final checkpoint — Ensure all tests pass": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435669452
+      }
+    ],
+    "1. Define canonical model validation and reuse the existing version comparator": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435912120
+      }
+    ],
+    "3. Implement the RawStore": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435913863
+      }
+    ],
+    "4. Define the fetch and parser interfaces with reserved stubs": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791435915913
+      }
+    ],
+    "1.2 Run and extend the existing canonical unit tests": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436094999
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436215274
+      }
+    ],
+    "3.2 Write unit tests for content-addressed storage": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436096774
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436217239
+      }
+    ],
+    "2. Append the intel Postgres migration and intel store access": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436458334
+      }
+    ],
+    "6.3 Write golden-file parser tests": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436475909
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436723769
+      }
+    ],
+    "7. Implement per-source canonicalizers": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436721924
+      }
+    ],
+    "8. Implement dedup / identifier linking": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436725355
+      }
+    ],
+    "12. Implement the Attack Path reachability input": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436728993
+      }
+    ],
+    "6. Implement Phase 1 parsers (OSV, KEV, EPSS)": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436730644
+      }
+    ],
+    "11. Append the findings migration": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436732394
+      }
+    ],
+    "8.2 Write property-based test for dedup": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436754180
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436955015
+      }
+    ],
+    "2.3 Write testcontainers integration test for intel persistence": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436755659
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791436953354
+      }
+    ],
+    "13. Implement the Risk Engine": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437222004
+      }
+    ],
+    "13.2 Write property-based test for risk scoring": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437236100
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437579155
+      }
+    ],
+    "15. Implement the findings lifecycle store": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437585874
+      }
+    ],
+    "10. Build the bellu-intel CLI and wire the ingestion pipeline": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437587574
+      }
+    ],
+    "14. Implement the Intelligence Matcher": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437789659
+      }
+    ],
+    "14.4 Write testcontainers + Memgraph integration test for correlation": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437803125
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438057002
+      }
+    ],
+    "15.2 Write integration test for findings lifecycle and re-run idempotence": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791437804129
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438055249
+      }
+    ],
+    "16. Wire correlate/score into the bellu-intel CLI": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438356824
+      }
+    ],
+    "18. Implement the Findings and Intelligence API": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438897594
+      }
+    ],
+    "18.3 Write handler tests for API filters and permission gating": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791438909534
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439319124
+      }
+    ],
+    "19. Implement the Findings UI page": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791439323884
+      }
+    ]
+  }
+}

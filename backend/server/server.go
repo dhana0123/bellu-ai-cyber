@@ -82,6 +82,16 @@ func (s *Server) Handler() http.Handler {
 				gr.GET("/graph/ai-calls", s.handleAICalls)
 			}
 
+			// Findings / intelligence reads require findings:read.
+			fr := authed.Group("")
+			fr.Use(s.auth.RequirePermission(auth.PermFindingsRead))
+			{
+				fr.GET("/findings", s.handleFindings)
+				fr.GET("/findings/:id", s.handleFinding)
+				fr.GET("/intel/vulnerabilities", s.handleIntelVulns)
+				fr.GET("/intel/vulnerabilities/:id", s.handleIntelVuln)
+			}
+
 			// Investigation.
 			inv := authed.Group("")
 			inv.Use(s.auth.RequirePermission(auth.PermInvestigate))

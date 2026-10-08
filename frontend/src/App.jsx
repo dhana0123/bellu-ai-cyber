@@ -7,6 +7,7 @@ import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Entities from './pages/Entities.jsx'
 import AttackPaths from './pages/AttackPaths.jsx'
+import Findings from './pages/Findings.jsx'
 import Explain from './pages/Explain.jsx'
 import UsersPage from './pages/Users.jsx'
 import ProjectsPage from './pages/Projects.jsx'
@@ -47,6 +48,7 @@ export default function App() {
       <Route path="/" element={<RequireAuth permission="graph:read"><Dashboard /></RequireAuth>} />
       <Route path="/entities" element={<RequireAuth permission="graph:read"><Entities /></RequireAuth>} />
       <Route path="/attack-paths" element={<RequireAuth permission="graph:read"><AttackPaths /></RequireAuth>} />
+      <Route path="/findings" element={<RequireAuth permission="findings:read"><Findings /></RequireAuth>} />
       <Route path="/explain" element={<RequireAuth permission="investigate"><Explain /></RequireAuth>} />
       <Route path="/users" element={<RequireAuth permission="users:read"><UsersPage /></RequireAuth>} />
       <Route path="/projects" element={<RequireAuth permission="projects:read"><ProjectsPage /></RequireAuth>} />
