@@ -45,6 +45,7 @@ import (
 	osvparse "github.com/bellu/bellu-ai-cyber/global-intel/parser/osv"
 	"github.com/bellu/bellu-ai-cyber/global-intel/raw"
 	"github.com/bellu/bellu-ai-cyber/global-intel/release"
+	"github.com/bellu/bellu-ai-cyber/global-intel/search"
 	"github.com/bellu/bellu-ai-cyber/internal/config"
 	"github.com/bellu/bellu-ai-cyber/internal/finding"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
@@ -82,6 +83,8 @@ func main() {
 		err = runRelease(ctx, args)
 	case "run":
 		err = runPipeline(ctx, args)
+	case "update":
+		err = runUpdate(ctx, args)
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -110,6 +113,7 @@ commands:
   score       run the risk engine and upsert findings
   release     build, sign, or import a release bundle
   run         fetch -> parse -> normalize -> correlate
+  update      index canonical intelligence into OpenSearch (search layer)
 
 run "global-intel <command> -h" for command flags
 `)
@@ -484,6 +488,77 @@ func aiCriticality(kind model.Kind) float64 {
 	}
 }
 
+// runUpdate indexes the canonical intelligence corpus into the OpenSearch
+// search/index layer (Phase 3). It reads the vulnerabilities from the
+// authoritative Postgres store and upserts them into the index at
+// BELLU_SEARCH_ENDPOINT (or --endpoint). The index is a derived, disposable
+// view of Postgres: --rebuild drops and reindexes it from scratch; otherwise it
+// ensures the index exists and upserts the current corpus idempotently.
+//
+// This command touches ONLY the global-intel search index and the intel_*
+// read path. It does not open or modify the customer graph.
+func runUpdate(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	cfgPath := fs.String("config", defaultConfigPath, "path to bellu.yaml")
+	endpoint := fs.String("endpoint", "", "OpenSearch endpoint (default: $BELLU_SEARCH_ENDPOINT)")
+	index := fs.String("index", search.DefaultIndex, "OpenSearch index name")
+	rebuild := fs.Bool("rebuild", false, "drop and reindex the whole corpus from Postgres")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		return err
+	}
+
+	ep := strings.TrimSpace(*endpoint)
+	if ep == "" {
+		ep = strings.TrimSpace(os.Getenv("BELLU_SEARCH_ENDPOINT"))
+	}
+	if ep == "" {
+		return fmt.Errorf("update: no OpenSearch endpoint (set --endpoint or BELLU_SEARCH_ENDPOINT)")
+	}
+
+	st, err := store.Open(ctx, cfg.Postgres.DSN)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	idx, err := search.NewOpenSearch(ep, search.WithIndex(*index))
+	if err != nil {
+		return err
+	}
+
+	intel := database.New(st)
+	src := search.NewStoreSource(intel)
+
+	fmt.Fprintf(os.Stderr, "update: postgres=%s opensearch=%s index=%s rebuild=%v\n",
+		redactDSN(cfg.Postgres.DSN), ep, *index, *rebuild)
+
+	if *rebuild {
+		if err := idx.Rebuild(ctx, src); err != nil {
+			return fmt.Errorf("update: rebuild index: %w", err)
+		}
+		fmt.Fprintln(os.Stderr, "  rebuilt search index from the Postgres corpus")
+		return nil
+	}
+
+	if err := idx.EnsureIndex(ctx); err != nil {
+		return fmt.Errorf("update: ensure index: %w", err)
+	}
+	docs, err := src.Documents(ctx)
+	if err != nil {
+		return fmt.Errorf("update: load corpus: %w", err)
+	}
+	if err := idx.Index(ctx, docs); err != nil {
+		return fmt.Errorf("update: index corpus: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "  indexed %d vulnerabilit(ies) into %s\n", len(docs), *index)
+	return nil
+}
+
 // runRelease builds, signs, or imports a release bundle. It dispatches on a
 // release sub-command:
 //
@@ -665,6 +740,20 @@ func runPipeline(ctx context.Context, args []string) error {
 	defer st.Close()
 
 	intel := database.New(st)
+
+	// Fold search indexing into the run when an endpoint is configured. The
+	// Fargate task definition sets BELLU_SEARCH_ENDPOINT, so production runs
+	// index automatically; with no endpoint (local dev) indexing is skipped.
+	var indexer pipelineIndexer
+	searchEndpoint := strings.TrimSpace(os.Getenv("BELLU_SEARCH_ENDPOINT"))
+	if searchEndpoint != "" {
+		osIdx, ierr := search.NewOpenSearch(searchEndpoint)
+		if ierr != nil {
+			return fmt.Errorf("run: configure search index: %w", ierr)
+		}
+		indexer = osIdx
+	}
+
 	pl := &pipeline{
 		mode:     *mode,
 		rawDir:   *rawDir,
@@ -674,15 +763,25 @@ func runPipeline(ctx context.Context, args []string) error {
 		parsers:  newParsers(),
 		canons:   newCanonicalizers(),
 		deduper:  correlation.NewDeduper(),
+		indexer:  indexer,
 	}
 
-	fmt.Fprintf(os.Stderr, "run: mode=%s raw-dir=%s sources=%v postgres=%s\n",
-		*mode, *rawDir, phaseOneSources, redactDSN(cfg.Postgres.DSN))
+	fmt.Fprintf(os.Stderr, "run: mode=%s raw-dir=%s sources=%v postgres=%s search=%v\n",
+		*mode, *rawDir, phaseOneSources, redactDSN(cfg.Postgres.DSN), searchEndpoint != "")
 	return pl.run(ctx)
 }
 
+// pipelineIndexer is the slice of the search backend the pipeline needs to fold
+// indexing into a run: ensure the index exists, then upsert the just-persisted
+// documents. *search.OpenSearchIndexer satisfies it; a nil indexer disables the
+// step (local dev with no BELLU_SEARCH_ENDPOINT), and tests inject a fake.
+type pipelineIndexer interface {
+	EnsureIndex(ctx context.Context) error
+	Index(ctx context.Context, docs []search.Document) error
+}
+
 // pipeline carries the components the fetch -> parse -> normalize -> correlate
-// sequence needs so the per-source and per-stage helpers stay small.
+// -> index sequence needs so the per-source and per-stage helpers stay small.
 type pipeline struct {
 	mode   string
 	rawDir string
@@ -693,6 +792,9 @@ type pipeline struct {
 	parsers  map[string]parser.Parser
 	canons   map[string]canonical.Canonicalizer
 	deduper  correlation.Deduper
+	// indexer updates the OpenSearch search layer after the authoritative
+	// Postgres write. Nil disables indexing (no search endpoint configured).
+	indexer pipelineIndexer
 }
 
 // run drives every Phase-1 source through fetch -> parse -> normalize, records
@@ -747,8 +849,36 @@ func (p *pipeline) run(ctx context.Context) error {
 		fmt.Fprintf(os.Stderr, "  correlate: recorded EPSS history for %s\n", epssScoredOn.Format("2006-01-02"))
 	}
 
+	// Index the just-persisted corpus into the OpenSearch search layer, in this
+	// same task — no separate scheduled job. Ordering matters for atomicity:
+	// Postgres is the system of record and the index is a derived, disposable
+	// view, so we index only AFTER the authoritative write has committed. If
+	// indexing fails the Postgres state is already consistent; we surface the
+	// failure (INDEX_FAILED) so the task is marked failed and the next run (or
+	// `update --rebuild`) catches the index up, but we never corrupt the system
+	// of record. Indexing is skipped when no search endpoint is configured.
+	if p.indexer != nil {
+		if err := p.indexCorpus(ctx, deduped); err != nil {
+			return fmt.Errorf("run: %s: %w", statusIndexFailed, err)
+		}
+		fmt.Fprintf(os.Stderr, "  index: updated search layer with %d vulnerabilit(ies)\n", len(deduped))
+	}
+
 	if len(sourceErrs) > 0 {
 		return fmt.Errorf("run: %d source(s) failed: %w", len(sourceErrs), errors.Join(sourceErrs...))
+	}
+	return nil
+}
+
+// indexCorpus ensures the search index exists and upserts the deduped canonical
+// set into it. It indexes exactly what was persisted this run (not a full
+// rebuild), so the search layer tracks the system of record incrementally.
+func (p *pipeline) indexCorpus(ctx context.Context, vulns []canonical.CanonicalVuln) error {
+	if err := p.indexer.EnsureIndex(ctx); err != nil {
+		return fmt.Errorf("ensure index: %w", err)
+	}
+	if err := p.indexer.Index(ctx, search.FromCanonicalMany(vulns)); err != nil {
+		return fmt.Errorf("index corpus: %w", err)
 	}
 	return nil
 }

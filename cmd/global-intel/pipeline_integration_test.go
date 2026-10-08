@@ -173,7 +173,7 @@ func fixtureServer(t *testing.T) *httptest.Server {
 // server; the parsers, canonicalizers, deduper, and intel store are the real
 // Phase-1 components, so the test exercises the genuine
 // fetch -> parse -> normalize -> correlate path.
-func newTestPipeline(t *testing.T, srv *httptest.Server, rawDir string, intel *database.IntelStore) *pipeline {
+func newTestPipeline(t *testing.T, srv *httptest.Server, rawDir string, intel *database.IntelStore, indexer pipelineIndexer) *pipeline {
 	t.Helper()
 
 	rs, err := raw.NewFSStore(rawDir)
@@ -212,6 +212,7 @@ func newTestPipeline(t *testing.T, srv *httptest.Server, rawDir string, intel *d
 		parsers:  newParsers(),
 		canons:   newCanonicalizers(),
 		deduper:  correlation.NewDeduper(),
+		indexer:  indexer,
 	}
 }
 
@@ -269,12 +270,27 @@ func TestPhaseOnePipelineIdempotent(t *testing.T) {
 	// is also exercised for idempotence (identical bytes -> same ref, no churn).
 	rawDir := t.TempDir()
 
-	first := newTestPipeline(t, srv, rawDir, intel)
+	indexer := &fakePipelineIndexer{}
+	first := newTestPipeline(t, srv, rawDir, intel, indexer)
 	if err := first.run(ctx); err != nil {
 		t.Fatalf("first pipeline run: %v", err)
 	}
 
 	before := snapshotPipelineCounts(t, st)
+
+	// Folded indexing: a successful run must have ensured the index and indexed
+	// the persisted deduped corpus in the same task (no separate job). The
+	// indexed set equals the vulns upserted this run.
+	if indexer.ensured == 0 {
+		t.Fatal("expected the run to ensure the search index")
+	}
+	totalIndexed := 0
+	for _, batch := range indexer.indexedDocs {
+		totalIndexed += len(batch)
+	}
+	if totalIndexed != before.vulns {
+		t.Fatalf("indexed %d docs, want %d (the persisted corpus)", totalIndexed, before.vulns)
+	}
 
 	// Fixtures contribute two canonical vulns after dedup (CVE-2024-9999 merged
 	// across osv+kev+epss, and CVE-2024-8888 from osv+epss). Guard the baseline
@@ -335,7 +351,7 @@ func TestPhaseOnePipelineIdempotent(t *testing.T) {
 
 	// Second end-to-end run over the SAME fixtures. A fresh pipeline (reusing
 	// the same raw dir and store) mirrors a scheduled re-run of the CLI.
-	second := newTestPipeline(t, srv, rawDir, intel)
+	second := newTestPipeline(t, srv, rawDir, intel, &fakePipelineIndexer{})
 	if err := second.run(ctx); err != nil {
 		t.Fatalf("second pipeline run: %v", err)
 	}

@@ -66,6 +66,46 @@ services:
       QUICK_CONNECT_MG_HOST: memgraph
       QUICK_CONNECT_MG_PORT: 7687
 
+  # Local search/index layer for the global-intel plane. Single-node, security
+  # plugin disabled (DEV ONLY) so no TLS/creds are needed on localhost. The
+  # global-intel pipeline/CLI index into this via BELLU_SEARCH_ENDPOINT. Opt-in
+  # via the "search" profile so the base `make up` stays lightweight.
+  opensearch:
+    image: opensearchproject/opensearch:2.13.0
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    profiles:
+      - search
+
+  # OpenSearch Dashboards (optional) for eyeballing the index during dev.
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.13.0
+    depends_on:
+      - opensearch
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "127.0.0.1:5601:5601"
+    profiles:
+      - search
+
   steampipe:
     image: turbot/steampipe:latest
     # The service exposes Postgres on 9193. Connections and read-only creds are
@@ -109,6 +149,28 @@ services:
     # Long-running by default so you can exec bellu subcommands into it.
     command: ["sleep", "infinity"]
 
+  # The Global Intelligence pipeline/CLI (cmd/global-intel). Shares the Postgres
+  # evidence/intel store with bellu-core and indexes into the local OpenSearch
+  # when the "search" profile is up (BELLU_SEARCH_ENDPOINT). Long-running so you
+  # can `docker compose exec global-intel global-intel run --mode daily`, etc.
+  global-intel:
+    build:
+      context: ..
+      dockerfile: deploy/global-intel/Dockerfile.intel
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      BELLU_POSTGRES_DSN: postgres://bellu:${POSTGRES_PASSWORD:-bellu}@postgres:5432/bellu?sslmode=disable
+      # Set to the local OpenSearch when the "search" profile is up; folded
+      # indexing is skipped when this is empty.
+      BELLU_SEARCH_ENDPOINT: ${BELLU_SEARCH_ENDPOINT:-http://opensearch:9200}
+    volumes:
+      - ../testdata:/app/testdata:ro
+    entrypoint: ["sleep", "infinity"]
+    profiles:
+      - global-intel
+
   bellu-api:
     build:
       context: ..
@@ -147,3 +209,4 @@ services:
 volumes:
   pgdata:
   memgraph_data:
+  opensearch_data:
