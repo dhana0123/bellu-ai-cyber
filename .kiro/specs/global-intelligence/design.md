@@ -22,7 +22,7 @@ weakening the "every graph element traces to a raw event" invariant.
 
 This feature is additive and lives entirely inside the existing Go module
 `github.com/bellu/bellu-ai-cyber` (Go 1.27). All new intelligence code goes
-under a new sibling folder `bellu-global-intelligence/`; correlation,
+under a new sibling folder `bellu-global-intel/`; correlation,
 findings, and the risk engine go under `internal/` next to the existing
 pipeline packages; a new `bellu-intel` CLI sits beside `cmd/bellu`; and the
 new API/UI reuse the existing Gin server and RBAC (the `findings:read`
@@ -39,7 +39,7 @@ OpenSearch.
 
 ```mermaid
 graph TD
-    subgraph P1["Plane 1: Global Intelligence (bellu-global-intelligence/)"]
+    subgraph P1["Plane 1: Global Intelligence (bellu-global-intel/)"]
         FE[fetch: NVD/OSV/GHSA/KEV/EPSS/ATLAS/OWASP/AVID/MCP]
         RAW[raw: content-addressed payload store]
         PAR[parser: per-source structs]
@@ -115,7 +115,7 @@ sequenceDiagram
 
 ### Source-aware scheduling, sync modes, and failure handling
 
-The scheduler (`bellu-global-intelligence/scheduler`) is **source-aware**: it is
+The scheduler (`bellu-global-intel/scheduler`) is **source-aware**: it is
 not a single global cron that runs every source at once. Each row in
 `intel_sources` carries its own cadence (`schedule`), current `sync_mode`, and
 incremental state (`last_cursor`, `last_etag`, `last_modified`,
@@ -197,7 +197,7 @@ sequenceDiagram
 
 ## Components and Interfaces
 
-### Component: Fetcher (`bellu-global-intelligence/fetch`)
+### Component: Fetcher (`bellu-global-intel/fetch`)
 
 **Purpose**: pull raw intelligence from an upstream source. Phase 1 implements
 OSV (purl ecosystems, PyPI first), CISA KEV, and FIRST EPSS; NVD, GHSA, ATLAS,
@@ -237,7 +237,7 @@ pipeline records the fuller per-run accounting — `records_added`,
 "Source-aware scheduling, sync modes, and failure handling"), satisfying
 Requirement 6.4 without changing the `Fetcher` interface signature.
 
-### Component: RawStore (`bellu-global-intelligence/raw`)
+### Component: RawStore (`bellu-global-intel/raw`)
 
 **Purpose**: content-addressed storage of unmodified fetched payloads.
 Filesystem for dev; an S3-compatible interface is defined for later.
@@ -262,7 +262,7 @@ type RawRef struct {
 **Responsibilities**: durable, deduplicated, immutable payload storage. The
 hash is the identity; re-fetching unchanged data does not duplicate storage.
 
-### Component: Parser (`bellu-global-intelligence/parser`)
+### Component: Parser (`bellu-global-intel/parser`)
 
 **Purpose**: turn raw payloads for one source into typed source structs.
 Subpackages: `osv`, `kev`, `epss`, `nvd`, `ghsa`, `atlas`, `avid`, `mcp`.
@@ -288,7 +288,7 @@ type SourceRecord interface {
 }
 ```
 
-### Component: Canonicalizer (`bellu-global-intelligence/canonical`)
+### Component: Canonicalizer (`bellu-global-intel/canonical`)
 
 **Purpose**: normalize source records into Bellu's canonical intelligence
 model: `Vulnerability`, `Advisory`, `Package`, `Technique`, `AIVulnerability`,
@@ -306,7 +306,7 @@ The canonical `Vulnerability` is the heart of the model (see Data Models). It
 carries alias identifiers, affected package ranges (purl + semver ranges),
 CVSS, severity, the KEV known-exploited flag, and the EPSS score.
 
-### Component: Correlator / Dedup (`bellu-global-intelligence/correlation`)
+### Component: Correlator / Dedup (`bellu-global-intel/correlation`)
 
 **Purpose**: identifier linking, package-version matching, CPE, model, MCP, and
 AI-agent correlation. Within the intel plane its first job is **dedup**: merge
@@ -398,7 +398,7 @@ ChatGPT-dark shadcn theme.
 
 ## Data Models
 
-### Canonical intelligence model (`bellu-global-intelligence/canonical`)
+### Canonical intelligence model (`bellu-global-intel/canonical`)
 
 ```go
 // CanonicalVuln is Bellu's provider-independent view of one vulnerability,
@@ -745,7 +745,7 @@ access.
 Everything stays in module `github.com/bellu/bellu-ai-cyber`.
 
 ```
-bellu-global-intelligence/            # new sibling folder (NOT a new module)
+bellu-global-intel/            # new sibling folder (NOT a new module)
   fetch/                              # Fetcher interface + per-source fetchers
     fetch.go                          #   Fetcher, Cursor, FetchResult
     osv/osv.go                        #   Phase 1 (PyPI first)
@@ -944,7 +944,7 @@ A `Package` is matched to a vulnerability only
    range is ever reported.
 
    **Caveat (honest scope).** The current `compareVersions` implementation
-   (`bellu-global-intelligence/canonical/version.go`) is a *pragmatic*
+   (`bellu-global-intel/canonical/version.go`) is a *pragmatic*
    comparator: it handles semver and common PyPI/npm version forms, but it does
    **not** implement exact PEP 440 / semver pre-release ordering (e.g. the full
    ordering of `rc`, `beta`, `dev`, epoch, and local-version segments).

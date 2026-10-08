@@ -1,0 +1,11 @@
+variable "name" { type = string }
+variable "schedule_expression" { type = string }
+variable "schedule_enabled" { type = bool }
+variable "cluster_arn" { type = string }
+variable "task_definition_arn" { type = string }
+variable "subnet_ids" { type = list(string) }
+variable "security_group_id" { type = string }
+variable "events_role_name" { type = string }
+variable "events_role_arn" { type = string }
+variable "execution_role_arn" { type = string }
+variable "task_role_arn" { type = string }

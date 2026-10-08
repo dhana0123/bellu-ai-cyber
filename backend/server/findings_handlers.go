@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/canonical"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/database"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/database"
 	"github.com/bellu/bellu-ai-cyber/internal/finding"
 	"github.com/bellu/bellu-ai-cyber/internal/model"
 	"github.com/bellu/bellu-ai-cyber/internal/store"

@@ -1,0 +1,10 @@
+variable "name" { type = string }
+variable "engine_version" { type = string }
+variable "instance_type" { type = string }
+variable "instance_count" { type = number }
+variable "zone_awareness" { type = bool }
+variable "volume_size" { type = number }
+variable "kms_key_arn" { type = string }
+variable "subnet_ids" { type = list(string) }
+variable "security_group_id" { type = string }
+variable "task_role_arn" { type = string }

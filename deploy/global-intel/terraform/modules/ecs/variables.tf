@@ -1,0 +1,14 @@
+variable "name" { type = string }
+variable "container_image" { type = string }
+variable "task_cpu" { type = number }
+variable "task_memory" { type = number }
+variable "run_command" { type = list(string) }
+variable "execution_role_arn" { type = string }
+variable "task_role_arn" { type = string }
+variable "log_group_name" { type = string }
+variable "region" { type = string }
+variable "environment" { type = string }
+variable "raw_bucket" { type = string }
+variable "releases_bucket" { type = string }
+variable "search_endpoint" { type = string }
+variable "db_secret_arn" { type = string }

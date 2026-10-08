@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/parser"
-	epssparse "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/parser/epss"
-	kevparse "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/parser/kev"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/parser"
+	epssparse "github.com/bellu/bellu-ai-cyber/bellu-global-intel/parser/epss"
+	kevparse "github.com/bellu/bellu-ai-cyber/bellu-global-intel/parser/kev"
 )
 
 // TestIsFullFetch pins the cursor-mode selection logic: daily (and any

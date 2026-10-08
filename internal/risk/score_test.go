@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/canonical"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
 )
 
 // This file validates design correctness Property 4: risk scoring is

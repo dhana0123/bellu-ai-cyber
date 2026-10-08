@@ -13,13 +13,13 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/correlation"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/database"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/fetch"
-	epssfetch "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/fetch/epss"
-	kevfetch "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/fetch/kev"
-	osvfetch "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/fetch/osv"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/raw"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/correlation"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/database"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/fetch"
+	epssfetch "github.com/bellu/bellu-ai-cyber/bellu-global-intel/fetch/epss"
+	kevfetch "github.com/bellu/bellu-ai-cyber/bellu-global-intel/fetch/kev"
+	osvfetch "github.com/bellu/bellu-ai-cyber/bellu-global-intel/fetch/osv"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/raw"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 

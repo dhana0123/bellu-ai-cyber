@@ -17,8 +17,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/canonical"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/database"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/database"
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/finding"
 	"github.com/bellu/bellu-ai-cyber/internal/model"

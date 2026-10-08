@@ -18,8 +18,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/canonical"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/correlation"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/correlation"
 	"github.com/bellu/bellu-ai-cyber/internal/model"
 )
 

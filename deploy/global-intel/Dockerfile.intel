@@ -1,0 +1,24 @@
+# Build the bellu-intel Global Intelligence CLI into a small runtime image.
+# This image is what the ECS Fargate scheduled task runs; EventBridge invokes it
+# with a command override (e.g. ["run","--mode","daily"]).
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/bellu-intel ./cmd/bellu-intel
+
+FROM alpine:3.20
+# CA certs are required for HTTPS fetches to upstream intelligence sources.
+RUN apk add --no-cache ca-certificates && adduser -D -u 10001 bellu
+WORKDIR /app
+COPY --from=build /out/bellu-intel /usr/local/bin/bellu-intel
+COPY bellu.yaml /app/bellu.yaml
+# A writable scratch dir for the content-addressed raw store (--raw-dir default).
+# On Fargate this is backed by the task's ephemeral storage; durable raw objects
+# live in S3 (the task syncs/streams to the raw bucket).
+RUN mkdir -p /app/intel-raw && chown bellu:bellu /app/intel-raw
+USER bellu
+ENTRYPOINT ["bellu-intel"]
+# Default command; EventBridge/ECS overrides this per schedule.
+CMD ["run", "--mode", "daily", "--raw-dir", "/app/intel-raw"]
