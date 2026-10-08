@@ -6,7 +6,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Stack       = "bellu-global-intel"
+      Stack       = "global-intel"
       Environment = var.environment
       Region      = var.region
       ManagedBy   = "terraform"

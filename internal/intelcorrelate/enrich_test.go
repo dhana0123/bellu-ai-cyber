@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
+	"github.com/bellu/bellu-ai-cyber/global-intel/canonical"
 	"github.com/bellu/bellu-ai-cyber/internal/model"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )

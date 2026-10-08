@@ -1,4 +1,4 @@
-# Root module: composes the bellu-global-intel stack from the child modules. The
+# Root module: composes the global-intel stack from the child modules. The
 # same code deploys to any environment+region; sizing/HA come entirely from the
 # per-env/region tfvars. Dependency order and the IAM<->OpenSearch policy cycle
 # are handled here (IAM references the OpenSearch domain by its deterministic

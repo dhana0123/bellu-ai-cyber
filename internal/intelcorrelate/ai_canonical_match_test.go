@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/parser"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/parser/atlas"
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/parser/mcp"
+	"github.com/bellu/bellu-ai-cyber/global-intel/canonical"
+	"github.com/bellu/bellu-ai-cyber/global-intel/parser"
+	"github.com/bellu/bellu-ai-cyber/global-intel/parser/atlas"
+	"github.com/bellu/bellu-ai-cyber/global-intel/parser/mcp"
 	"github.com/bellu/bellu-ai-cyber/internal/model"
 )
 

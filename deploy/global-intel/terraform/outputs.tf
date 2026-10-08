@@ -1,5 +1,5 @@
 output "ecr_repository_url" {
-  description = "Push the bellu-intel image here, then set container_image (or deploy :latest)."
+  description = "Push the global-intel image here, then set container_image (or deploy :latest)."
   value       = module.ecs.ecr_repository_url
 }
 

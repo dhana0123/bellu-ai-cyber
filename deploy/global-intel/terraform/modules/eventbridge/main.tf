@@ -1,5 +1,5 @@
 # EventBridge schedule: the only trigger for the pipeline. It RunTask's the
-# Fargate task on schedule_expression. Infra schedules; bellu-intel fetches,
+# Fargate task on schedule_expression. Infra schedules; global-intel fetches,
 # normalizes, stores, indexes, and releases.
 
 # Grant the (iam-module-owned) events role permission to run exactly this task.
@@ -26,7 +26,7 @@ resource "aws_iam_role_policy" "run_task" {
 
 resource "aws_cloudwatch_event_rule" "daily_run" {
   name                = "${var.name}-daily-run"
-  description         = "Scheduled bellu-intel full-schedule intelligence run"
+  description         = "Scheduled global-intel full-schedule intelligence run"
   schedule_expression = var.schedule_expression
   state               = var.schedule_enabled ? "ENABLED" : "DISABLED"
 }

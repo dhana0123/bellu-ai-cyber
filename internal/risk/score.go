@@ -11,7 +11,7 @@ import (
 	"context"
 	"math"
 
-	"github.com/bellu/bellu-ai-cyber/bellu-global-intel/canonical"
+	"github.com/bellu/bellu-ai-cyber/global-intel/canonical"
 )
 
 // Severity reuses the canonical intelligence severity type so that risk

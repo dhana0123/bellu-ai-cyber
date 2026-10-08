@@ -1,0 +1,12 @@
+# Terraform working files — never commit state or provider binaries.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# Keep .terraform.lock.hcl committed (provider pinning) — do NOT ignore it.

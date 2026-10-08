@@ -17,7 +17,7 @@ variable "region" {
 
 variable "name_prefix" {
   type        = string
-  default     = "bellu-global-intel"
+  default     = "global-intel"
   description = "Prefix for all resource names; combined with environment."
 }
 
@@ -142,7 +142,7 @@ variable "opensearch_volume_size" {
 variable "container_image" {
   type        = string
   default     = ""
-  description = "bellu-intel image URI (repo:tag). Empty = use the created ECR repo :latest."
+  description = "global-intel image URI (repo:tag). Empty = use the created ECR repo :latest."
 }
 
 variable "task_cpu" {
@@ -160,7 +160,7 @@ variable "task_memory" {
 variable "run_command" {
   type        = list(string)
   default     = ["run", "--mode", "daily", "--raw-dir", "/app/intel-raw"]
-  description = "bellu-intel CLI args the scheduled task runs."
+  description = "global-intel CLI args the scheduled task runs."
 }
 
 variable "schedule_expression" {

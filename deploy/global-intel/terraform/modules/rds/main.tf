@@ -40,7 +40,7 @@ resource "aws_db_instance" "this" {
   tags = { Name = "${var.name}-pg" }
 }
 
-# Write the full connection detail into the DB secret so bellu-intel resolves
+# Write the full connection detail into the DB secret so global-intel resolves
 # host/port/dbname/username/password from one place.
 resource "aws_secretsmanager_secret_version" "db_conn" {
   secret_id = var.db_secret_id

@@ -1,4 +1,4 @@
-# ECS Fargate: the cluster + task definition that run the bellu-intel CLI, plus
+# ECS Fargate: the cluster + task definition that run the global-intel CLI, plus
 # the ECR repo the image is pushed to. Security groups live in the vpc module to
 # keep the module graph acyclic. The DB DSN fields are injected as container
 # secrets from Secrets Manager, so no credential appears in the task definition.
@@ -52,7 +52,7 @@ resource "aws_ecs_task_definition" "intel" {
   }
 
   container_definitions = jsonencode([{
-    name      = "bellu-intel"
+    name      = "global-intel"
     image     = local.image
     essential = true
     command   = var.run_command
