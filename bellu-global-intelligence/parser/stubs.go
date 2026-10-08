@@ -28,16 +28,17 @@ func (p reservedParser) Parse(_ raw.RawRef, _ []byte) ([]SourceRecord, error) {
 	return nil, ErrReservedSource
 }
 
-// Reserved-for-later Parser stubs (Requirement 1.7). NVD, GHSA, ATLAS, OWASP
-// GenAI, AVID, MCP intelligence, and vendor advisories are exposed as Parser
-// stubs now and implemented in a later phase. Each returns a Parser whose
-// Source() is addressable and whose Parse() returns ErrReservedSource.
+// Reserved-for-later Parser stubs (Requirement 1.7). NVD, GHSA, and vendor
+// advisories remain reserved stubs: each returns a Parser whose Source() is
+// addressable and whose Parse() returns ErrReservedSource.
+//
+// The former reserved stubs for ATLAS, OWASP GenAI, AVID, and MCP have been
+// superseded by real Phase-3 implementations (Requirement 15.1). To avoid two
+// conflicting Parsers for the same source key, those stub constructors were
+// removed; construct the real Parsers directly from their subpackages:
+// parser/atlas, parser/owasp, parser/avid, parser/mcp (each exposes New()).
 func NewNVDParser() Parser            { return reservedParser{source: "nvd"} }
 func NewGHSAParser() Parser           { return reservedParser{source: "ghsa"} }
-func NewATLASParser() Parser          { return reservedParser{source: "atlas"} }
-func NewOWASPGenAIParser() Parser     { return reservedParser{source: "owasp-genai"} }
-func NewAVIDParser() Parser           { return reservedParser{source: "avid"} }
-func NewMCPParser() Parser            { return reservedParser{source: "mcp"} }
 func NewVendorAdvisoryParser() Parser { return reservedParser{source: "vendor-advisory"} }
 
 // Compile-time assertion that the stub satisfies the Parser interface.

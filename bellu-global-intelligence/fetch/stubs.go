@@ -29,16 +29,17 @@ func (f reservedFetcher) Fetch(_ context.Context, _ raw.RawStore, _ Cursor) (Fet
 	return FetchResult{Source: f.source}, ErrReservedSource
 }
 
-// Reserved-for-later Fetcher stubs (Requirement 1.7). NVD, GHSA, ATLAS, OWASP
-// GenAI, AVID, MCP intelligence, and vendor advisories are exposed as Fetcher
-// stubs now and implemented in a later phase. Each returns a Fetcher whose
-// Source() is addressable and whose Fetch() returns ErrReservedSource.
+// Reserved-for-later Fetcher stubs (Requirement 1.7). NVD, GHSA, and vendor
+// advisories remain reserved stubs: each returns a Fetcher whose Source() is
+// addressable and whose Fetch() returns ErrReservedSource.
+//
+// The former reserved stubs for ATLAS, OWASP GenAI, AVID, and MCP have been
+// superseded by real Phase-3 implementations (Requirement 15.1). To avoid two
+// conflicting Fetchers for the same source key, those stub constructors were
+// removed; construct the real Fetchers directly from their subpackages:
+// fetch/atlas, fetch/owasp, fetch/avid, fetch/mcp (each exposes New(...Option)).
 func NewNVDFetcher() Fetcher            { return reservedFetcher{source: "nvd"} }
 func NewGHSAFetcher() Fetcher           { return reservedFetcher{source: "ghsa"} }
-func NewATLASFetcher() Fetcher          { return reservedFetcher{source: "atlas"} }
-func NewOWASPGenAIFetcher() Fetcher     { return reservedFetcher{source: "owasp-genai"} }
-func NewAVIDFetcher() Fetcher           { return reservedFetcher{source: "avid"} }
-func NewMCPFetcher() Fetcher            { return reservedFetcher{source: "mcp"} }
 func NewVendorAdvisoryFetcher() Fetcher { return reservedFetcher{source: "vendor-advisory"} }
 
 // Compile-time assertion that the stub satisfies the Fetcher interface.

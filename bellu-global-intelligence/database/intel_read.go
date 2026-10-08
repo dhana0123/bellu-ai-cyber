@@ -16,6 +16,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -112,6 +113,8 @@ func (s *IntelStore) hydrateVuln(ctx context.Context, id string) (canonical.Cano
 		cvssScore *float64
 		epss      *float64
 		severity  string
+		published *time.Time
+		modified  *time.Time
 	)
 	err := s.store.Pool().QueryRow(ctx,
 		`SELECT summary, cvss_score, cvss_vector, cvss_version, severity,
@@ -121,7 +124,7 @@ func (s *IntelStore) hydrateVuln(ctx context.Context, id string) (canonical.Cano
 		id,
 	).Scan(
 		&v.Summary, &cvssScore, &v.CVSS.Vector, &v.CVSS.Version, &severity,
-		&v.KnownExploited, &epss, &v.Published, &v.Modified, &v.Sources,
+		&v.KnownExploited, &epss, &published, &modified, &v.Sources,
 	)
 	if err != nil {
 		return canonical.CanonicalVuln{}, fmt.Errorf("database: hydrate vuln %q: %w", id, err)
@@ -132,6 +135,16 @@ func (s *IntelStore) hydrateVuln(ctx context.Context, id string) (canonical.Cano
 	}
 	if epss != nil {
 		v.EPSS = *epss
+	}
+	// published/modified are nullable TIMESTAMPTZ columns (nullableTime stores a
+	// zero time as NULL on write), so they are scanned through *time.Time and
+	// left as the zero value when NULL — scanning NULL straight into time.Time
+	// would error and 500 the intel API for KEV/EPSS-only records.
+	if published != nil {
+		v.Published = *published
+	}
+	if modified != nil {
+		v.Modified = *modified
 	}
 
 	aliases, err := s.loadAliases(ctx, id)

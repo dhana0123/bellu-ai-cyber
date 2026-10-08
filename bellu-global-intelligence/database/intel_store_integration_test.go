@@ -313,3 +313,129 @@ func TestIntelEPSSHistoryIdempotent(t *testing.T) {
 		t.Fatalf("expected 2 epss history rows after a new day, got %d", got)
 	}
 }
+
+// TestHydrateVulnWithNullTimestamps proves that a vuln ingested WITHOUT a
+// published/modified date (common for KEV- or EPSS-only records, which store
+// those columns as NULL) hydrates back without error and surfaces zero
+// timestamps — rather than failing the read (and 500-ing the intel API) by
+// scanning NULL into a non-pointer time.Time.
+func TestHydrateVulnWithNullTimestamps(t *testing.T) {
+	ctx := context.Background()
+	st := newIntelTestStore(t)
+	is := New(st)
+
+	// A minimal CVE-keyed record with zero Published/Modified -> persisted NULL.
+	v := canonical.CanonicalVuln{
+		ID:       "CVE-2024-5000",
+		Aliases:  []string{"CVE-2024-5000"},
+		Summary:  "kev-only record with no published date",
+		Severity: canonical.SevHigh,
+		Sources:  []string{"kev"},
+	}
+	if err := is.UpsertVuln(ctx, v, time.Time{}, 0); err != nil {
+		t.Fatalf("UpsertVuln: %v", err)
+	}
+
+	// Confirm the columns really are NULL (not a zero timestamp) so the test
+	// exercises the NULL-scan path.
+	var nullPublished, nullModified bool
+	if err := st.Pool().QueryRow(ctx,
+		`SELECT published IS NULL, modified IS NULL FROM intel_vulnerabilities WHERE id=$1`,
+		v.ID).Scan(&nullPublished, &nullModified); err != nil {
+		t.Fatalf("probe nulls: %v", err)
+	}
+	if !nullPublished || !nullModified {
+		t.Fatalf("expected published/modified to be NULL, got published-null=%v modified-null=%v", nullPublished, nullModified)
+	}
+
+	got, err := is.VulnByID(ctx, v.ID)
+	if err != nil {
+		t.Fatalf("VulnByID with NULL timestamps must not error: %v", err)
+	}
+	if !got.Published.IsZero() || !got.Modified.IsZero() {
+		t.Fatalf("expected zero Published/Modified, got %v / %v", got.Published, got.Modified)
+	}
+	if got.ID != v.ID || got.Summary != v.Summary {
+		t.Fatalf("hydrated vuln mismatch: %+v", got)
+	}
+
+	// AllVulns must also tolerate the NULL timestamps.
+	if _, err := is.AllVulns(ctx); err != nil {
+		t.Fatalf("AllVulns with a NULL-timestamp record must not error: %v", err)
+	}
+}
+
+// TestRecordEPSSHistoryPreservesMergedAttributes proves that recording EPSS
+// history for a CVE does NOT clobber the merged KEV flag / CVSS / summary that a
+// prior full upsert established. It writes a merged record (KEV + CVSS +
+// summary), then records an EPSS-only daily score for the same id, and asserts
+// the merged attributes survive while the current epss is refreshed and a daily
+// history row is appended.
+func TestRecordEPSSHistoryPreservesMergedAttributes(t *testing.T) {
+	ctx := context.Background()
+	st := newIntelTestStore(t)
+	is := New(st)
+
+	const id = "CVE-2024-7000"
+	merged := canonical.CanonicalVuln{
+		ID:             id,
+		Aliases:        []string{id},
+		Summary:        "merged OSV+KEV record",
+		CVSS:           canonical.CVSS{Score: 9.1, Vector: "CVSS:3.1/AV:N", Version: "3.1"},
+		Severity:       canonical.SevCritical,
+		KnownExploited: true,
+		Sources:        []string{"osv", "kev"},
+	}
+	if err := is.UpsertVuln(ctx, merged, time.Time{}, 0); err != nil {
+		t.Fatalf("UpsertVuln merged: %v", err)
+	}
+
+	// The EPSS-only shape of the same CVE: empty summary, zero CVSS, KEV false.
+	epssOnly := canonical.CanonicalVuln{
+		ID:      id,
+		Aliases: []string{id},
+		EPSS:    0.88,
+		Sources: []string{"epss"},
+	}
+	scoredOn := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	if err := is.RecordEPSSHistory(ctx, []canonical.CanonicalVuln{epssOnly}, scoredOn); err != nil {
+		t.Fatalf("RecordEPSSHistory: %v", err)
+	}
+
+	got, err := is.VulnByID(ctx, id)
+	if err != nil {
+		t.Fatalf("VulnByID: %v", err)
+	}
+	if !got.KnownExploited {
+		t.Fatalf("known_exploited was clobbered by the EPSS-history pass")
+	}
+	if got.CVSS.Score != 9.1 {
+		t.Fatalf("CVSS was clobbered: got %v, want 9.1", got.CVSS.Score)
+	}
+	if got.Summary != "merged OSV+KEV record" {
+		t.Fatalf("summary was clobbered: got %q", got.Summary)
+	}
+	if got.EPSS != 0.88 {
+		t.Fatalf("current epss not refreshed: got %v, want 0.88", got.EPSS)
+	}
+
+	// A daily history row for scoredOn exists, and re-running the same day stays
+	// at one row (idempotent).
+	historyCount := func() int {
+		var n int
+		if err := st.Pool().QueryRow(ctx,
+			`SELECT count(*) FROM intel_epss_history WHERE vuln_id=$1`, id).Scan(&n); err != nil {
+			t.Fatalf("count epss history: %v", err)
+		}
+		return n
+	}
+	if got := historyCount(); got != 1 {
+		t.Fatalf("expected 1 epss history row, got %d", got)
+	}
+	if err := is.RecordEPSSHistory(ctx, []canonical.CanonicalVuln{epssOnly}, scoredOn); err != nil {
+		t.Fatalf("RecordEPSSHistory (re-run): %v", err)
+	}
+	if got := historyCount(); got != 1 {
+		t.Fatalf("expected epss history to stay at 1 row on same-day re-run, got %d", got)
+	}
+}

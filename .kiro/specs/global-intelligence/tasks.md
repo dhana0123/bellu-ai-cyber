@@ -61,7 +61,7 @@ properties.
     - Add interface stubs for NVD, GHSA, ATLAS, OWASP GenAI, AVID, MCP, and vendor advisories reserved for later phases
     - _Requirements: 1.6, 1.7, 3.1, 3.3, 3.4_
 
-- [ ] 5. Implement Phase 1 fetchers (OSV, KEV, EPSS)
+- [x] 5. Implement Phase 1 fetchers (OSV, KEV, EPSS)
   - [x] 5.1 Implement the OSV fetcher in `bellu-global-intelligence/fetch/osv/osv.go`
     - Fetch purl ecosystems with PyPI first; empty cursor = full fetch, non-empty cursor = changed-since with next cursor returned; apply rate limiting; stream raw bytes to `RawStore` without parsing or mutation
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
@@ -105,7 +105,7 @@ properties.
   - [x] 10.2 Wire `run` to execute fetch → parse → normalize → correlate in sequence
     - Implement `--mode daily|incremental` (daily = full-schedule run, incremental = cursor-based using stored cursors); drive fetchers → RawStore → parsers → canonicalizers → deduper → `intel_store` upsert; record `intel_fetch_runs`
     - _Requirements: 7.2, 7.3, 7.4_
-  - [ ]* 10.3 Write integration test for end-to-end Phase 1 idempotence
+  - [x]* 10.3 Write integration test for end-to-end Phase 1 idempotence
     - Run `fetch → parse → normalize → correlate` twice over unchanged fixtures against a testcontainers Postgres; assert `intel_*` unchanged except `last_seen`
     - **Property 3: Re-runs are idempotent (end-to-end)**
     - **Validates: Requirements 18.4**
@@ -187,29 +187,29 @@ properties.
 
 ### Phase 3 — AI sources, signed release bundle, deferred search
 
-- [ ] 21. Implement AI-specific intelligence sources
-  - [-] 21.1 Implement fetchers, parsers, and canonical mappings for MITRE ATLAS, OWASP GenAI, AVID, and MCP
+- [x] 21. Implement AI-specific intelligence sources
+  - [x] 21.1 Implement fetchers, parsers, and canonical mappings for MITRE ATLAS, OWASP GenAI, AVID, and MCP
     - Flesh out the reserved stubs; map AI-specific intelligence to the existing `AIAgent`, `AIModel`, and `MCPServer` kinds and join via the Matcher
     - _Requirements: 15.1, 15.2, 1.7, 8.3_
 
-- [ ] 22. Implement the signed air-gapped release bundle
-  - [-] 22.1 Implement the release builder in `bellu-global-intelligence/release/release.go`
+- [x] 22. Implement the signed air-gapped release bundle
+  - [x] 22.1 Implement the release builder in `bellu-global-intelligence/release/release.go`
     - Export `intel_*` to canonical JSONL with stable key ordering (byte-identical for identical data); compute per-file sha256 into a manifest; sign the manifest with an ed25519 private key; package manifest + signature + data into a `.tar.zst` bundle
     - _Requirements: 16.1, 16.2, 16.3, 16.4_
-  - [~] 22.2 Implement `bellu-intel release import` with verification
+  - [x] 22.2 Implement `bellu-intel release import` with verification
     - Verify the ed25519 signature against a pinned public key and per-file checksums before upserting into `intel_*`; reject the bundle and upsert nothing on any verification failure
     - _Requirements: 16.5, 16.6_
-  - [ ]* 22.3 Write unit tests for export determinism and verification failure
+  - [x]* 22.3 Write unit tests for export determinism and verification failure
     - Assert byte-identical export for identical data and that a tampered manifest/checksum rejects the bundle with no `intel_*` writes
     - **Property 3 (export idempotence) / verification safety**
     - **Validates: Requirements 16.1, 16.6**
 
-- [ ] 23. Define the deferred OpenSearch search interface
-  - [-] 23.1 Define `bellu-global-intelligence/search/search.go` as an interface only
+- [x] 23. Define the deferred OpenSearch search interface
+  - [x] 23.1 Define `bellu-global-intelligence/search/search.go` as an interface only
     - Add no OpenSearch runtime dependency
     - _Requirements: 17.1, 17.2_
 
-- [~] 24. Final checkpoint — Ensure all tests pass
+- [x] 24. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

@@ -481,6 +481,11 @@
         "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
         "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
         "timestamp": 1791439395475
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440171297
       }
     ],
     "22.1 Implement the release builder in `bellu-global-intelligence/release/release.go`": [
@@ -493,6 +498,11 @@
         "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
         "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
         "timestamp": 1791439396779
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440169905
       }
     ],
     "22.2 Implement `bellu-intel release import` with verification": [
@@ -500,6 +510,16 @@
         "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
         "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
         "timestamp": 1791435663672
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440184740
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440401884
       }
     ],
     "23.1 Define `bellu-global-intelligence/search/search.go` as an interface only": [
@@ -512,6 +532,11 @@
         "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
         "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
         "timestamp": 1791439398355
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440168418
       }
     ],
     "24. Final checkpoint — Ensure all tests pass": [
@@ -519,6 +544,11 @@
         "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
         "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
         "timestamp": 1791435669452
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440602007
       }
     ],
     "1. Define canonical model validation and reuse the existing version comparator": [
@@ -739,6 +769,58 @@
         "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
         "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
         "timestamp": 1791439323884
+      }
+    ],
+    "23. Define the deferred OpenSearch search interface": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440173204
+      }
+    ],
+    "21. Implement AI-specific intelligence sources": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440174564
+      }
+    ],
+    "22.3 Write unit tests for export determinism and verification failure": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440403629
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440599940
+      }
+    ],
+    "22. Implement the signed air-gapped release bundle": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440405174
+      }
+    ],
+    "10.3 Write integration test for end-to-end Phase 1 idempotence": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440625566
+      },
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440931505
+      }
+    ],
+    "5. Implement Phase 1 fetchers (OSV, KEV, EPSS)": [
+      {
+        "executionId": "1f9cbac2-5c50-4f96-98b1-a8a8679f3143",
+        "chatSessionId": "sess_94927a89-ca4e-42c0-b514-796f71e2f2f9",
+        "timestamp": 1791440932699
       }
     ]
   }

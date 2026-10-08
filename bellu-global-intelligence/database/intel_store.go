@@ -235,6 +235,64 @@ func (s *IntelStore) UpsertVulns(ctx context.Context, vulns []canonical.Canonica
 	return nil
 }
 
+// RecordEPSSHistory records the daily EPSS data point for each vuln (keyed by
+// vuln_id, scored_on) and refreshes ONLY the current epss score plus last_seen
+// on intel_vulnerabilities. Crucially it never overwrites summary, cvss_*,
+// severity, known_exploited, published, modified, or sources — so a canonical
+// row that was merged from OSV/KEV (carrying CVSS, a summary, and the KEV flag)
+// keeps those attributes when an EPSS-only record for the same CVE records its
+// daily score. Using the full UpsertVuln here would clobber the merged
+// attributes with the EPSS-only record's empty values.
+//
+// Each vuln is written in its own transaction. A zero scoredOn is a no-op
+// (nothing to record for a day that is not known). The per-day history row is
+// idempotent: re-running the same day overwrites only that day's epss/percentile,
+// and the vuln UPDATE touches only epss/last_seen. An UPDATE that matches no row
+// (the vuln is not yet persisted) is a harmless no-op, since run() upserts the
+// deduped canonical set before recording EPSS history.
+func (s *IntelStore) RecordEPSSHistory(ctx context.Context, vulns []canonical.CanonicalVuln, scoredOn time.Time) error {
+	if scoredOn.IsZero() {
+		return nil
+	}
+	for _, v := range vulns {
+		if err := s.recordEPSSHistoryOne(ctx, v, scoredOn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// recordEPSSHistoryOne writes one vuln's daily EPSS history row and refreshes
+// only its current epss + last_seen, atomically.
+func (s *IntelStore) recordEPSSHistoryOne(ctx context.Context, v canonical.CanonicalVuln, scoredOn time.Time) error {
+	tx, err := s.store.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("database: begin epss-history tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Daily series row (idempotent per (vuln_id, scored_on)).
+	if err := upsertEPSSHistory(ctx, tx, v.ID, scoredOn, v.EPSS, 0); err != nil {
+		return err
+	}
+
+	// Refresh only the current epss and last_seen; never touch the merged
+	// attributes. A no-match UPDATE (unknown vuln) is a harmless no-op.
+	if _, err := tx.Exec(ctx,
+		`UPDATE intel_vulnerabilities
+		    SET epss = $2, last_seen = now()
+		  WHERE id = $1`,
+		v.ID, nullableScore(v.EPSS),
+	); err != nil {
+		return fmt.Errorf("database: refresh epss for %q: %w", v.ID, err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("database: commit epss-history %q: %w", v.ID, err)
+	}
+	return nil
+}
+
 // LastCursor reads the most recent successful incremental cursor for a source
 // into dst. It returns the cursor_after of the newest intel_fetch_runs row for
 // the source whose status is SUCCESS; when the source has no successful run yet

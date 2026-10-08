@@ -21,11 +21,14 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -41,6 +44,7 @@ import (
 	kevparse "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/parser/kev"
 	osvparse "github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/parser/osv"
 	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/raw"
+	"github.com/bellu/bellu-ai-cyber/bellu-global-intelligence/release"
 	"github.com/bellu/bellu-ai-cyber/internal/config"
 	"github.com/bellu/bellu-ai-cyber/internal/finding"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
@@ -467,21 +471,117 @@ func aiCriticality(kind model.Kind) float64 {
 	}
 }
 
-// runRelease builds, signs, or imports a release bundle. The signed release
-// bundle is Phase 3 (tasks 22.x); this stage is a labelled skeleton for now.
+// runRelease builds, signs, or imports a release bundle. It dispatches on a
+// release sub-command:
+//
+//	import   verify a signed .tar.zst against a pinned ed25519 public key and,
+//	         only on success, upsert its canonical corpus into intel_* (task
+//	         22.2, Requirements 16.5, 16.6)
+//
+// The build/sign side (task 22.1) is a library in package release; wiring a
+// `release build` sub-command remains future work, so with no sub-command (or
+// an unknown one) runRelease prints usage and leaves the skeleton behaviour.
 func runRelease(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("release", flag.ContinueOnError)
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "release: signed release bundles — subcommands: import")
+		fmt.Fprintln(os.Stderr, "  bellu-intel release import --bundle <path> --pubkey <path>")
+		return nil
+	}
+
+	sub := args[0]
+	rest := args[1:]
+	switch sub {
+	case "import":
+		return runReleaseImport(ctx, rest)
+	default:
+		return fmt.Errorf("unknown release subcommand %q (want: import)", sub)
+	}
+}
+
+// runReleaseImport verifies a signed release bundle and upserts its intel on
+// success (task 22.2, Requirements 16.5, 16.6). It reads the pinned ed25519
+// public key and the bundle file, opens the shared Postgres store, and runs the
+// verifying importer with *database.IntelStore as the VulnSink. On any
+// verification failure (bad signature or checksum) the importer returns before
+// touching the store, so a rejected bundle upserts nothing; the error is
+// surfaced to main which exits non-zero.
+func runReleaseImport(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("release import", flag.ContinueOnError)
 	cfgPath := fs.String("config", defaultConfigPath, "path to bellu.yaml")
+	bundlePath := fs.String("bundle", "", "path to the signed .tar.zst release bundle (required)")
+	pubkeyPath := fs.String("pubkey", "", "path to the pinned ed25519 public key file (required)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *bundlePath == "" {
+		return fmt.Errorf("import: --bundle is required")
+	}
+	if *pubkeyPath == "" {
+		return fmt.Errorf("import: --pubkey is required")
+	}
 
-	if _, err := config.Load(*cfgPath); err != nil {
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(os.Stderr, "release: signed release bundles are Phase 3 (not yet wired)")
+	pub, err := loadEd25519PublicKey(*pubkeyPath)
+	if err != nil {
+		return fmt.Errorf("import: load pinned public key: %w", err)
+	}
+
+	bundle, err := os.Open(*bundlePath)
+	if err != nil {
+		return fmt.Errorf("import: open bundle: %w", err)
+	}
+	defer bundle.Close()
+
+	st, err := store.Open(ctx, cfg.Postgres.DSN)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	fmt.Fprintf(os.Stderr, "release import: bundle=%s pubkey=%s postgres=%s\n",
+		*bundlePath, *pubkeyPath, redactDSN(cfg.Postgres.DSN))
+
+	sink := database.New(st)
+	if err := release.Import(ctx, bundle, pub, sink); err != nil {
+		if errors.Is(err, release.ErrVerification) {
+			// Fail closed (Requirement 16.6): nothing was upserted.
+			return fmt.Errorf("rejected bundle, no intel_* rows written: %w", err)
+		}
+		return err
+	}
+
+	fmt.Fprintln(os.Stderr, "  verified signature + checksums; upserted intel corpus")
 	return nil
+}
+
+// loadEd25519PublicKey reads a pinned ed25519 public key from path. The file is
+// the raw 32-byte key, optionally hex-encoded (a text-friendly form that is
+// easy to pin in config or ship alongside a bundle). It accepts whichever form
+// the bytes represent and rejects anything that is not a valid key length.
+func loadEd25519PublicKey(path string) (ed25519.PublicKey, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Raw 32-byte key.
+	if len(raw) == ed25519.PublicKeySize {
+		return ed25519.PublicKey(raw), nil
+	}
+
+	// Hex-encoded key (trim trailing whitespace/newline a text editor may add).
+	trimmed := strings.TrimSpace(string(raw))
+	decoded, derr := hex.DecodeString(trimmed)
+	if derr == nil && len(decoded) == ed25519.PublicKeySize {
+		return ed25519.PublicKey(decoded), nil
+	}
+
+	return nil, fmt.Errorf("key is %d bytes; want a %d-byte raw or hex-encoded ed25519 public key",
+		len(raw), ed25519.PublicKeySize)
 }
 
 // Pipeline run modes accepted by `run --mode`. daily is a full-schedule run
@@ -623,10 +723,13 @@ func (p *pipeline) run(ctx context.Context) error {
 	fmt.Fprintf(os.Stderr, "  correlate: upserted %d deduped vulnerabilit(ies)\n", len(deduped))
 
 	// Record EPSS history keyed by the scored date so the daily series is
-	// captured (the batch UpsertVulns above used a zero scoredOn).
+	// captured. RecordEPSSHistory writes the per-day history rows and refreshes
+	// only the current epss + last_seen on each vuln; it deliberately does NOT
+	// re-upsert the full canonical row, so the merged KEV flag / CVSS / summary
+	// from the dedup pass above are preserved for CVEs that also have an EPSS row.
 	if len(epssVulns) > 0 && !epssScoredOn.IsZero() {
-		if err := p.intel.UpsertVulns(ctx, epssVulns, epssScoredOn); err != nil {
-			return fmt.Errorf("run: upsert epss history: %w", err)
+		if err := p.intel.RecordEPSSHistory(ctx, epssVulns, epssScoredOn); err != nil {
+			return fmt.Errorf("run: record epss history: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "  correlate: recorded EPSS history for %s\n", epssScoredOn.Format("2006-01-02"))
 	}
