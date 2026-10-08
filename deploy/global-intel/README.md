@@ -82,6 +82,13 @@ is set (as the task definition sets it), stores raw intelligence payloads in
 that S3 bucket via the task role — content-addressed and immutable, matching the
 raw bucket's Object Lock. Set the optional `BELLU_RAW_PREFIX` to namespace the
 keys. With no `BELLU_RAW_BUCKET` (local dev) the CLI falls back to the
-filesystem raw store under `--raw-dir`. Wiring the OpenSearch indexer to
-`BELLU_SEARCH_ENDPOINT` remains application work (the search package is still
-interface-only).
+filesystem raw store under `--raw-dir`.
+
+Search indexing is folded into the `run` pipeline: when `BELLU_SEARCH_ENDPOINT`
+is set (the task definition sets it), a successful run indexes the just-persisted
+canonical corpus into OpenSearch within the same Fargate task — no separate
+scheduled job. PostgreSQL stays the system of record and is written first; the
+index is updated only after that commit, so an index failure fails the run
+(INDEX_FAILED) without corrupting the authoritative store, and the next run (or
+`global-intel update --rebuild`) catches the index up. With no endpoint (local
+dev) indexing is skipped.
