@@ -23,6 +23,10 @@ type Source struct {
 	dsn          string
 	catalog      *Catalog
 	tableTimeout time.Duration
+	// schema optionally qualifies table names so queries target a single
+	// Steampipe connection (its Postgres schema). Empty means the default
+	// search path (aggregates across all connections of the plugin).
+	schema string
 }
 
 // Config holds the resolved connection and catalog settings.
@@ -72,7 +76,9 @@ func Factory(cfg map[string]any) (source.Source, error) {
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		user, password, host, port, database)
-	return New(dsn, cat), nil
+	src := New(dsn, cat)
+	src.schema = strOr(cfg, "connection_schema", "")
+	return src, nil
 }
 
 // Name implements source.Source.
@@ -125,11 +131,22 @@ func (s *Source) Collect(ctx context.Context, run source.Run) (<-chan rawevent.R
 	return events, errs
 }
 
+// qualifiedTable returns the table name scoped to the source's connection
+// schema when set, so a query targets exactly one Steampipe connection and
+// never aggregates across concurrent connections. An empty schema returns the
+// bare table (default search path).
+func (s *Source) qualifiedTable(table string) string {
+	if s.schema == "" {
+		return table
+	}
+	return s.schema + "." + table
+}
+
 // collectTable queries one table and emits a RawEvent per row.
 func (s *Source) collectTable(ctx context.Context, pool *pgxpool.Pool, run source.Run, collector string, spec TableSpec, out chan<- rawevent.RawEvent) (int, error) {
 	// Identifiers come from the vetted catalog, not user input. We still only
 	// ever interpolate the table name here.
-	q := fmt.Sprintf(`SELECT to_jsonb(t) AS row FROM %s t`, spec.Table)
+	q := fmt.Sprintf(`SELECT to_jsonb(t) AS row FROM %s t`, s.qualifiedTable(spec.Table))
 	if spec.Where != "" {
 		q += " WHERE " + spec.Where
 	}

@@ -36,9 +36,10 @@ func TestCoreCoversReadDomains(t *testing.T) {
 			t.Errorf("core capability missing a %s read permission", pfx)
 		}
 	}
-	// VPC reads are ec2:Describe* actions (DescribeVpcs); assert explicitly.
-	if !contains(core.Permissions, "ec2:DescribeVpcs") {
-		t.Error("core capability missing ec2:DescribeVpcs (VPC read)")
+	// VPC reads come from the ec2:Describe* family (covers DescribeVpcs);
+	// assert the family is present.
+	if !contains(core.Permissions, "ec2:Describe*") {
+		t.Error("core capability missing ec2:Describe* (covers VPC/EC2 reads)")
 	}
 }
 
@@ -47,8 +48,14 @@ func TestCoreCoversReadDomains(t *testing.T) {
 func TestNoAdministratorOrWildcard(t *testing.T) {
 	for name, def := range Catalog {
 		for _, p := range def.Permissions {
-			if p == "*" || strings.Contains(p, "*") {
-				t.Errorf("capability %q contains wildcard permission %q", name, p)
+			// A bare "*" or a full-service wildcard like "s3:*" grants more than
+			// read. Service-scoped read wildcards (e.g. "ec2:Describe*",
+			// "iam:List*") are standard least-privilege read grants and allowed.
+			if p == "*" || strings.HasSuffix(p, ":*") {
+				t.Errorf("capability %q contains over-broad wildcard permission %q", name, p)
+			}
+			if !isReadAction(p) {
+				t.Errorf("capability %q has non-read action %q", name, p)
 			}
 			if strings.EqualFold(p, "AdministratorAccess") {
 				t.Errorf("capability %q grants AdministratorAccess", name)
@@ -89,6 +96,22 @@ func TestKnownAndLookup(t *testing.T) {
 func contains(s []string, want string) bool {
 	for _, v := range s {
 		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+// isReadAction reports whether an IAM action is read-only (its verb starts with
+// a known read prefix). This keeps the capability catalog read-only.
+func isReadAction(action string) bool {
+	i := strings.IndexByte(action, ':')
+	if i < 0 || i+1 >= len(action) {
+		return false
+	}
+	verb := action[i+1:]
+	for _, pfx := range []string{"Describe", "List", "Get", "GenerateCredentialReport", "GenerateServiceLastAccessedDetails"} {
+		if strings.HasPrefix(verb, pfx) {
 			return true
 		}
 	}

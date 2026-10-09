@@ -88,13 +88,25 @@ services:
     entrypoint:
       - "sh"
       - "-c"
-      - "steampipe plugin list 2>/dev/null | grep -q 'aws@' || steampipe plugin install ghcr.io/turbot/steampipe/plugins/turbot/aws@latest; exec steampipe service start --foreground --database-listen network --database-port 9193 --database-password ${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}"
+      - "cp -n /seed/aws.spc /home/steampipe/.steampipe/config/aws.spc 2>/dev/null || true; chmod -R g+rwX /home/steampipe/.steampipe/config 2>/dev/null || true; [ -d /home/steampipe/.steampipe/plugins/ghcr.io/turbot/steampipe/plugins/turbot/aws@latest ] || steampipe plugin install ghcr.io/turbot/steampipe/plugins/turbot/aws@latest; exec steampipe service start --foreground --database-listen network --database-port 9193 --database-password ${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}"
     ports:
       - "127.0.0.1:9193:9193"
+    environment:
+      # Bellu's own AWS identity (bellu-connector). Steampipe uses this as the
+      # base identity and assumes the customer's BelluConnectorRole per the
+      # connection config the connector writes into the shared config volume.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     volumes:
-      # Mount only the connection config file (read-only); let steampipe own its
-      # config dir so it can write its workspaces.spc.sample on boot.
-      - ./steampipe/aws.spc:/home/steampipe/.steampipe/config/aws.spc:ro
+      # Shared config volume: the connector (bellu-api) writes a per-connection
+      # <conn>.spc here with the session credentials to assume; steampipe reads
+      # it. Also seed the default aws.spc on first boot.
+      - steampipe_config:/home/steampipe/.steampipe/config
+      # Persistent plugin cache: the AWS plugin survives `docker compose down`
+      # and restarts, so boots after the first are instant (no re-download).
+      - steampipe_plugins:/home/steampipe/.steampipe/plugins
+      - ./steampipe/aws.spc:/seed/aws.spc:ro
     profiles:
       - collectors
 
@@ -169,6 +181,15 @@ services:
       BELLU_CONNECTOR_TEMPLATE_BUCKET: ${BELLU_CONNECTOR_TEMPLATE_BUCKET:-}
       BELLU_CONNECTOR_TEMPLATE_REGION: ${BELLU_CONNECTOR_TEMPLATE_REGION:-}
       BELLU_CONNECTOR_LINK_TTL_MIN: ${BELLU_CONNECTOR_LINK_TTL_MIN:-60}
+      # Where the connector writes per-connection steampipe config (shared with
+      # the steampipe container).
+      BELLU_STEAMPIPE_CONFIG_DIR: /steampipe-config
+    # Join the root group (gid 0) that owns the shared steampipe config dir, so
+    # the connector (uid 10001) can write per-session <conn>.spc files there.
+    group_add:
+      - "0"
+    volumes:
+      - steampipe_config:/steampipe-config
     ports:
       - "127.0.0.1:8080:8080"
 
@@ -185,5 +206,7 @@ services:
       - "80:80"
 
 volumes:
+  steampipe_config:
+  steampipe_plugins:
   pgdata:
   memgraph_data:

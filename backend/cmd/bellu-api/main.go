@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,6 +18,8 @@ import (
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/bellu/bellu-ai-cyber/backend/server"
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
@@ -114,6 +117,89 @@ func run() error {
 // principal to call STS AssumeRole; per-connection temporary credentials are
 // held in memory only and never persisted. Steampipe connection parameters come
 // from the environment with local-dev defaults.
+// steampipeConfigSink returns a discovery CredentialSink that writes a
+// per-session Steampipe AWS connection file into the shared config dir, telling
+// Steampipe to assume the customer role with the session's temporary
+// credentials. The cleanup restores the default config when the session ends.
+// When dir is empty (no shared volume configured), it is a no-op and discovery
+// relies on whatever credentials the Steampipe container already has.
+func steampipeConfigSink(dir string) discovery.CredentialSink {
+	if dir == "" {
+		return nil
+	}
+	return func(env map[string]string) (func(), error) {
+		// Each discovery session gets its OWN connection + config file, named
+		// after the connection, so concurrent discoveries never overwrite each
+		// other's credentials. The session's temporary credentials already grant
+		// customer-account access (Bellu performed STS AssumeRole), so Steampipe
+		// authenticates as the assumed role directly.
+		conn := env["BELLU_STEAMPIPE_CONNECTION"]
+		if conn == "" {
+			conn = "aws"
+		}
+		spc := fmt.Sprintf(`connection %q {
+  plugin        = "ghcr.io/turbot/steampipe/plugins/turbot/aws@latest"
+  regions       = ["*"]
+  access_key    = %q
+  secret_key    = %q
+  session_token = %q
+}
+`, conn, env["AWS_ACCESS_KEY_ID"], env["AWS_SECRET_ACCESS_KEY"], env["AWS_SESSION_TOKEN"])
+		path := filepath.Join(dir, conn+".spc")
+		// Share the file with the steampipe process (a different uid) via the
+		// common root group (gid 0) that owns the shared config volume, rather
+		// than making the credential file world-readable. This is the
+		// least-privilege pattern for cross-container volume sharing: group
+		// ownership + group-read, no world access, neither container as root.
+		if err := os.WriteFile(path, []byte(spc), 0o640); err != nil {
+			return nil, fmt.Errorf("write steampipe config: %w", err)
+		}
+		// Force mode (umask-independent) and set the group to 0 so steampipe,
+		// which runs in gid 0, can read it. Chown to gid 0 works because
+		// bellu-api is a member of group 0 (group_add in compose).
+		_ = os.Chmod(path, 0o640)
+		_ = os.Chown(path, -1, 0)
+		// Steampipe hot-reloads config, but a new connection becomes queryable
+		// only after the plugin attaches its schema. Wait (bounded) until a
+		// representative table in the connection resolves, so discovery does not
+		// race ahead and hit "relation does not exist".
+		waitForSteampipeConnection(conn, 60*time.Second)
+		// Cleanup deletes the per-session config so credentials never linger.
+		cleanup := func() { _ = os.Remove(path) }
+		return cleanup, nil
+	}
+}
+
+// waitForSteampipeConnection polls the Steampipe service until a representative
+// table in the connection's schema is queryable (or the timeout elapses).
+// Steampipe reloads config asynchronously and the connection schema exists
+// slightly before its tables resolve, so this probes an actual table
+// (to_regclass) rather than just information_schema.schemata.
+func waitForSteampipeConnection(schema string, timeout time.Duration) {
+	host := getenv("BELLU_STEAMPIPE_HOST", "steampipe")
+	port := getenv("BELLU_STEAMPIPE_PORT", "9193")
+	user := getenv("BELLU_STEAMPIPE_USER", "steampipe")
+	pass := os.Getenv("BELLU_STEAMPIPE_PASSWORD")
+	db := getenv("BELLU_STEAMPIPE_DB", "steampipe")
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, pass, host, port, db)
+	probe := schema + ".aws_account"
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := pgx.Connect(context.Background(), dsn)
+		if err == nil {
+			var ready bool
+			qerr := conn.QueryRow(context.Background(),
+				`SELECT to_regclass($1) IS NOT NULL`, probe).Scan(&ready)
+			conn.Close(context.Background())
+			if qerr == nil && ready {
+				return
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 func buildConnector(st *store.Store) *connector.Manager {
 	reg := provider.NewRegistry()
 
@@ -135,6 +221,7 @@ func buildConnector(st *store.Store) *connector.Manager {
 		Factory: steampipe.Factory,
 		Runner:  connectorPipelineRunner{},
 		Creds:   adapterCredentialer{adapter: awsAdapter},
+		Sink:    steampipeConfigSink(getenv("BELLU_STEAMPIPE_CONFIG_DIR", "")),
 	})
 	return connector.NewManager(connector.Options{
 		Repo:       repo,

@@ -181,9 +181,9 @@ func TestBuildSetupPolicy(t *testing.T) {
 
 // TestVerifierShaping asserts PASS/FAIL/NOT_ENABLED shaping and OK semantics.
 func TestVerifierShaping(t *testing.T) {
-	// Fail only s3:ListAllMyBuckets; everything else passes.
+	// Fail only s3:List*; everything else passes.
 	probe := func(ctx context.Context, creds *provider.Credentials, perm string) error {
-		if perm == "s3:ListAllMyBuckets" {
+		if perm == "s3:List*" {
 			return errors.New("AccessDenied")
 		}
 		return nil
@@ -194,8 +194,8 @@ func TestVerifierShaping(t *testing.T) {
 	if res.OK {
 		t.Error("OK should be false when a core permission fails")
 	}
-	if len(res.Failures) != 1 || res.Failures[0].Permission != "s3:ListAllMyBuckets" {
-		t.Errorf("failures = %+v, want one s3:ListAllMyBuckets", res.Failures)
+	if len(res.Failures) != 1 || res.Failures[0].Permission != "s3:List*" {
+		t.Errorf("failures = %+v, want one s3:List*", res.Failures)
 	}
 	// eks is not enabled -> NOT_ENABLED.
 	var eks *provider.CapabilityResult

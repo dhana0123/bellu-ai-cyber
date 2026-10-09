@@ -165,18 +165,28 @@ func (a *Adapter) Discover(ctx context.Context, t provider.Target, creds *provid
 	if creds == nil {
 		return nil, fmt.Errorf("aws: discover requires credentials")
 	}
+	// Per-connection Steampipe connection name/schema so concurrent discoveries
+	// never share credentials. The catalog selector stays "aws" (aws.yaml), but
+	// the query targets this connection's schema.
+	connName := fmt.Sprintf("aws_conn_%d", t.ConnectionID)
 	cfg := map[string]any{
-		"host":       a.steampipeHost,
-		"port":       a.steampipePort,
-		"user":       a.steampipeUser,
-		"password":   a.steampipePassword,
-		"database":   a.steampipeDB,
-		"connection": a.steampipeConn,
+		"host":              a.steampipeHost,
+		"port":              a.steampipePort,
+		"user":              a.steampipeUser,
+		"password":          a.steampipePassword,
+		"database":          a.steampipeDB,
+		"connection":        a.steampipeConn, // selects aws.yaml catalog
+		"connection_schema": connName,        // query targets this schema only
 	}
 	env := map[string]string{
 		"AWS_ACCESS_KEY_ID":     creds.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": creds.SecretAccessKey,
 		"AWS_SESSION_TOKEN":     creds.SessionToken,
+		// The per-connection Steampipe connection name a credential sink uses to
+		// write an isolated <name>.spc for this session only.
+		"BELLU_STEAMPIPE_CONNECTION": connName,
+		"BELLU_ROLE_ARN":             t.RoleARN,
+		"BELLU_EXTERNAL_ID":          t.ExternalID,
 	}
 	if t.Region != "" {
 		env["AWS_REGION"] = t.Region
