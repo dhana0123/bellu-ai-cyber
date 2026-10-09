@@ -20,6 +20,7 @@ import (
 // interface pattern used by global-intel/raw.s3API.
 type STSAPI interface {
 	AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, opts ...func(*sts.Options)) (*sts.AssumeRoleOutput, error)
+	GetCallerIdentity(ctx context.Context, in *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
 var (
@@ -27,7 +28,20 @@ var (
 	roleARNRe = regexp.MustCompile(`^arn:aws(?:-[a-z-]+)?:iam::\d{12}:role/.+$`)
 	// accountIDRe matches a 12-digit AWS account id.
 	accountIDRe = regexp.MustCompile(`^\d{12}$`)
+	// roleARNAccountRe captures the 12-digit account id embedded in a role ARN.
+	roleARNAccountRe = regexp.MustCompile(`^arn:aws(?:-[a-z-]+)?:iam::(\d{12}):role/.+$`)
 )
+
+// AccountIDFromRoleARN extracts the 12-digit AWS account id embedded in a role
+// ARN. It returns an ErrInvalidValue error naming role_arn when the ARN is not
+// a well-formed IAM role ARN.
+func AccountIDFromRoleARN(arn string) (string, error) {
+	m := roleARNAccountRe.FindStringSubmatch(strings.TrimSpace(arn))
+	if m == nil {
+		return "", fmt.Errorf("%w: role_arn", connector.ErrInvalidValue)
+	}
+	return m[1], nil
+}
 
 // AuthLayer validates connection identifiers and obtains temporary credentials
 // via STS AssumeRole. It uses zero customer long-lived access keys.
@@ -75,12 +89,44 @@ func (l *AuthLayer) Authenticate(ctx context.Context, t provider.Target) (*provi
 		return nil, fmt.Errorf("aws: assume role returned no credentials")
 	}
 	c := out.Credentials
-	return &provider.Credentials{
+	creds := &provider.Credentials{
 		AccessKeyID:     aws.ToString(c.AccessKeyId),
 		SecretAccessKey: aws.ToString(c.SecretAccessKey),
 		SessionToken:    aws.ToString(c.SessionToken),
 		Expiry:          aws.ToTime(c.Expiration),
-	}, nil
+	}
+
+	// Identity validation: confirm the assumed role actually lives in the
+	// account named by the ARN. GetCallerIdentity (called with the assumed-role
+	// credentials) returns the account of the active identity; a mismatch means
+	// the ARN or account is spoofed/misconfigured, so the connection is rejected.
+	wantAccount, _ := AccountIDFromRoleARN(t.RoleARN)
+	ident, ierr := l.sts.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, withCredentials(creds))
+	if ierr != nil {
+		return nil, fmt.Errorf("aws: get caller identity: %w", ierr)
+	}
+	gotAccount := aws.ToString(ident.Account)
+	if wantAccount != "" && gotAccount != "" && gotAccount != wantAccount {
+		return nil, fmt.Errorf("%w: role_arn account %s does not match assumed identity account %s",
+			connector.ErrInvalidValue, wantAccount, gotAccount)
+	}
+	return creds, nil
+}
+
+// withCredentials returns an STS option that uses the given temporary
+// credentials for the request (so GetCallerIdentity reflects the assumed role,
+// not Bellu's own principal). A fake STS in tests can ignore options.
+func withCredentials(c *provider.Credentials) func(*sts.Options) {
+	return func(o *sts.Options) {
+		o.Credentials = aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     c.AccessKeyID,
+				SecretAccessKey: c.SecretAccessKey,
+				SessionToken:    c.SessionToken,
+				Expires:         c.Expiry,
+			}, nil
+		})
+	}
 }
 
 // ValidateTarget reports a validation error (naming the field) without making

@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/session"
@@ -18,6 +19,8 @@ type Adapter struct {
 	sessions          *session.Manager
 	verifier          *Verifier
 	belluPrincipalARN string
+	templates         TemplateStore    // nil: no one-click launch link (dev)
+	orgClient         OrgClientFactory // builds Organizations clients for listing
 
 	// steampipe connection parameters used to build the discovery plan.
 	steampipeHost     string
@@ -34,6 +37,11 @@ type Options struct {
 	Sessions          *session.Manager
 	Probe             ProbeFunc
 	BelluPrincipalARN string
+	// Templates publishes CloudFormation templates to S3 for one-click launch.
+	// When nil, setup still works but no launch link is returned.
+	Templates TemplateStore
+	// OrgClient overrides the Organizations client factory (tests).
+	OrgClient OrgClientFactory
 
 	SteampipeHost     string
 	SteampipePort     int
@@ -70,11 +78,17 @@ func New(opts Options) *Adapter {
 	if conn == "" {
 		conn = "aws"
 	}
+	orgClient := opts.OrgClient
+	if orgClient == nil {
+		orgClient = defaultOrgClient
+	}
 	return &Adapter{
 		auth:              NewAuthLayer(opts.STS),
 		sessions:          sess,
 		verifier:          NewVerifier(opts.Probe),
 		belluPrincipalARN: opts.BelluPrincipalARN,
+		templates:         opts.Templates,
+		orgClient:         orgClient,
 		steampipeHost:     host,
 		steampipePort:     port,
 		steampipeUser:     user,
@@ -87,9 +101,29 @@ func New(opts Options) *Adapter {
 // Name implements provider.CloudProvider.
 func (a *Adapter) Name() string { return ProviderName }
 
-// CreateSetup generates the onboarding artifacts.
+// CreateSetup generates the onboarding artifacts. For CloudFormation, when a
+// template store is configured, the template is published to S3 and a
+// quick-create launch link is returned; otherwise LaunchURL is empty and the
+// customer downloads/uploads the template themselves.
 func (a *Adapter) CreateSetup(ctx context.Context, in provider.SetupInput) (*provider.Setup, error) {
-	return buildSetup(a.belluPrincipalARN, in)
+	s, err := buildSetup(a.belluPrincipalARN, in)
+	if err != nil {
+		return nil, err
+	}
+	if s.DeploymentMethod == "cloudformation" && a.templates != nil && s.Template != "" {
+		body := []byte(s.Template)
+		u, err := a.templates.Publish(ctx, templateKey(in.ConnectionID, body), body)
+		if err != nil {
+			// Publishing is best-effort: if the template bucket is unreachable
+			// (e.g. missing credentials), setup still works via download/upload.
+			// The one-click launch link is simply omitted.
+			log.Printf("connector: template publish failed, launch link disabled: %v", err)
+		} else {
+			s.TemplateURL = u
+			s.LaunchURL = quickCreateURL(in.Region, u)
+		}
+	}
+	return s, nil
 }
 
 // Authenticate obtains fresh temporary credentials via STS AssumeRole.

@@ -12,6 +12,8 @@ import Explain from './pages/Explain.jsx'
 import UsersPage from './pages/Users.jsx'
 import ProjectsPage from './pages/Projects.jsx'
 import RolesPage from './pages/Roles.jsx'
+import ConnectorsPage from './pages/Connectors.jsx'
+import ConnectAwsPage from './pages/ConnectAws.jsx'
 
 // RequireAuth gates a route; redirects to /login when not authenticated and
 // shows a 403 notice when the user lacks the required permission.
@@ -53,6 +55,8 @@ export default function App() {
       <Route path="/users" element={<RequireAuth permission="users:read"><UsersPage /></RequireAuth>} />
       <Route path="/projects" element={<RequireAuth permission="projects:read"><ProjectsPage /></RequireAuth>} />
       <Route path="/roles" element={<RequireAuth permission="users:read"><RolesPage /></RequireAuth>} />
+      <Route path="/connectors" element={<RequireAuth permission="projects:read"><ConnectorsPage /></RequireAuth>} />
+      <Route path="/connectors/new/aws" element={<RequireAuth permission="integrations:manage"><ConnectAwsPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

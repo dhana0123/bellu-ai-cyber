@@ -76,23 +76,49 @@ func (c *Credentials) Expired(now time.Time) bool {
 
 // SetupInput carries the inputs needed to generate onboarding artifacts.
 type SetupInput struct {
-	ConnectionID int64
-	AccountID    string
-	ExternalID   string
-	Region       string
-	Capabilities []string
+	ConnectionID         int64
+	AccountID            string
+	ManagementAccountID  string
+	OrganizationalUnitID string
+	ExternalID           string
+	Region               string
+	Scope                string // "account" | "organization"
+	DeploymentMethod     string // "cloudformation" | "terraform" | "manual"
+	Capabilities         []string
+}
+
+// SetupFile is one named artifact file (e.g. a Terraform file or a template).
+type SetupFile struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
 }
 
 // Setup is the provider-specific onboarding artifact returned to the customer.
 // For AWS it carries the role template, external id, trust/permission policies,
-// and human-readable steps. All fields are non-secret.
+// the rendered deployment artifact for the chosen method, and human-readable
+// steps. All fields are non-secret.
 type Setup struct {
 	RoleName         string         `json:"role_name"`
 	RoleARNTemplate  string         `json:"role_arn_template"`
 	ExternalID       string         `json:"external_id"`
+	Scope            string         `json:"scope"`
+	DeploymentMethod string         `json:"deployment_method"`
 	TrustPolicy      map[string]any `json:"trust_policy"`
 	PermissionPolicy map[string]any `json:"permission_policy"`
 	Instructions     []string       `json:"instructions"`
+
+	// Deployment-method-specific artifacts. Only the field matching
+	// DeploymentMethod is populated.
+	//
+	// cloudformation: Template (YAML) + LaunchURL (console quick-create link).
+	// terraform:      Files (main.tf, variables.tf).
+	// manual:         TrustPolicy + PermissionPolicy above are the artifacts.
+	Template       string `json:"template,omitempty"`
+	TemplateFormat string `json:"template_format,omitempty"`
+	LaunchURL      string `json:"launch_url,omitempty"`
+	// TemplateURL is the (short-lived, presigned) S3 URL of the template.
+	TemplateURL string      `json:"template_url,omitempty"`
+	Files       []SetupFile `json:"files,omitempty"`
 }
 
 // Outcome is the result of a single permission check or an aggregate capability
@@ -136,4 +162,24 @@ type VerifyResult struct {
 type DiscoveryPlan struct {
 	SteampipeConfig map[string]any
 	CredentialEnv   map[string]string
+}
+
+// OrgAccount is one member account of a cloud organization.
+type OrgAccount struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	State string `json:"state"`
+}
+
+// OrganizationLister is implemented by providers that can enumerate the member
+// accounts of an organization-scope connection (AWS Organizations). The
+// manager checks for it with a type assertion, so it stays provider-agnostic.
+type OrganizationLister interface {
+	ListOrganizationAccounts(ctx context.Context, t Target) ([]OrgAccount, error)
+}
+
+// MemberRoleARN returns the role ARN of a member account, built from a member
+// account id. Providers that support organizations implement it.
+type MemberRoleARNer interface {
+	MemberRoleARN(accountID string) string
 }

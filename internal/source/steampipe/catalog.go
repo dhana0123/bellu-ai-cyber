@@ -7,8 +7,11 @@
 package steampipe
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 
 	"gopkg.in/yaml.v3"
 )
@@ -39,15 +42,23 @@ type Catalog struct {
 	Tables     []TableSpec `yaml:"tables"`
 }
 
-// LoadCatalog reads a catalog YAML from path.
-func LoadCatalog(path string) (*Catalog, error) {
-	b, err := os.ReadFile(path)
+// LoadCatalog reads a catalog YAML from p. If the file is not present on disk
+// (e.g. inside a service image that only ships the binary), it falls back to
+// the catalog embedded in the binary, matched by base name
+// (catalog/<name>.yaml).
+func LoadCatalog(p string) (*Catalog, error) {
+	b, err := os.ReadFile(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		if eb, eerr := embeddedCatalogs.ReadFile("catalog/" + path.Base(p)); eerr == nil {
+			b, err = eb, nil
+		}
+	}
 	if err != nil {
-		return nil, fmt.Errorf("steampipe: read catalog %s: %w", path, err)
+		return nil, fmt.Errorf("steampipe: read catalog %s: %w", p, err)
 	}
 	var c Catalog
 	if err := yaml.Unmarshal(b, &c); err != nil {
-		return nil, fmt.Errorf("steampipe: parse catalog %s: %w", path, err)
+		return nil, fmt.Errorf("steampipe: parse catalog %s: %w", p, err)
 	}
 	if err := c.Validate(); err != nil {
 		return nil, err

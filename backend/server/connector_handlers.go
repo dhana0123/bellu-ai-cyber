@@ -9,6 +9,7 @@ import (
 
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/connector"
+	"github.com/bellu/bellu-ai-cyber/internal/connector/capability"
 )
 
 // registerConnectorRoutes wires the RBAC-gated cloud-connector API under the
@@ -22,11 +23,13 @@ func (s *Server) registerConnectorRoutes(g *gin.RouterGroup) {
 	conns.POST("", s.auth.RequirePermission(auth.PermIntegrations), s.handleCreateConnection)
 	conns.POST("/:id/setup", s.auth.RequirePermission(auth.PermIntegrations), s.handleGenerateSetup)
 	conns.POST("/:id/verify", s.auth.RequirePermission(auth.PermIntegrations), s.handleVerifyConnection)
+	conns.POST("/:id/expand", s.auth.RequirePermission(auth.PermIntegrations), s.handleExpandOrganization)
 	conns.POST("/:id/discover", s.auth.RequirePermission(auth.PermIntegrations), s.handleDiscover)
 	conns.POST("/:id/cancel", s.auth.RequirePermission(auth.PermIntegrations), s.handleCancelDiscovery)
 	conns.DELETE("/:id", s.auth.RequirePermission(auth.PermIntegrations), s.handleDeleteConnection)
 
 	// Reads.
+	conns.GET("/capabilities", s.auth.RequirePermission(auth.PermProjectsRead), s.handleConnectorCapabilities)
 	conns.GET("", s.auth.RequirePermission(auth.PermProjectsRead), s.handleListConnections)
 	conns.GET("/:id", s.auth.RequirePermission(auth.PermProjectsRead), s.handleGetConnection)
 	conns.GET("/:id/status", s.auth.RequirePermission(auth.PermProjectsRead), s.handleConnectionStatus)
@@ -74,40 +77,57 @@ func (s *Server) handleCreateConnection(c *gin.Context) {
 	}
 	p, _ := auth.PrincipalFrom(c)
 	var body struct {
-		ProjectID    int64    `json:"project_id"`
-		Provider     string   `json:"provider"`
-		AccountID    string   `json:"account_id"`
-		RoleARN      string   `json:"role_arn"`
-		Region       string   `json:"region"`
-		Capabilities []string `json:"capabilities"`
+		ProjectID            int64    `json:"project_id"`
+		Provider             string   `json:"provider"`
+		Scope                string   `json:"scope"`
+		InstallationType     string   `json:"installation_type"`
+		DeploymentMethod     string   `json:"deployment_method"`
+		AccountID            string   `json:"account_id"`
+		ManagementAccountID  string   `json:"management_account_id"`
+		OrganizationalUnitID string   `json:"organizational_unit_id"`
+		Region               string   `json:"region"`
+		Capabilities         []string `json:"capabilities"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
-	if body.ProjectID == 0 || body.Provider == "" || body.AccountID == "" || body.RoleARN == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "project_id, provider, account_id and role_arn are required"})
+	// No role ARN, account id, management account id, or OU id is required at
+	// create: the customer deploys the role after setup, and the account (the
+	// management account, for organization scope) is derived from the role ARN
+	// at verification. StackSet deployment targets are chosen in AWS.
+	if body.ProjectID == 0 || body.Provider == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project_id and provider are required"})
 		return
 	}
-	// The principal must be able to access the target project.
 	if !p.CanAccessProject(body.ProjectID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
 	conn, err := s.connector.Create(c.Request.Context(), connector.CreateInput{
-		OrgID:        p.User.OrgID,
-		ProjectID:    body.ProjectID,
-		Provider:     body.Provider,
-		AccountID:    body.AccountID,
-		RoleARN:      body.RoleARN,
-		Region:       body.Region,
-		Capabilities: body.Capabilities,
+		OrgID:                p.User.OrgID,
+		ProjectID:            body.ProjectID,
+		Provider:             body.Provider,
+		Scope:                connector.Scope(body.Scope),
+		InstallationType:     connector.InstallationType(body.InstallationType),
+		DeploymentMethod:     connector.DeploymentMethod(body.DeploymentMethod),
+		AccountID:            body.AccountID,
+		ManagementAccountID:  body.ManagementAccountID,
+		OrganizationalUnitID: body.OrganizationalUnitID,
+		Region:               body.Region,
+		Capabilities:         body.Capabilities,
 	})
 	if err != nil {
 		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"connection": conn})
+}
+
+// handleConnectorCapabilities returns the capability catalog as UI cards (no
+// raw IAM actions), so the onboarding wizard can render capability toggles.
+func (s *Server) handleConnectorCapabilities(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"capabilities": capability.Cards()})
 }
 
 func (s *Server) handleListConnections(c *gin.Context) {
@@ -157,12 +177,38 @@ func (s *Server) handleVerifyConnection(c *gin.Context) {
 	if !ok {
 		return
 	}
-	res, err := s.connector.Verify(c.Request.Context(), conn.OrgID, conn.ID)
+	// The customer supplies the deployed role ARN at verification time. It may
+	// also be omitted if already stored from a prior verify.
+	var body struct {
+		RoleARN string `json:"role_arn"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	res, err := s.connector.Verify(c.Request.Context(), conn.OrgID, conn.ID, body.RoleARN)
 	if err != nil {
 		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"verification": res})
+}
+
+func (s *Server) handleExpandOrganization(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	// An empty body means "auto-discover": Bellu lists the organization's member
+	// accounts from the management account itself. An explicit list is also
+	// accepted (e.g. to add specific accounts).
+	var body struct {
+		MemberAccountIDs []string `json:"member_account_ids"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	children, err := s.connector.ExpandOrganization(c.Request.Context(), conn.OrgID, conn.ID, body.MemberAccountIDs)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"connections": children})
 }
 
 func (s *Server) handleDiscover(c *gin.Context) {
@@ -229,7 +275,11 @@ func connectorErrStatus(err error) int {
 	switch {
 	case errors.Is(err, connector.ErrNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, connector.ErrUnsupportedProvider), errors.Is(err, connector.ErrInvalidValue), errors.Is(err, connector.ErrInvalidTransition):
+	case errors.Is(err, connector.ErrConflict):
+		return http.StatusConflict
+	case errors.Is(err, connector.ErrInvalidTransition):
+		return http.StatusConflict
+	case errors.Is(err, connector.ErrUnsupportedProvider), errors.Is(err, connector.ErrInvalidValue):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

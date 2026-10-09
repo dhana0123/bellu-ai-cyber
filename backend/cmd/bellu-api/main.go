@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -118,6 +119,7 @@ func buildConnector(st *store.Store) *connector.Manager {
 
 	awsAdapter := connectoraws.New(connectoraws.Options{
 		STS:               newSTSClient(),
+		Templates:         newTemplateStore(),
 		BelluPrincipalARN: os.Getenv("BELLU_CONNECTOR_PRINCIPAL_ARN"),
 		SteampipeHost:     getenv("BELLU_STEAMPIPE_HOST", "steampipe"),
 		SteampipePort:     atoiOr(os.Getenv("BELLU_STEAMPIPE_PORT"), 9193),
@@ -140,6 +142,28 @@ func buildConnector(st *store.Store) *connector.Manager {
 		Discovery:  disc,
 		ExternalID: connectoraws.GenerateExternalID,
 	})
+}
+
+// newTemplateStore builds the S3-backed CloudFormation template store from the
+// environment. When BELLU_CONNECTOR_TEMPLATE_BUCKET is unset (local dev), it
+// returns nil: setup still works and the customer downloads the template, but
+// no one-click launch link is produced. The presigned-link lifetime defaults to
+// one hour.
+func newTemplateStore() connectoraws.TemplateStore {
+	bucket := strings.TrimSpace(os.Getenv("BELLU_CONNECTOR_TEMPLATE_BUCKET"))
+	if bucket == "" {
+		log.Printf("notice: BELLU_CONNECTOR_TEMPLATE_BUCKET unset; connector launch links disabled (download only)")
+		return nil
+	}
+	region := getenv("BELLU_CONNECTOR_TEMPLATE_REGION", getenv("AWS_REGION", "us-east-1"))
+	ttl := time.Duration(atoiOr(os.Getenv("BELLU_CONNECTOR_LINK_TTL_MIN"), 60)) * time.Minute
+	store, err := connectoraws.NewS3TemplateStore(context.Background(), bucket, region, ttl)
+	if err != nil {
+		log.Printf("warning: template store unavailable (%v); connector launch links disabled", err)
+		return nil
+	}
+	log.Printf("connector template store: s3://%s (region %s, links valid %s)", bucket, region, ttl)
+	return store
 }
 
 // newSTSClient builds an STS client from the default AWS config. On failure

@@ -28,4 +28,8 @@ var (
 	// example a malformed role ARN or account id); the wrapped message names
 	// the offending field.
 	ErrInvalidValue = errors.New("connector: invalid value")
+
+	// ErrConflict is returned when a connection for the same tenant, provider,
+	// and account already exists.
+	ErrConflict = errors.New("connector: a connection for this account already exists")
 )

@@ -5,6 +5,7 @@ import (
 
 	"github.com/bellu/bellu-ai-cyber/internal/connector/capability"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
+	"github.com/bellu/bellu-ai-cyber/internal/connector/setup"
 )
 
 // DefaultRoleName is the IAM role the customer creates for Bellu to assume.
@@ -27,10 +28,11 @@ func sidForCapability(cap string) string {
 }
 
 // buildSetup generates the onboarding artifacts for an AWS connection: the role
-// ARN template, the trust policy conditioned on the external id, and a
-// least-privilege permission policy covering the enabled capabilities. The
-// generated permission policy never includes AdministratorAccess and never uses
-// a "*" action on "*" resource.
+// ARN template, the trust policy conditioned on the external id, a
+// least-privilege permission policy covering the enabled capabilities, and the
+// deployment-method-specific artifact (CloudFormation template + launch URL,
+// Terraform files, or manual steps). The permission policy never includes
+// AdministratorAccess and never uses a "*" action on "*" resource.
 func buildSetup(belluPrincipalARN string, in provider.SetupInput) (*provider.Setup, error) {
 	caps := in.Capabilities
 	if len(caps) == 0 {
@@ -53,14 +55,43 @@ func buildSetup(belluPrincipalARN string, in provider.SetupInput) (*provider.Set
 	perm := policyDocument(statements...)
 	trust := trustPolicy(belluPrincipalARN, in.ExternalID)
 
-	return &provider.Setup{
+	method := in.DeploymentMethod
+	if method == "" {
+		method = "cloudformation"
+	}
+
+	art, err := setup.Generate(method, setup.Input{
+		RoleName:             DefaultRoleName,
+		ExternalID:           in.ExternalID,
+		AccountID:            in.AccountID,
+		Region:               in.Region,
+		Scope:                in.Scope,
+		ManagementAccountID:  in.ManagementAccountID,
+		OrganizationalUnitID: in.OrganizationalUnitID,
+		TrustPolicy:          trust,
+		PermissionPolicy:     perm,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	s := &provider.Setup{
 		RoleName:         DefaultRoleName,
 		RoleARNTemplate:  "arn:aws:iam::<ACCOUNT_ID>:role/" + DefaultRoleName,
 		ExternalID:       in.ExternalID,
+		Scope:            in.Scope,
+		DeploymentMethod: method,
 		TrustPolicy:      trust,
 		PermissionPolicy: perm,
-		Instructions:     instructions(in),
-	}, nil
+		Instructions:     art.Instructions,
+		Template:         art.Template,
+		TemplateFormat:   art.TemplateFormat,
+		LaunchURL:        art.LaunchURL,
+	}
+	for _, f := range art.Files {
+		s.Files = append(s.Files, provider.SetupFile{Name: f.Name, Content: f.Content})
+	}
+	return s, nil
 }
 
 // orderCapabilities returns the enabled capabilities with core first, then the
@@ -80,14 +111,4 @@ func orderCapabilities(caps []string) []string {
 		}
 	}
 	return out
-}
-
-// instructions returns the human-readable onboarding steps.
-func instructions(in provider.SetupInput) []string {
-	return []string{
-		fmt.Sprintf("1. In AWS account %s, create an IAM role named %s.", in.AccountID, DefaultRoleName),
-		"2. Set the role's trust policy to the provided trust_policy document (it conditions sts:AssumeRole on the external id).",
-		"3. Attach the provided permission_policy document as an inline or managed policy (least-privilege, read-only).",
-		fmt.Sprintf("4. Copy the role ARN (arn:aws:iam::%s:role/%s) back into Bellu and run Verify.", in.AccountID, DefaultRoleName),
-	}
 }

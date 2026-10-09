@@ -1,10 +1,7 @@
-# Steampipe AWS connection. Mount read-only AWS credentials (SecurityAudit
-# policy is sufficient) into the steampipe container and reference a profile
-# here. Credentials are never baked into the image.
+# Steampipe AWS connection. Credentials are supplied at runtime via AWS_*
+# environment variables (the connector injects the per-session assumed-role
+# credentials). No profile and no baked-in keys.
 connection "aws" {
-  plugin = "aws"
-  # Use a read-only profile. The profile is resolved from the mounted
-  # ~/.aws/credentials inside the container.
-  profile = "bellu-readonly"
-  regions = ["us-east-1", "us-west-2"]
+  plugin  = "aws"
+  regions = ["*"]
 }

@@ -82,7 +82,13 @@ services:
     image: turbot/steampipe:latest
     # The service exposes Postgres on 9193. Connections and read-only creds are
     # provided via mounted .spc files. Used from Task 6 onward.
-    entrypoint: ["steampipe", "service", "start", "--foreground", "--database-listen", "network", "--database-port", "9193", "--database-password", "${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}"]
+    # Install the AWS plugin on first boot (idempotent) before starting the
+    # service, so the aws_* tables exist. Without the plugin, queries fail with
+    # "relation aws_account does not exist".
+    entrypoint:
+      - "sh"
+      - "-c"
+      - "steampipe plugin list 2>/dev/null | grep -q 'aws@' || steampipe plugin install ghcr.io/turbot/steampipe/plugins/turbot/aws@latest; exec steampipe service start --foreground --database-listen network --database-port 9193 --database-password ${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}"
     ports:
       - "127.0.0.1:9193:9193"
     volumes:
@@ -145,6 +151,24 @@ services:
       BELLU_JWT_SECRET: ${BELLU_JWT_SECRET:-dev-insecure-change-me}
       BELLU_ADMIN_EMAIL: ${BELLU_ADMIN_EMAIL:-admin@bellu.local}
       BELLU_ADMIN_PASSWORD: ${BELLU_ADMIN_PASSWORD:-admin12345}
+      # Cloud connector: how discovery reaches the steampipe collector. AWS
+      # credentials for assumed roles come from the default chain at call time;
+      # none are stored.
+      BELLU_STEAMPIPE_HOST: steampipe
+      BELLU_STEAMPIPE_PORT: "9193"
+      BELLU_STEAMPIPE_USER: steampipe
+      BELLU_STEAMPIPE_PASSWORD: ${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}
+      BELLU_STEAMPIPE_DB: steampipe
+      # Cloud connector one-click launch: Bellu's own AWS identity + template
+      # bucket. Keys come from deploy/.env (gitignored); leave the bucket unset
+      # to disable launch links (download-only).
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      BELLU_CONNECTOR_PRINCIPAL_ARN: ${BELLU_CONNECTOR_PRINCIPAL_ARN:-}
+      BELLU_CONNECTOR_TEMPLATE_BUCKET: ${BELLU_CONNECTOR_TEMPLATE_BUCKET:-}
+      BELLU_CONNECTOR_TEMPLATE_REGION: ${BELLU_CONNECTOR_TEMPLATE_REGION:-}
+      BELLU_CONNECTOR_LINK_TTL_MIN: ${BELLU_CONNECTOR_LINK_TTL_MIN:-60}
     ports:
       - "127.0.0.1:8080:8080"
 

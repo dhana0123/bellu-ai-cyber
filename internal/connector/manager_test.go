@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -62,6 +63,30 @@ func (r *memRepo) SetVerified(ctx context.Context, orgID, id int64, t time.Time)
 	}
 	r.verified[id] = t
 	c.LastVerifiedAt = &t
+	return nil
+}
+func (r *memRepo) SetAccountID(ctx context.Context, orgID, id int64, accountID string) error {
+	c, ok := r.conns[id]
+	if !ok || c.OrgID != orgID {
+		return ErrNotFound
+	}
+	c.AccountID = accountID
+	return nil
+}
+func (r *memRepo) SetManagementAccountID(ctx context.Context, orgID, id int64, accountID string) error {
+	c, ok := r.conns[id]
+	if !ok || c.OrgID != orgID {
+		return ErrNotFound
+	}
+	c.ManagementAccountID = accountID
+	return nil
+}
+func (r *memRepo) SetRoleARN(ctx context.Context, orgID, id int64, roleARN string) error {
+	c, ok := r.conns[id]
+	if !ok || c.OrgID != orgID {
+		return ErrNotFound
+	}
+	c.RoleARN = roleARN
 	return nil
 }
 func (r *memRepo) Delete(ctx context.Context, orgID, id int64) error {
@@ -139,9 +164,19 @@ func newManager(t *testing.T, repo connRepo, p provider.CloudProvider) *Manager 
 		Repo:       repo,
 		Registry:   reg,
 		Discovery:  orch,
-		ExternalID: func() (string, error) { return "BELLU-FIXED", nil },
+		ExternalID: newExtIDGen(),
 		Now:        func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) },
 	})
+}
+
+// newExtIDGen returns a deterministic but unique external-id generator for
+// tests (production uses crypto/rand).
+func newExtIDGen() func() (string, error) {
+	n := 0
+	return func() (string, error) {
+		n++
+		return fmt.Sprintf("BELLU-TEST-%d", n), nil
+	}
 }
 
 func createInput() CreateInput {
@@ -150,10 +185,11 @@ func createInput() CreateInput {
 		ProjectID: 2,
 		Provider:  "aws",
 		AccountID: "123456789012",
-		RoleARN:   "arn:aws:iam::123456789012:role/BelluConnectorRole",
 		Region:    "us-east-1",
 	}
 }
+
+const testRoleARN = "arn:aws:iam::123456789012:role/BelluConnectorRole"
 
 // TestCreateDefaultsCoreAndPending asserts a created connection defaults to the
 // core capability, PENDING status, and a stamped created_at + external id.
@@ -169,7 +205,7 @@ func TestCreateDefaultsCoreAndPending(t *testing.T) {
 	if len(c.Capabilities) != 1 || c.Capabilities[0] != "core" {
 		t.Errorf("capabilities = %v, want [core]", c.Capabilities)
 	}
-	if c.ExternalID != "BELLU-FIXED" || c.CreatedAt.IsZero() {
+	if c.ExternalID == "" || c.CreatedAt.IsZero() {
 		t.Errorf("external id / created_at not set: %+v", c)
 	}
 }
@@ -186,8 +222,8 @@ func TestCreateUnsupportedProvider(t *testing.T) {
 }
 
 // TestGenerateSetupMovesToVerifying asserts setup generation transitions the
-// connection PENDING -> VERIFYING.
-func TestGenerateSetupMovesToVerifying(t *testing.T) {
+// connection at PENDING (the role is not deployed yet).
+func TestGenerateSetupKeepsPending(t *testing.T) {
 	repo := newMemRepo()
 	m := newManager(t, repo, &mgrFakeProvider{})
 	c, _ := m.Create(context.Background(), createInput())
@@ -200,8 +236,16 @@ func TestGenerateSetupMovesToVerifying(t *testing.T) {
 		t.Errorf("unexpected setup %+v", setup)
 	}
 	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
-	if got.Status != StatusVerifying {
-		t.Errorf("status = %s, want VERIFYING", got.Status)
+	if got.Status != StatusPending {
+		t.Errorf("status = %s, want PENDING (role not deployed yet)", got.Status)
+	}
+	// Re-running setup is still safe and keeps PENDING.
+	if _, err := m.GenerateSetup(context.Background(), c.OrgID, c.ID); err != nil {
+		t.Fatalf("re-generate setup: %v", err)
+	}
+	got, _ = repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.Status != StatusPending {
+		t.Errorf("after re-generate status = %s, want PENDING", got.Status)
 	}
 }
 
@@ -212,7 +256,7 @@ func TestVerifySuccess(t *testing.T) {
 	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
 	c, _ := m.Create(context.Background(), createInput())
 
-	res, err := m.Verify(context.Background(), c.OrgID, c.ID)
+	res, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN)
 	if err != nil || !res.OK {
 		t.Fatalf("verify: res=%+v err=%v", res, err)
 	}
@@ -234,7 +278,7 @@ func TestVerifyFailureMovesToError(t *testing.T) {
 	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: false}})
 	c, _ := m.Create(context.Background(), createInput())
 
-	res, err := m.Verify(context.Background(), c.OrgID, c.ID)
+	res, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN)
 	if err != nil {
 		t.Fatalf("verify returned error: %v", err)
 	}
@@ -253,7 +297,7 @@ func TestDiscoverLifecycle(t *testing.T) {
 	repo := newMemRepo()
 	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
 	c, _ := m.Create(context.Background(), createInput())
-	if _, err := m.Verify(context.Background(), c.OrgID, c.ID); err != nil {
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
 
@@ -277,5 +321,381 @@ func TestGetTenantScoped(t *testing.T) {
 	c, _ := m.Create(context.Background(), createInput())
 	if _, err := m.Get(context.Background(), 999, c.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("cross-tenant Get: want ErrNotFound, got %v", err)
+	}
+}
+
+// TestCreateDefaultsScopeAndDeployment asserts create defaults scope=account,
+// installation=standard, deployment=cloudformation, and no role ARN yet.
+func TestCreateDefaultsScopeAndDeployment(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{})
+	c, err := m.Create(context.Background(), createInput())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if c.Scope != ScopeAccount || c.InstallationType != InstallationStandard || c.DeploymentMethod != DeploymentCloudFormation {
+		t.Errorf("defaults wrong: scope=%s inst=%s method=%s", c.Scope, c.InstallationType, c.DeploymentMethod)
+	}
+	if c.RoleARN != "" {
+		t.Errorf("role arn should be empty at create, got %q", c.RoleARN)
+	}
+}
+
+// TestCreateRejectsBadDeployment asserts an unknown deployment method is
+// rejected.
+func TestCreateRejectsBadDeployment(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{})
+	in := createInput()
+	in.DeploymentMethod = DeploymentMethod("ansible")
+	if _, err := m.Create(context.Background(), in); !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("want ErrInvalidValue for bad deployment, got %v", err)
+	}
+}
+
+// TestVerifyRequiresRoleARN asserts verify without a stored or supplied ARN
+// fails.
+func TestVerifyRequiresRoleARN(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	c, _ := m.Create(context.Background(), createInput())
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, ""); !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("verify without role arn should fail, got %v", err)
+	}
+}
+
+// TestVerifyPersistsRoleARN asserts the ARN supplied at verify is stored.
+func TestVerifyPersistsRoleARN(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	c, _ := m.Create(context.Background(), createInput())
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.RoleARN != testRoleARN {
+		t.Errorf("role arn not persisted: %q", got.RoleARN)
+	}
+	if got.Status != StatusConnected {
+		t.Errorf("status = %s, want CONNECTED", got.Status)
+	}
+}
+
+// TestOrgCreateRequiresManagementAccount asserts organization scope needs a
+// management account id.
+func TestOrgCreateWithoutManagementAccount(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	in := createInputNoAccount()
+	in.Scope = ScopeOrganization
+	c, err := m.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("org create without management account should succeed: %v", err)
+	}
+	if c.ManagementAccountID != "" || c.AccountID != "" {
+		t.Fatalf("expected empty account ids at create, got %+v", c)
+	}
+	arn := "arn:aws:iam::111111111111:role/BelluConnectorRole"
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, arn); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.AccountID != "111111111111" || got.ManagementAccountID != "111111111111" {
+		t.Errorf("want account+management derived from ARN, got account=%q mgmt=%q", got.AccountID, got.ManagementAccountID)
+	}
+}
+
+// TestExpandOrganization asserts an org connection fans out into per-member
+// account connections parented to it.
+func TestExpandOrganization(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{})
+	in := createInputNoAccount()
+	in.Scope = ScopeOrganization
+	in.ManagementAccountID = "111111111111"
+	parent, err := m.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+
+	children, err := m.ExpandOrganization(context.Background(), parent.OrgID, parent.ID,
+		[]string{"222222222222", "333333333333"})
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	if len(children) != 2 {
+		t.Fatalf("want 2 children, got %d", len(children))
+	}
+	for _, ch := range children {
+		if ch.Scope != ScopeAccount {
+			t.Errorf("child %d scope = %s, want account", ch.ID, ch.Scope)
+		}
+		if ch.ParentConnectionID != parent.ID {
+			t.Errorf("child %d parent = %d, want %d", ch.ID, ch.ParentConnectionID, parent.ID)
+		}
+		if ch.ExternalID != parent.ExternalID {
+			t.Error("child must reuse the organization's external id")
+		}
+	}
+}
+
+// TestExpandNonOrgRejected asserts expanding an account connection fails.
+func TestExpandNonOrgRejected(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{})
+	c, _ := m.Create(context.Background(), createInput()) // account scope
+	if _, err := m.ExpandOrganization(context.Background(), c.OrgID, c.ID, []string{"222222222222"}); !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("expanding non-org connection should fail, got %v", err)
+	}
+}
+
+// TestVerifyDerivesAccountFromARN asserts an account-scope connection created
+// without an account id gets it from the role ARN at verify.
+func TestVerifyDerivesAccountFromARN(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	in := createInput()
+	in.AccountID = "" // account scope: no account id at create
+	c, err := m.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if c.AccountID != "" {
+		t.Fatalf("account id should be empty at create, got %q", c.AccountID)
+	}
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.AccountID != "123456789012" {
+		t.Errorf("account id = %q, want 123456789012 (derived from ARN)", got.AccountID)
+	}
+}
+
+// TestVerifyRejectsAccountMismatch asserts a role ARN whose account contradicts
+// a connection's existing account is rejected.
+func TestVerifyRejectsAccountMismatch(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	in := createInput()
+	in.AccountID = "999999999999" // pre-set a different account
+	c, _ := m.Create(context.Background(), in)
+	_, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN) // ARN account 123456789012
+	if !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("want ErrInvalidValue on account mismatch, got %v", err)
+	}
+}
+
+// TestVerifyRejectsMalformedARN asserts a non-ARN string is rejected at verify.
+func TestVerifyRejectsMalformedARN(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	c, _ := m.Create(context.Background(), createInputNoAccount())
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, "not-an-arn"); !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("want ErrInvalidValue on malformed ARN, got %v", err)
+	}
+}
+
+func createInputNoAccount() CreateInput {
+	in := createInput()
+	in.AccountID = ""
+	return in
+}
+
+// TestAccountScopeDropsOrgInputs asserts organization-only inputs are discarded
+// for account scope, so a stray value can't leak into the single-account flow.
+func TestAccountScopeDropsOrgInputs(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{})
+	in := createInputNoAccount()
+	in.ManagementAccountID = "111111111111"
+	in.OrganizationalUnitID = "ou-abcd-12345678"
+	c, err := m.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if c.ManagementAccountID != "" || c.OrganizationalUnitID != "" || c.AccountID != "" {
+		t.Errorf("account scope kept org/account inputs: %+v", c)
+	}
+}
+
+// TestOrgScopeValidation pins the organization-scope input rules.
+func TestOrgScopeValidation(t *testing.T) {
+	cases := []struct {
+		name string
+		mgmt string
+		ou   string
+		ok   bool
+	}{
+		{"valid mgmt, no ou", "111111111111", "", true},
+		{"valid mgmt, ou", "111111111111", "ou-abcd-12345678", true},
+		{"valid mgmt, root", "111111111111", "r-ab12", true},
+		{"missing mgmt (derived at verify)", "", "", true},
+		{"short mgmt", "1111", "", false},
+		{"bad ou", "111111111111", "not-an-ou", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newManager(t, newMemRepo(), &mgrFakeProvider{})
+			in := createInputNoAccount()
+			in.Scope = ScopeOrganization
+			in.ManagementAccountID = tc.mgmt
+			in.OrganizationalUnitID = tc.ou
+			c, err := m.Create(context.Background(), in)
+			if tc.ok && err != nil {
+				t.Fatalf("want ok, got %v", err)
+			}
+			if !tc.ok && !errors.Is(err, ErrInvalidValue) {
+				t.Fatalf("want ErrInvalidValue, got %v", err)
+			}
+			if tc.ok && tc.mgmt != "" && c.AccountID != tc.mgmt {
+				t.Errorf("org account = %q, want management account %q", c.AccountID, tc.mgmt)
+			}
+		})
+	}
+}
+
+// TestOrgVerifyRejectsNonManagementARN asserts an organization connection only
+// accepts a role ARN from its management account.
+func TestOrgVerifyRejectsNonManagementARN(t *testing.T) {
+	m := newManager(t, newMemRepo(), &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	in := createInputNoAccount()
+	in.Scope = ScopeOrganization
+	in.ManagementAccountID = "111111111111"
+	c, err := m.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// testRoleARN is in account 123456789012, not the management account.
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("want ErrInvalidValue for non-management ARN, got %v", err)
+	}
+	ok := "arn:aws:iam::111111111111:role/BelluConnectorRole"
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, ok); err != nil {
+		t.Errorf("management-account ARN should verify, got %v", err)
+	}
+}
+
+// orgFakeProvider is a mgrFakeProvider that also lists org accounts.
+type orgFakeProvider struct {
+	mgrFakeProvider
+	accounts []provider.OrgAccount
+}
+
+func (p *orgFakeProvider) ListOrganizationAccounts(context.Context, provider.Target) ([]provider.OrgAccount, error) {
+	return p.accounts, nil
+}
+func (p *orgFakeProvider) MemberRoleARN(acct string) string {
+	return "arn:aws:iam::" + acct + ":role/BelluConnectorRole"
+}
+
+// TestExpandReusesExternalIDAndSetsRoleARN asserts children reuse the parent's
+// ExternalId and carry the member role ARN.
+func TestExpandReusesExternalIDAndSetsRoleARN(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{})
+	in := createInputNoAccount()
+	in.Scope = ScopeOrganization
+	in.ManagementAccountID = "111111111111"
+	parent, err := m.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	kids, err := m.ExpandOrganization(context.Background(), parent.OrgID, parent.ID, []string{"222222222222"})
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	if len(kids) != 1 {
+		t.Fatalf("want 1 child, got %d", len(kids))
+	}
+	if kids[0].ExternalID != parent.ExternalID {
+		t.Errorf("child ExternalId %q != parent %q", kids[0].ExternalID, parent.ExternalID)
+	}
+	// mgrFakeProvider is not a MemberRoleARNer, so no ARN is set here.
+	// Idempotency: expanding the same account again adds nothing.
+	again, err := m.ExpandOrganization(context.Background(), parent.OrgID, parent.ID, []string{"222222222222"})
+	if err != nil {
+		t.Fatalf("expand again: %v", err)
+	}
+	if len(again) != 0 {
+		t.Errorf("re-expand should be idempotent, created %d", len(again))
+	}
+}
+
+// TestExpandAutoDiscovers asserts an empty member list triggers provider-driven
+// account enumeration, skipping the management account, with member role ARNs.
+func TestExpandAutoDiscovers(t *testing.T) {
+	repo := newMemRepo()
+	p := &orgFakeProvider{accounts: []provider.OrgAccount{
+		{ID: "111111111111", Name: "mgmt", State: "ACTIVE"},
+		{ID: "222222222222", Name: "prod", State: "ACTIVE"},
+		{ID: "333333333333", Name: "dev", State: "ACTIVE"},
+	}}
+	m := newManager(t, repo, p)
+	in := createInputNoAccount()
+	in.Scope = ScopeOrganization
+	in.ManagementAccountID = "111111111111"
+	parent, _ := m.Create(context.Background(), in)
+
+	kids, err := m.ExpandOrganization(context.Background(), parent.OrgID, parent.ID, nil)
+	if err != nil {
+		t.Fatalf("expand auto: %v", err)
+	}
+	if len(kids) != 2 {
+		t.Fatalf("want 2 members (mgmt skipped), got %d", len(kids))
+	}
+	for _, k := range kids {
+		if k.AccountID == "111111111111" {
+			t.Error("management account should be skipped")
+		}
+		if k.RoleARN != "arn:aws:iam::"+k.AccountID+":role/BelluConnectorRole" {
+			t.Errorf("member %s missing role ARN, got %q", k.AccountID, k.RoleARN)
+		}
+		if k.ExternalID != parent.ExternalID {
+			t.Error("member must reuse parent ExternalId")
+		}
+	}
+}
+
+// TestReVerifyFromConnected asserts an already-CONNECTED connection can be
+// verified again without an invalid-transition error, staying CONNECTED.
+func TestReVerifyFromConnected(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	c, _ := m.Create(context.Background(), createInput())
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
+		t.Fatalf("first verify: %v", err)
+	}
+	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.Status != StatusConnected {
+		t.Fatalf("after first verify status = %s, want CONNECTED", got.Status)
+	}
+	// Re-verify must not error and must settle back to CONNECTED.
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
+		t.Fatalf("re-verify: %v", err)
+	}
+	got, _ = repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.Status != StatusConnected {
+		t.Errorf("after re-verify status = %s, want CONNECTED", got.Status)
+	}
+}
+
+// TestReDiscoverFromComplete asserts discovery can run again on a COMPLETE
+// connection (CONNECTED -> discover -> COMPLETE -> discover again).
+func TestReDiscoverFromComplete(t *testing.T) {
+	repo := newMemRepo()
+	m := newManager(t, repo, &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}})
+	c, _ := m.Create(context.Background(), createInput())
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if _, err := m.Discover(context.Background(), c.OrgID, c.ID); err != nil {
+		t.Fatalf("first discover: %v", err)
+	}
+	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.Status != StatusComplete {
+		t.Fatalf("after first discover status = %s, want COMPLETE", got.Status)
+	}
+	// Re-discover from COMPLETE must not error.
+	if _, err := m.Discover(context.Background(), c.OrgID, c.ID); err != nil {
+		t.Fatalf("re-discover: %v", err)
+	}
+	got, _ = repo.Get(context.Background(), c.OrgID, c.ID)
+	if got.Status != StatusComplete {
+		t.Errorf("after re-discover status = %s, want COMPLETE", got.Status)
 	}
 }

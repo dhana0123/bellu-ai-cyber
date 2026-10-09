@@ -17,7 +17,11 @@ const (
 // Definition is a capability's least-privilege, read-oriented permission set
 // plus the concrete read-only probes the Permission Verifier runs for it.
 type Definition struct {
-	Name        Capability
+	Name Capability
+	// Title is the human-readable card title shown in onboarding (e.g.
+	// "Core Security"). The UI shows capability cards, never raw IAM actions.
+	Title string
+	// Description is the human-readable card description.
 	Description string
 	// Permissions are the IAM actions the capability requires. They are least
 	// privilege and read-oriented; none is a write/modify/delete action, and
@@ -35,11 +39,22 @@ type Probe struct {
 	Permission string
 }
 
+// Card is the UI-facing, non-secret view of a capability for onboarding. It
+// carries only a title and description so the wizard shows capability cards,
+// never raw IAM actions.
+type Card struct {
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Default     bool   `json:"default"`
+}
+
 // Catalog is the authoritative set of capabilities and their permission bundles.
 var Catalog = map[Capability]Definition{
 	Core: {
 		Name:        Core,
-		Description: "Account, regions, EC2, VPC, IAM, and S3 read access.",
+		Title:       "Core Security",
+		Description: "Account, EC2, VPC, IAM, and S3 visibility.",
 		Permissions: []string{
 			"sts:GetCallerIdentity",
 			"account:ListRegions",
@@ -56,7 +71,8 @@ var Catalog = map[Capability]Definition{
 	},
 	EKS: {
 		Name:        EKS,
-		Description: "EKS cluster read access.",
+		Title:       "EKS Scanning",
+		Description: "Kubernetes / EKS cluster visibility.",
 		Permissions: []string{
 			"eks:ListClusters",
 			"eks:DescribeCluster",
@@ -64,7 +80,8 @@ var Catalog = map[Capability]Definition{
 	},
 	Workload: {
 		Name:        Workload,
-		Description: "Container and serverless workload read access.",
+		Title:       "Workload Scanning",
+		Description: "ECS / Lambda workload visibility.",
 		Permissions: []string{
 			"ecs:ListClusters",
 			"ecs:ListServices",
@@ -73,7 +90,8 @@ var Catalog = map[Capability]Definition{
 	},
 	DSPM: {
 		Name:        DSPM,
-		Description: "Data-store posture read access.",
+		Title:       "DSPM",
+		Description: "Scan supported data stores for sensitive data.",
 		Permissions: []string{
 			"s3:GetBucketTagging",
 			"s3:GetBucketPublicAccessBlock",
@@ -81,6 +99,9 @@ var Catalog = map[Capability]Definition{
 		},
 	},
 }
+
+// cardOrder is the stable display order for capability cards.
+var cardOrder = []Capability{Core, DSPM, Workload, EKS}
 
 // init populates each Definition's Probes from its Permissions so the verifier
 // has a concrete read-only probe per required permission.
@@ -111,4 +132,20 @@ func Known(name string) bool {
 func Lookup(name string) (Definition, bool) {
 	d, ok := Catalog[Capability(name)]
 	return d, ok
+}
+
+// Cards returns the UI-facing capability catalog in stable display order, with
+// core marked as the default selection. It exposes no IAM actions.
+func Cards() []Card {
+	out := make([]Card, 0, len(cardOrder))
+	for _, name := range cardOrder {
+		def := Catalog[name]
+		out = append(out, Card{
+			Name:        string(name),
+			Title:       def.Title,
+			Description: def.Description,
+			Default:     name == Core,
+		})
+	}
+	return out
 }

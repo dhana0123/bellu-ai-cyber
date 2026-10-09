@@ -20,9 +20,10 @@ func TestConnectorErrStatus(t *testing.T) {
 		want int
 	}{
 		{connector.ErrNotFound, http.StatusNotFound},
+		{connector.ErrConflict, http.StatusConflict},
 		{connector.ErrUnsupportedProvider, http.StatusBadRequest},
 		{connector.ErrInvalidValue, http.StatusBadRequest},
-		{connector.ErrInvalidTransition, http.StatusBadRequest},
+		{connector.ErrInvalidTransition, http.StatusConflict},
 		{errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, c := range cases {

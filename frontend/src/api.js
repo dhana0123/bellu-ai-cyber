@@ -99,4 +99,18 @@ export const api = {
   permissions: () => get('/api/permissions'),
   projects: () => get('/api/projects'),
   createProject: (key, name) => post('/api/projects', { key, name }),
+
+  // cloud connectors
+  connectorCapabilities: () => get('/api/connectors/capabilities'),
+  connectors: () => get('/api/connectors'),
+  connector: (id) => get(`/api/connectors/${id}`),
+  connectorStatus: (id) => get(`/api/connectors/${id}/status`),
+  createConnector: (payload) => post('/api/connectors', payload),
+  connectorSetup: (id) => post(`/api/connectors/${id}/setup`),
+  verifyConnector: (id, roleArn) => post(`/api/connectors/${id}/verify`, { role_arn: roleArn }),
+  discoverConnector: (id) => post(`/api/connectors/${id}/discover`),
+  cancelConnector: (id) => post(`/api/connectors/${id}/cancel`),
+  expandConnector: (id, memberAccountIds) =>
+    post(`/api/connectors/${id}/expand`, { member_account_ids: memberAccountIds }),
+  deleteConnector: (id) => request('DELETE', `/api/connectors/${id}`),
 }

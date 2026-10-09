@@ -20,6 +20,12 @@ func TestStatusNext_AllowedTransitions(t *testing.T) {
 		{StatusDiscoveryRunning, EventDiscoverDone, StatusComplete},
 		{StatusDiscoveryRunning, EventDiscoverFailed, StatusError},
 		{StatusError, EventRetry, StatusDiscoveryRunning},
+		// Re-entry transitions: re-verify and re-discover from settled states.
+		{StatusConnected, EventBeginVerify, StatusVerifying},
+		{StatusComplete, EventBeginVerify, StatusVerifying},
+		{StatusError, EventBeginVerify, StatusVerifying},
+		{StatusComplete, EventDiscover, StatusDiscoveryRunning},
+		{StatusError, EventDiscover, StatusDiscoveryRunning},
 	}
 	for _, c := range cases {
 		got, err := c.from.Next(c.ev)

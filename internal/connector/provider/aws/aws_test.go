@@ -17,10 +17,11 @@ import (
 
 // fakeSTS is a counting fake STSAPI for auth tests.
 type fakeSTS struct {
-	calls       int
-	lastInput   *sts.AssumeRoleInput
-	err         error
-	returnCreds bool
+	calls           int
+	lastInput       *sts.AssumeRoleInput
+	err             error
+	returnCreds     bool
+	identityAccount string // overrides the account GetCallerIdentity returns
 }
 
 func (f *fakeSTS) AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, opts ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
@@ -40,6 +41,18 @@ func (f *fakeSTS) AssumeRole(ctx context.Context, in *sts.AssumeRoleInput, opts 
 			Expiration:      awssdk.Time(time.Now().Add(time.Hour)),
 		},
 	}, nil
+}
+
+func (f *fakeSTS) GetCallerIdentity(ctx context.Context, in *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	acct := f.identityAccount
+	if acct == "" {
+		if f.lastInput != nil && f.lastInput.RoleArn != nil {
+			if a, err := AccountIDFromRoleARN(awssdk.ToString(f.lastInput.RoleArn)); err == nil {
+				acct = a
+			}
+		}
+	}
+	return &sts.GetCallerIdentityOutput{Account: awssdk.String(acct)}, nil
 }
 
 const (
@@ -240,5 +253,31 @@ func TestGenerateExternalIDUnique(t *testing.T) {
 	}
 	if a == b {
 		t.Error("two generated external ids should differ")
+	}
+}
+
+// TestAuthenticateRejectsIdentityMismatch asserts that when GetCallerIdentity
+// returns an account different from the role ARN's account, authentication is
+// rejected and no credentials are returned.
+func TestAuthenticateRejectsIdentityMismatch(t *testing.T) {
+	f := &fakeSTS{returnCreds: true, identityAccount: "999999999999"} // != ARN account
+	l := NewAuthLayer(f)
+	creds, err := l.Authenticate(context.Background(), validTarget())
+	if !errors.Is(err, connector.ErrInvalidValue) {
+		t.Fatalf("want ErrInvalidValue on identity mismatch, got %v", err)
+	}
+	if creds != nil {
+		t.Errorf("want nil creds on identity mismatch, got %+v", creds)
+	}
+}
+
+// TestAccountIDFromRoleARN pins the ARN account extractor.
+func TestAccountIDFromRoleARN(t *testing.T) {
+	acct, err := AccountIDFromRoleARN("arn:aws:iam::210987654321:role/BelluConnectorRole")
+	if err != nil || acct != "210987654321" {
+		t.Errorf("extract = (%q,%v), want 210987654321", acct, err)
+	}
+	if _, err := AccountIDFromRoleARN("garbage"); !errors.Is(err, connector.ErrInvalidValue) {
+		t.Errorf("malformed ARN should error with ErrInvalidValue, got %v", err)
 	}
 }

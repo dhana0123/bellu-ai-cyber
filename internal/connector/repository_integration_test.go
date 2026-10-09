@@ -60,16 +60,19 @@ func newRepo(t *testing.T) (*Repository, int64, int64) {
 
 func sampleConn(orgID, projID int64) *Connection {
 	return &Connection{
-		OrgID:        orgID,
-		ProjectID:    projID,
-		Provider:     "aws",
-		AccountID:    "123456789012",
-		RoleARN:      "arn:aws:iam::123456789012:role/BelluConnectorRole",
-		ExternalID:   "BELLU-TEST",
-		Region:       "us-east-1",
-		Capabilities: []string{"core"},
-		Status:       StatusPending,
-		CreatedAt:    time.Now().UTC(),
+		OrgID:            orgID,
+		ProjectID:        projID,
+		Provider:         "aws",
+		Scope:            ScopeAccount,
+		InstallationType: InstallationStandard,
+		DeploymentMethod: DeploymentCloudFormation,
+		AccountID:        "123456789012",
+		RoleARN:          "arn:aws:iam::123456789012:role/BelluConnectorRole",
+		ExternalID:       "BELLU-TEST",
+		Region:           "us-east-1",
+		Capabilities:     []string{"core"},
+		Status:           StatusPending,
+		CreatedAt:        time.Now().UTC(),
 	}
 }
 
@@ -91,6 +94,9 @@ func TestRepositoryRoundTrip(t *testing.T) {
 	}
 	if got.LastVerifiedAt != nil {
 		t.Error("last_verified_at should be nil before verification")
+	}
+	if got.Scope != ScopeAccount || got.DeploymentMethod != DeploymentCloudFormation || got.InstallationType != InstallationStandard {
+		t.Errorf("onboarding fields did not round-trip: %+v", got)
 	}
 
 	list, err := repo.ListByOrg(ctx, orgID)
@@ -219,5 +225,35 @@ func TestRecordAndLatestSession(t *testing.T) {
 	}
 	if latest == nil || latest.Status != "complete" || latest.EndedAt == nil {
 		t.Errorf("latest session = %+v, want complete with ended_at", latest)
+	}
+}
+
+// TestPendingConnectionsDoNotCollide asserts several account-scope connections
+// with no account id yet can coexist in one org, while two connections that
+// resolve to the same account conflict.
+func TestPendingConnectionsDoNotCollide(t *testing.T) {
+	ctx := context.Background()
+	repo, orgID, projID := newRepo(t)
+
+	pending := func() *Connection {
+		c := sampleConn(orgID, projID)
+		c.AccountID = ""
+		c.RoleARN = ""
+		return c
+	}
+	id1, err := repo.Insert(ctx, pending())
+	if err != nil {
+		t.Fatalf("insert pending 1: %v", err)
+	}
+	id2, err := repo.Insert(ctx, pending())
+	if err != nil {
+		t.Fatalf("insert pending 2 should not collide on empty account: %v", err)
+	}
+
+	if err := repo.SetAccountID(ctx, orgID, id1, "123456789012"); err != nil {
+		t.Fatalf("set account 1: %v", err)
+	}
+	if err := repo.SetAccountID(ctx, orgID, id2, "123456789012"); err != ErrConflict {
+		t.Errorf("same account on second connection: want ErrConflict, got %v", err)
 	}
 }

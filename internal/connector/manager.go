@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bellu/bellu-ai-cyber/internal/connector/capability"
@@ -24,6 +25,9 @@ type connRepo interface {
 	ListByOrg(ctx context.Context, orgID int64) ([]Connection, error)
 	UpdateStatus(ctx context.Context, orgID, id int64, s Status) error
 	SetVerified(ctx context.Context, orgID, id int64, t time.Time) error
+	SetRoleARN(ctx context.Context, orgID, id int64, roleARN string) error
+	SetAccountID(ctx context.Context, orgID, id int64, accountID string) error
+	SetManagementAccountID(ctx context.Context, orgID, id int64, accountID string) error
 	Delete(ctx context.Context, orgID, id int64) error
 	SaveVerification(ctx context.Context, connID int64, res *provider.VerifyResult) error
 	RecordSession(ctx context.Context, connID int64, sessionID, runID, status string, started time.Time, ended *time.Time, errMsg string) error
@@ -70,15 +74,26 @@ func NewManager(opts Options) *Manager {
 	return m
 }
 
-// CreateInput carries the fields needed to create a connection.
+// CreateInput carries the fields needed to create a connection. RoleARN is
+// intentionally absent: the customer deploys the role after setup and supplies
+// its ARN at verification time.
 type CreateInput struct {
-	OrgID        int64
-	ProjectID    int64
-	Provider     string
-	AccountID    string
-	RoleARN      string
-	Region       string
-	Capabilities []string
+	OrgID                int64
+	ProjectID            int64
+	Provider             string
+	Scope                Scope
+	InstallationType     InstallationType
+	DeploymentMethod     DeploymentMethod
+	AccountID            string
+	ManagementAccountID  string
+	OrganizationalUnitID string
+	Region               string
+	Capabilities         []string
+	// The following are set internally when expanding an organization into
+	// per-member-account connections; external callers leave them zero.
+	parentConnectionID int64
+	externalIDOverride string // reuse the organization's ExternalId
+	roleARNOverride    string // the member role ARN the StackSet created
 }
 
 // Create validates the provider, generates an external id, defaults the
@@ -98,22 +113,86 @@ func (m *Manager) Create(ctx context.Context, in CreateInput) (*Connection, erro
 		}
 	}
 
-	ext, err := m.externalID()
-	if err != nil {
-		return nil, err
+	scope := in.Scope
+	if scope == "" {
+		scope = ScopeAccount
+	}
+	if !scope.Valid() {
+		return nil, fmt.Errorf("%w: scope %q", ErrInvalidValue, scope)
+	}
+	inst := in.InstallationType
+	if inst == "" {
+		inst = InstallationStandard
+	}
+	if inst != InstallationStandard {
+		return nil, fmt.Errorf("%w: installation_type %q (only standard is supported)", ErrInvalidValue, inst)
+	}
+	method := in.DeploymentMethod
+	if method == "" {
+		method = DeploymentCloudFormation
+	}
+	if !method.Valid() {
+		return nil, fmt.Errorf("%w: deployment_method %q", ErrInvalidValue, method)
+	}
+	// Scope-specific inputs. Account scope takes no account or organization
+	// inputs at create: the account id is derived from the role ARN at verify.
+	// Organization scope keeps only what the StackSet deployment needs: the
+	// management account (where the StackSet runs and where Bellu's org-level
+	// role lives) and an optional deployment-target OU/root id.
+	accountID := strings.TrimSpace(in.AccountID)
+	mgmt := strings.TrimSpace(in.ManagementAccountID)
+	ou := strings.TrimSpace(in.OrganizationalUnitID)
+	switch scope {
+	case ScopeAccount:
+		// Organization-only inputs never apply to an account connection.
+		mgmt, ou = "", ""
+		if accountID != "" && !accountIDRe.MatchString(accountID) {
+			return nil, fmt.Errorf("%w: account_id must be a 12-digit AWS account id", ErrInvalidValue)
+		}
+	case ScopeOrganization:
+		// The management account is optional at create: when omitted it is
+		// derived from the role ARN at verify, like the account-scope flow.
+		if mgmt != "" && !accountIDRe.MatchString(mgmt) {
+			return nil, fmt.Errorf("%w: management_account_id must be a 12-digit AWS account id", ErrInvalidValue)
+		}
+		if ou != "" && !ouIDRe.MatchString(ou) {
+			return nil, fmt.Errorf("%w: organizational_unit_id must be an OU id (ou-...) or root id (r-...)", ErrInvalidValue)
+		}
+		// The organization connection's own account is the management account,
+		// so a role ARN from any other account is rejected at verify.
+		if accountID != "" && mgmt != "" && accountID != mgmt {
+			return nil, fmt.Errorf("%w: account_id must match management_account_id for organization scope", ErrInvalidValue)
+		}
+		if mgmt != "" {
+			accountID = mgmt
+		}
+	}
+
+	ext := in.externalIDOverride
+	if ext == "" {
+		var err error
+		if ext, err = m.externalID(); err != nil {
+			return nil, err
+		}
 	}
 
 	c := &Connection{
-		OrgID:        in.OrgID,
-		ProjectID:    in.ProjectID,
-		Provider:     in.Provider,
-		AccountID:    in.AccountID,
-		RoleARN:      in.RoleARN,
-		ExternalID:   ext,
-		Region:       in.Region,
-		Capabilities: caps,
-		Status:       StatusPending,
-		CreatedAt:    m.now(),
+		OrgID:                in.OrgID,
+		ProjectID:            in.ProjectID,
+		Provider:             in.Provider,
+		Scope:                scope,
+		InstallationType:     inst,
+		DeploymentMethod:     method,
+		AccountID:            accountID,
+		ManagementAccountID:  mgmt,
+		OrganizationalUnitID: ou,
+		ParentConnectionID:   in.parentConnectionID,
+		RoleARN:              in.roleARNOverride,
+		ExternalID:           ext,
+		Region:               in.Region,
+		Capabilities:         caps,
+		Status:               StatusPending,
+		CreatedAt:            m.now(),
 	}
 	if _, err := m.repo.Insert(ctx, c); err != nil {
 		return nil, err
@@ -131,6 +210,98 @@ func (m *Manager) List(ctx context.Context, orgID int64) ([]Connection, error) {
 	return m.repo.ListByOrg(ctx, orgID)
 }
 
+// ExpandOrganization creates a per-member-account child connection for each
+// supplied member account id, parented to the given organization connection.
+// It is how an organization-scope connection fans out into the account-level
+// connections that discovery runs against (one role per member account, created
+// by the StackSet). Each child is an account-scope connection sharing the
+// parent's project, region, and capabilities, with its own external id.
+//
+// Member account ids are supplied by the caller. Live enumeration via the AWS
+// Organizations API is the documented follow-up; this method is the account
+// fan-out that both the manual and API-driven paths feed.
+// ExpandOrganization creates (or reuses) a per-member-account child connection
+// for each member account, parented to the organization connection. Each child
+// reuses the organization's ExternalId (the StackSet deployed the same role
+// everywhere) and carries the member role ARN the StackSet created, so it can
+// be verified without the customer pasting anything. Accounts that already have
+// a child connection are skipped, so expand is safe to call repeatedly.
+//
+// When memberAccountIDs is empty and the provider can list organization
+// accounts, Bellu enumerates them automatically from the management account.
+func (m *Manager) ExpandOrganization(ctx context.Context, orgID, id int64, memberAccountIDs []string) ([]*Connection, error) {
+	parent, err := m.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	if parent.Scope != ScopeOrganization {
+		return nil, fmt.Errorf("%w: connection %d is not organization-scoped", ErrInvalidValue, id)
+	}
+
+	p, err := m.resolveProvider(parent.Provider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Auto-discover member accounts from the management account when none were
+	// supplied and the provider supports it.
+	if len(memberAccountIDs) == 0 {
+		if lister, ok := p.(provider.OrganizationLister); ok {
+			accts, lerr := lister.ListOrganizationAccounts(ctx, m.targetFor(parent))
+			if lerr != nil {
+				return nil, lerr
+			}
+			for _, a := range accts {
+				// Skip the management account itself (it is the parent).
+				if a.ID == parent.ManagementAccountID {
+					continue
+				}
+				memberAccountIDs = append(memberAccountIDs, a.ID)
+			}
+		}
+	}
+
+	// Index existing children by account id so repeated expands are idempotent.
+	existing := map[string]bool{}
+	all, _ := m.repo.ListByOrg(ctx, orgID)
+	for i := range all {
+		if all[i].ParentConnectionID == parent.ID {
+			existing[all[i].AccountID] = true
+		}
+	}
+
+	arner, _ := p.(provider.MemberRoleARNer)
+	children := make([]*Connection, 0, len(memberAccountIDs))
+	for _, acct := range memberAccountIDs {
+		if acct == "" || existing[acct] {
+			continue
+		}
+		roleARN := ""
+		if arner != nil {
+			roleARN = arner.MemberRoleARN(acct)
+		}
+		child, err := m.Create(ctx, CreateInput{
+			OrgID:              parent.OrgID,
+			ProjectID:          parent.ProjectID,
+			Provider:           parent.Provider,
+			Scope:              ScopeAccount,
+			InstallationType:   parent.InstallationType,
+			DeploymentMethod:   parent.DeploymentMethod,
+			AccountID:          acct,
+			Region:             parent.Region,
+			Capabilities:       parent.Capabilities,
+			parentConnectionID: parent.ID,
+			externalIDOverride: parent.ExternalID,
+			roleARNOverride:    roleARN,
+		})
+		if err != nil {
+			return children, err
+		}
+		children = append(children, child)
+	}
+	return children, nil
+}
+
 // GenerateSetup moves the connection to VERIFYING and returns the provider's
 // onboarding artifacts.
 func (m *Manager) GenerateSetup(ctx context.Context, orgID, id int64) (*provider.Setup, error) {
@@ -143,24 +314,31 @@ func (m *Manager) GenerateSetup(ctx context.Context, orgID, id int64) (*provider
 		return nil, err
 	}
 	setup, err := p.CreateSetup(ctx, provider.SetupInput{
-		ConnectionID: c.ID,
-		AccountID:    c.AccountID,
-		ExternalID:   c.ExternalID,
-		Region:       c.Region,
-		Capabilities: c.Capabilities,
+		ConnectionID:         c.ID,
+		AccountID:            c.AccountID,
+		ManagementAccountID:  c.ManagementAccountID,
+		OrganizationalUnitID: c.OrganizationalUnitID,
+		ExternalID:           c.ExternalID,
+		Region:               c.Region,
+		Scope:                string(c.Scope),
+		DeploymentMethod:     string(c.DeploymentMethod),
+		Capabilities:         c.Capabilities,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := m.transition(ctx, c, EventBeginVerify); err != nil {
-		return nil, err
-	}
+	// Generating setup does not change the connection status: the customer still
+	// has to deploy the role in AWS. The connection stays PENDING until Verify
+	// runs (which moves it PENDING -> VERIFYING -> CONNECTED/ERROR), so the list
+	// never shows a connection as "verifying" before a real verification.
 	return setup, nil
 }
 
-// Verify runs permission verification and moves the connection to CONNECTED on
-// success or ERROR on failure. On success it stamps last_verified_at.
-func (m *Manager) Verify(ctx context.Context, orgID, id int64) (*provider.VerifyResult, error) {
+// Verify persists the role ARN the customer supplies (after deploying the role),
+// runs permission verification, and moves the connection to CONNECTED on success
+// or ERROR on failure. On success it stamps last_verified_at. A roleARN is
+// required: it is supplied here rather than at create time.
+func (m *Manager) Verify(ctx context.Context, orgID, id int64, roleARN string) (*provider.VerifyResult, error) {
 	c, err := m.repo.Get(ctx, orgID, id)
 	if err != nil {
 		return nil, err
@@ -170,8 +348,51 @@ func (m *Manager) Verify(ctx context.Context, orgID, id int64) (*provider.Verify
 		return nil, err
 	}
 
-	// Allow verify from PENDING by first moving to VERIFYING if needed.
-	if c.Status == StatusPending {
+	// The customer supplies the role ARN at verification time. For AWS, the
+	// authoritative account id is the one embedded in the ARN: derive it,
+	// validate the ARN, reject a mismatch against any already-known account,
+	// and persist both.
+	if roleARN != "" {
+		if c.Provider == "aws" {
+			acct, aerr := accountIDFromRoleARN(roleARN)
+			if aerr != nil {
+				return nil, aerr
+			}
+			// Reject a role ARN whose account contradicts a previously set one
+			// (e.g. the management account on an organization connection, or a
+			// re-verify with a different ARN).
+			if c.AccountID != "" && c.AccountID != acct {
+				return nil, fmt.Errorf("%w: role_arn account %s does not match connection account %s",
+					ErrInvalidValue, acct, c.AccountID)
+			}
+			if c.AccountID != acct {
+				if err := m.repo.SetAccountID(ctx, orgID, id, acct); err != nil {
+					return nil, err
+				}
+				c.AccountID = acct
+			}
+			// An organization connection's role lives in the management
+			// account, so the ARN's account is the management account.
+			if c.Scope == ScopeOrganization && c.ManagementAccountID == "" {
+				if err := m.repo.SetManagementAccountID(ctx, orgID, id, acct); err != nil {
+					return nil, err
+				}
+				c.ManagementAccountID = acct
+			}
+		}
+		if err := m.repo.SetRoleARN(ctx, orgID, id, roleARN); err != nil {
+			return nil, err
+		}
+		c.RoleARN = roleARN
+	}
+	if c.RoleARN == "" {
+		return nil, fmt.Errorf("%w: role_arn is required to verify", ErrInvalidValue)
+	}
+
+	// Move to VERIFYING before running the check. This works the first time
+	// (from PENDING) and on a re-verify (from CONNECTED/COMPLETE/ERROR); only a
+	// verify already in flight is left as-is.
+	if c.Status != StatusVerifying {
 		if err := m.transition(ctx, c, EventBeginVerify); err != nil {
 			return nil, err
 		}
