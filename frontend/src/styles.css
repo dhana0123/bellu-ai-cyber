@@ -22,6 +22,17 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+
+    /* Popover (shadcn): light surface, slightly elevated vs background. */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    /* Chart palette (shadcn Charts). Teal-led to echo Bellu's green accent. */
+    --chart-1: 173 58% 39%;
+    --chart-2: 221 83% 53%;
+    --chart-3: 262 83% 58%;
+    --chart-4: 43 96% 56%;
+    --chart-5: 0 73% 54%;
   }
 
   /* OpenAI ChatGPT dark theme: #212121 main surface, #171717 sidebar,
@@ -44,6 +55,17 @@
     --border: 0 0% 24%;                /* #3d3d3d subtle */
     --input: 0 0% 24%;
     --ring: 0 0% 70%;                  /* neutral focus ring */
+
+    /* Popover: #2f2f2f elevated menu surface over the #212121 background. */
+    --popover: 0 0% 18%;
+    --popover-foreground: 0 0% 93%;
+
+    /* Chart palette tuned for the dark surface: green-led, high legibility. */
+    --chart-1: 161 84% 39%;            /* #10a37f-ish Bellu green */
+    --chart-2: 213 94% 68%;
+    --chart-3: 258 90% 76%;
+    --chart-4: 43 96% 56%;
+    --chart-5: 0 73% 60%;
   }
 
   /* ChatGPT uses a slightly darker sidebar than the main surface. */
