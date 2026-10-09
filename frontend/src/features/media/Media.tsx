@@ -79,7 +79,9 @@ export default function Media() {
                               </span>
                             </TableCell>
                             <TableCell>{m.source}</TableCell>
-                            <TableCell className="text-muted-foreground">{m.submitted_by}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {m.submitted_by}
+                            </TableCell>
                             <TableCell>
                               <Badge variant={m.authenticity_score < 50 ? 'danger' : 'success'}>
                                 {m.authenticity_score}/100
@@ -170,7 +172,9 @@ export default function Media() {
                 description={`Confidence ${review.confidence_pct}%`}
                 value={review.authenticity_score}
                 label="Authentic"
-                color={review.authenticity_score < 50 ? 'hsl(var(--chart-5))' : 'hsl(var(--chart-1))'}
+                color={
+                  review.authenticity_score < 50 ? 'hsl(var(--chart-5))' : 'hsl(var(--chart-1))'
+                }
               />
               <div className="md:col-span-2">
                 <h3 className="mb-2 text-sm font-medium">Suspicious segments</h3>

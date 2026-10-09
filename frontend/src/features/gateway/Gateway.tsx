@@ -93,7 +93,11 @@ export default function Gateway() {
         <TabsContent value="policies">
           <Card>
             <CardContent className="p-0">
-              <DataState state={policies} isEmpty={(d) => d.length === 0} empty="No routing policies.">
+              <DataState
+                state={policies}
+                isEmpty={(d) => d.length === 0}
+                empty="No routing policies."
+              >
                 {(rows) => (
                   <Table>
                     <TableHeader>
@@ -163,7 +167,9 @@ export default function Gateway() {
                               ${k.spent_usd.toLocaleString()}
                             </span>
                           </TableCell>
-                          <TableCell className="font-mono text-xs">{k.rate_limit_rpm} rpm</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {k.rate_limit_rpm} rpm
+                          </TableCell>
                           <TableCell>
                             <Badge variant={k.active ? 'success' : 'outline'}>
                               {k.active ? 'active' : 'inactive'}

@@ -45,7 +45,11 @@ export default function SupplyChain() {
         <TabsContent value="registry">
           <Card>
             <CardContent className="p-0">
-              <DataState state={models} isEmpty={(d) => d.length === 0} empty="No models registered.">
+              <DataState
+                state={models}
+                isEmpty={(d) => d.length === 0}
+                empty="No models registered."
+              >
                 {(rows) => (
                   <Table>
                     <TableHeader>

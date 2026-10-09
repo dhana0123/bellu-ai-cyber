@@ -38,30 +38,30 @@
   /* OpenAI ChatGPT dark theme: #212121 main surface, #171717 sidebar,
      #ededed text, #c9c9c9 muted, #10a37f green accent, soft #2f2f2f borders. */
   .dark {
-    --background: 0 0% 13%;            /* #212121 main surface */
-    --foreground: 0 0% 93%;            /* #ededed */
-    --card: 0 0% 13%;                  /* same as surface; separated by borders */
+    --background: 0 0% 13%; /* #212121 main surface */
+    --foreground: 0 0% 93%; /* #ededed */
+    --card: 0 0% 13%; /* same as surface; separated by borders */
     --card-foreground: 0 0% 93%;
-    --primary: 0 0% 98%;               /* white primary */
-    --primary-foreground: 0 0% 10%;    /* dark text on white */
-    --secondary: 0 0% 18%;             /* #2d2d2d */
+    --primary: 0 0% 98%; /* white primary */
+    --primary-foreground: 0 0% 10%; /* dark text on white */
+    --secondary: 0 0% 18%; /* #2d2d2d */
     --secondary-foreground: 0 0% 93%;
-    --muted: 0 0% 18%;                 /* #2d2d2d */
-    --muted-foreground: 0 0% 69%;      /* #b0b0b0 soft */
-    --accent: 0 0% 19%;                /* #303030 hover */
+    --muted: 0 0% 18%; /* #2d2d2d */
+    --muted-foreground: 0 0% 69%; /* #b0b0b0 soft */
+    --accent: 0 0% 19%; /* #303030 hover */
     --accent-foreground: 0 0% 93%;
     --destructive: 0 73% 54%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 24%;                /* #3d3d3d subtle */
+    --border: 0 0% 24%; /* #3d3d3d subtle */
     --input: 0 0% 24%;
-    --ring: 0 0% 70%;                  /* neutral focus ring */
+    --ring: 0 0% 70%; /* neutral focus ring */
 
     /* Popover: #2f2f2f elevated menu surface over the #212121 background. */
     --popover: 0 0% 18%;
     --popover-foreground: 0 0% 93%;
 
     /* Chart palette tuned for the dark surface: green-led, high legibility. */
-    --chart-1: 161 84% 39%;            /* #10a37f-ish Bellu green */
+    --chart-1: 161 84% 39%; /* #10a37f-ish Bellu green */
     --chart-2: 213 94% 68%;
     --chart-3: 258 90% 76%;
     --chart-4: 43 96% 56%;
@@ -69,10 +69,16 @@
   }
 
   /* ChatGPT uses a slightly darker sidebar than the main surface. */
-  .dark .cg-sidebar { background-color: #171717; }
+  .dark .cg-sidebar {
+    background-color: #171717;
+  }
 }
 
 @layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

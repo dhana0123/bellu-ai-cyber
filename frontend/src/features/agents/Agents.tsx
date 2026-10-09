@@ -43,7 +43,11 @@ export default function Agents() {
         <TabsContent value="inventory">
           <Card>
             <CardContent className="p-0">
-              <DataState state={agents} isEmpty={(d) => d.length === 0} empty="No agents discovered.">
+              <DataState
+                state={agents}
+                isEmpty={(d) => d.length === 0}
+                empty="No agents discovered."
+              >
                 {(rows) => (
                   <Table>
                     <TableHeader>
