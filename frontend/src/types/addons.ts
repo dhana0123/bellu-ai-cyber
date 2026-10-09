@@ -38,6 +38,8 @@ export interface GatewayTimePoint {
   openai: number
   anthropic: number
   local: number
+  // index signature so it satisfies the chart wrapper's SeriesDatum shape
+  [series: string]: string | number
 }
 
 export interface RoutingPolicy {

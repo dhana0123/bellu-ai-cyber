@@ -44,7 +44,12 @@ export const navConfig: NavGroup[] = [
   {
     section: 'AI-SPM',
     items: [
-      { to: '/overview', label: 'Security Overview', icon: LayoutDashboard, permission: 'graph:read' },
+      {
+        to: '/overview',
+        label: 'Security Overview',
+        icon: LayoutDashboard,
+        permission: 'graph:read',
+      },
       { to: '/inventory', label: 'AI Inventory', icon: Boxes, permission: 'graph:read' },
       { to: '/tracegraph', label: 'TraceGraph', icon: ShieldAlert, permission: 'graph:read' },
       { to: '/findings', label: 'Findings', icon: FileWarning, permission: 'findings:read' },
@@ -59,7 +64,12 @@ export const navConfig: NavGroup[] = [
       { to: '/runtime', label: 'Runtime Defense', icon: Radar, permission: 'runtime:read' },
       { to: '/agents', label: 'Agent Security', icon: Bot, permission: 'agents:read' },
       { to: '/data', label: 'AI Data Security', icon: Database, permission: 'data:read' },
-      { to: '/supply-chain', label: 'Supply Chain', icon: BoxesIcon, permission: 'supplychain:read' },
+      {
+        to: '/supply-chain',
+        label: 'Supply Chain',
+        icon: BoxesIcon,
+        permission: 'supplychain:read',
+      },
       { to: '/media', label: 'Media Authenticity', icon: ScanFace, permission: 'media:read' },
       { to: '/governance', label: 'Governance', icon: Scale, permission: 'governance:read' },
     ],

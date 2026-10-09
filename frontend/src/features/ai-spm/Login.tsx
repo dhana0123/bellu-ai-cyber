@@ -1,20 +1,22 @@
-import React, { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
-import { useAuth } from '../auth.jsx'
-import { Button } from '../components/ui/button.jsx'
-import { Input, Label } from '../components/ui/input.jsx'
+import { useAuth } from '@/auth'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
-// login-04 style: split screen. Left = form, right = brand/visual panel.
+// Split-screen login: left = form, right = brand panel. Behavior preserved from
+// the pre-migration page.
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('admin@bellu.local')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setBusy(true)
@@ -22,7 +24,8 @@ export default function Login() {
       await login(email, password)
       navigate('/', { replace: true })
     } catch (err) {
-      setError(err.message === 'invalid email or password' ? 'Invalid email or password' : err.message)
+      const msg = (err as Error).message
+      setError(msg === 'invalid email or password' ? 'Invalid email or password' : msg)
     } finally {
       setBusy(false)
     }
@@ -51,14 +54,29 @@ export default function Login() {
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required placeholder="you@company.com" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  required
+                  placeholder="you@company.com"
+                />
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
                   <span className="text-xs text-muted-foreground">Forgot?</span>
                 </div>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
               </div>
 
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -92,9 +110,7 @@ export default function Login() {
               See every AI agent, model and MCP server — and the exact path from the internet to
               your sensitive data.
             </p>
-            <footer className="text-sm text-muted-foreground">
-              Bellu — AI Security Graph
-            </footer>
+            <footer className="text-sm text-muted-foreground">Bellu — AI Security Graph</footer>
           </blockquote>
         </div>
       </div>

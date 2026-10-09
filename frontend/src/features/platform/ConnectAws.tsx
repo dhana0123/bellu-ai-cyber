@@ -1,27 +1,52 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Copy, Check, Download, ExternalLink, Loader2, Info, BookOpen,
+  ArrowLeft,
+  Copy,
+  Check,
+  Download,
+  ExternalLink,
+  Loader2,
+  Info,
+  BookOpen,
 } from 'lucide-react'
-import { api } from '../api.js'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card.jsx'
-import { Input, Label } from '../components/ui/input.jsx'
-import { Button } from '../components/ui/button.jsx'
-import { Badge, Spinner } from '../components/ui/misc.jsx'
+import { client } from '@/lib/client'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import type {
+  CapabilityCard,
+  Connection,
+  ProjectRow,
+  Setup,
+  VerifyResult,
+} from '@/types/foundation'
 
-// Wizard panes. The left sidebar shows two high-level steps (Connection,
-// Details); "Connection" holds the configure form, "Details" holds the
-// deploy -> verify -> connected sub-flow that follows setup generation.
-const PANE = { CONNECTION: 'connection', DETAILS: 'details' }
-const SUB = { DEPLOY: 'deploy', VERIFY: 'verify', CONNECTED: 'connected' }
+// Wizard panes: the left stepper shows Connection then Details; Details holds
+// the deploy → verify → connected sub-flow. Behavior preserved from the
+// pre-migration page (no native <select> here — radios + checkboxes).
+const PANE = { CONNECTION: 'connection', DETAILS: 'details' } as const
+const SUB = { DEPLOY: 'deploy', VERIFY: 'verify', CONNECTED: 'connected' } as const
+type Pane = (typeof PANE)[keyof typeof PANE]
+type Sub = (typeof SUB)[keyof typeof SUB]
 
-// ---- small presentational helpers -------------------------------------------
-
-function InfoDot({ title }) {
-  return <Info className="inline h-3.5 w-3.5 text-muted-foreground" title={title} />
+interface WizardForm {
+  project_id: string
+  scope: 'organization' | 'account'
+  installation_type: 'standard'
+  deployment_method: 'cloudformation' | 'terraform' | 'manual'
+  account_id: string
+  region: string
+  capabilities: string[]
 }
 
-function CopyButton({ text, label = 'Copy' }) {
+function InfoDot({ title }: { title: string }) {
+  return <Info className="inline h-3.5 w-3.5 text-muted-foreground" aria-label={title} />
+}
+
+function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [done, setDone] = useState(false)
   return (
     <Button
@@ -43,7 +68,7 @@ function CopyButton({ text, label = 'Copy' }) {
   )
 }
 
-function download(name, content) {
+function download(name: string, content: string) {
   const blob = new Blob([content], { type: 'text/plain' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -53,8 +78,21 @@ function download(name, content) {
   URL.revokeObjectURL(url)
 }
 
-// RadioRow renders a single selectable radio option with an optional badge.
-function RadioRow({ selected, onClick, label, recommended, badge, disabled }) {
+function RadioRow({
+  selected,
+  onClick,
+  label,
+  recommended,
+  badge,
+  disabled,
+}: {
+  selected: boolean
+  onClick?: () => void
+  label: string
+  recommended?: boolean
+  badge?: string
+  disabled?: boolean
+}) {
   return (
     <button
       type="button"
@@ -77,26 +115,28 @@ function RadioRow({ selected, onClick, label, recommended, badge, disabled }) {
         {label}
         {recommended && <span className="ml-1 text-primary">(Recommended)</span>}
       </span>
-      {badge && <Badge variant="outline" className="ml-1">{badge}</Badge>}
+      {badge && (
+        <Badge variant="outline" className="ml-1">
+          {badge}
+        </Badge>
+      )}
     </button>
   )
 }
-
-// ---- the page ---------------------------------------------------------------
 
 export default function ConnectAwsPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const existingId = params.get('id')
 
-  const [pane, setPane] = useState(PANE.CONNECTION)
-  const [sub, setSub] = useState(SUB.DEPLOY)
-  const [error, setError] = useState(null)
+  const [pane, setPane] = useState<Pane>(PANE.CONNECTION)
+  const [sub, setSub] = useState<Sub>(SUB.DEPLOY)
+  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const [caps, setCaps] = useState([])
-  const [projects, setProjects] = useState([])
-  const [form, setForm] = useState({
+  const [caps, setCaps] = useState<CapabilityCard[]>([])
+  const [, setProjects] = useState<ProjectRow[]>([])
+  const [form, setForm] = useState<WizardForm>({
     project_id: '',
     scope: 'organization',
     installation_type: 'standard',
@@ -106,64 +146,65 @@ export default function ConnectAwsPage() {
     capabilities: ['core'],
   })
 
-  const [connection, setConnection] = useState(null)
-  const [setup, setSetup] = useState(null)
+  const [connection, setConnection] = useState<Connection | null>(null)
+  const [setup, setSetup] = useState<Setup | null>(null)
   const [roleArn, setRoleArn] = useState('')
-  const [verifyResult, setVerifyResult] = useState(null)
-  const [members, setMembers] = useState([])
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
+  const [members, setMembers] = useState<Connection[]>([])
   const [expanding, setExpanding] = useState(false)
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [c, p] = await Promise.all([api.connectorCapabilities(), api.projects()])
-        setCaps(c.capabilities || [])
-        setProjects(p.projects || [])
+        const [c, p] = await Promise.all([client.connectorCapabilities(), client.projects()])
+        setCaps(c.capabilities ?? [])
+        setProjects(p.projects ?? [])
         if (p.projects?.length) setForm((f) => ({ ...f, project_id: String(p.projects[0].id) }))
       } catch (e) {
-        setError(e.message)
+        setError((e as Error).message)
       }
       if (existingId) {
         try {
-          const { connection } = await api.connector(existingId)
+          const { connection } = await client.connector(existingId)
           setConnection(connection)
           setRoleArn(connection.role_arn || '')
           setPane(PANE.DETAILS)
-          if (connection.status === 'CONNECTED' || connection.status === 'COMPLETE') setSub(SUB.CONNECTED)
-          else if (connection.status === 'VERIFYING' || connection.status === 'ERROR') setSub(SUB.VERIFY)
+          if (connection.status === 'CONNECTED' || connection.status === 'COMPLETE')
+            setSub(SUB.CONNECTED)
+          else if (connection.status === 'VERIFYING' || connection.status === 'ERROR')
+            setSub(SUB.VERIFY)
           else setSub(SUB.DEPLOY)
           try {
-            const s = await api.connectorSetup(existingId)
+            const s = await client.connectorSetup(existingId)
             setSetup(s.setup)
           } catch {
             /* optional */
           }
         } catch (e) {
-          setError(e.message)
+          setError((e as Error).message)
         }
       }
     })()
   }, [existingId])
 
-  function toggleCap(name) {
+  function toggleCap(name: string) {
     setForm((f) => {
       if (name === 'core') return f // core is mandatory
       const has = f.capabilities.includes(name)
-      return { ...f, capabilities: has ? f.capabilities.filter((c) => c !== name) : [...f.capabilities, name] }
+      return {
+        ...f,
+        capabilities: has ? f.capabilities.filter((c) => c !== name) : [...f.capabilities, name],
+      }
     })
   }
 
-  async function createAndSetup(e) {
+  async function createAndSetup(e?: FormEvent) {
     e?.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      // Only setup choices are sent. No account, management account, or OU id:
-      // the account is derived from the Role ARN at verify, and StackSet
-      // deployment targets are chosen in AWS. The project defaults to the
-      // user's first project and the region to us-east-1.
-      if (!form.project_id) throw new Error('Create a project first (Administration → Projects).')
-      const payload = {
+      if (!form.project_id) throw new Error('Create a project first (Platform → Projects).')
+      const { connection } = await client.createConnector({
         project_id: Number(form.project_id),
         provider: 'aws',
         scope: form.scope,
@@ -171,68 +212,69 @@ export default function ConnectAwsPage() {
         deployment_method: form.deployment_method,
         region: form.region,
         capabilities: form.capabilities,
-      }
-      const { connection } = await api.createConnector(payload)
+      })
       setConnection(connection)
-      const { setup } = await api.connectorSetup(connection.id)
+      const { setup } = await client.connectorSetup(connection.id)
       setSetup(setup)
       setPane(PANE.DETAILS)
       setSub(SUB.DEPLOY)
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setBusy(false)
     }
   }
 
   async function verify() {
+    if (!connection) return
     setBusy(true)
     setError(null)
     setVerifyResult(null)
     try {
-      const { verification } = await api.verifyConnector(connection.id, roleArn.trim())
+      const { verification } = await client.verifyConnector(connection.id, roleArn.trim())
       setVerifyResult(verification)
-      const { connection: fresh } = await api.connector(connection.id)
+      const { connection: fresh } = await client.connector(connection.id)
       setConnection(fresh)
       if (verification?.ok) {
         setSub(SUB.CONNECTED)
         if (fresh.scope === 'organization') expandAccounts()
       }
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setBusy(false)
     }
   }
 
   async function expandAccounts() {
+    if (!connection) return
     setExpanding(true)
     setError(null)
     try {
-      const { connections } = await api.expandConnector(connection.id, [])
-      setMembers(connections || [])
+      const { connections } = await client.expandConnector(connection.id, [])
+      setMembers(connections ?? [])
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setExpanding(false)
     }
   }
 
   async function startDiscovery() {
+    if (!connection) return
     setBusy(true)
     setError(null)
     try {
-      await api.discoverConnector(connection.id)
-      const { connection: fresh } = await api.connector(connection.id)
+      await client.discoverConnector(connection.id)
+      const { connection: fresh } = await client.connector(connection.id)
       setConnection(fresh)
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setBusy(false)
     }
   }
 
-  // Sidebar step state: step 1 active on CONNECTION; step 2 active on DETAILS.
   const stepItems = [
     { n: 1, label: 'Connection', active: pane === PANE.CONNECTION, done: pane === PANE.DETAILS },
     { n: 2, label: 'Details', active: pane === PANE.DETAILS, done: false },
@@ -240,7 +282,6 @@ export default function ConnectAwsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3">
           <button
@@ -259,11 +300,12 @@ export default function ConnectAwsPage() {
             </p>
           </div>
         </div>
-        <Badge variant="outline" className="mt-1 text-xs">AWS</Badge>
+        <Badge variant="outline" className="mt-1 text-xs">
+          AWS
+        </Badge>
       </div>
 
       <div className="grid grid-cols-[200px_1fr] gap-6">
-        {/* Left sidebar stepper */}
         <aside className="space-y-1">
           {stepItems.map((s) => (
             <div
@@ -290,7 +332,6 @@ export default function ConnectAwsPage() {
           ))}
         </aside>
 
-        {/* Main form */}
         <div className="min-w-0 space-y-6">
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -308,15 +349,13 @@ export default function ConnectAwsPage() {
                 <BookOpen className="h-3.5 w-3.5" /> How to connect to AWS
               </a>
 
-              {/* Section A: Choose Your Setup */}
               <section className="space-y-5">
                 <h2 className="text-lg font-semibold">Choose Your Setup</h2>
-
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Connector Scope</div>
                   <p className="text-xs text-muted-foreground">
-                    Configure the Connector to scan your AWS organization and its member accounts, or have it
-                    scan a single account.
+                    Configure the Connector to scan your AWS organization and its member accounts,
+                    or have it scan a single account.
                   </p>
                   <div className="pt-1">
                     <RadioRow
@@ -346,10 +385,8 @@ export default function ConnectAwsPage() {
                 </div>
               </section>
 
-              {/* Section B: Deploy */}
               <section className="space-y-5">
                 <h2 className="text-lg font-semibold">Deploy</h2>
-
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Deployment Method</div>
                   <div className="pt-1">
@@ -370,10 +407,8 @@ export default function ConnectAwsPage() {
                     />
                   </div>
                 </div>
-
               </section>
 
-              {/* Section C: Permissions */}
               <section className="space-y-3">
                 <h2 className="text-lg font-semibold">Permissions</h2>
                 <div className="space-y-4">
@@ -426,7 +461,8 @@ export default function ConnectAwsPage() {
                   <CardHeader>
                     <CardTitle className="text-base">Verify Connection</CardTitle>
                     <CardDescription>
-                      After the role is created in AWS, paste its ARN. Bellu assumes it via STS to confirm access.
+                      After the role is created in AWS, paste its ARN. Bellu assumes it via STS to
+                      confirm access.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -440,14 +476,15 @@ export default function ConnectAwsPage() {
                     </div>
                     {setup?.external_id && (
                       <div className="text-xs text-muted-foreground">
-                        External ID: <span className="font-mono">{setup.external_id}</span> (read-only, bound to this connection)
+                        External ID: <span className="font-mono">{setup.external_id}</span>{' '}
+                        (read-only, bound to this connection)
                       </div>
                     )}
 
                     {verifyResult && (
                       <div className="space-y-1.5">
                         <div className="text-sm font-medium">Permissions</div>
-                        {(verifyResult.capabilities || []).map((cap) => (
+                        {(verifyResult.capabilities ?? []).map((cap) => (
                           <div
                             key={cap.capability}
                             className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
@@ -455,7 +492,11 @@ export default function ConnectAwsPage() {
                             <span className="capitalize">{cap.capability}</span>
                             <Badge
                               variant={
-                                cap.outcome === 'PASS' ? 'success' : cap.outcome === 'NOT_ENABLED' ? 'outline' : 'danger'
+                                cap.outcome === 'PASS'
+                                  ? 'success'
+                                  : cap.outcome === 'NOT_ENABLED'
+                                    ? 'outline'
+                                    : 'danger'
                               }
                             >
                               {cap.outcome === 'PASS'
@@ -470,7 +511,9 @@ export default function ConnectAwsPage() {
                     )}
 
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setSub(SUB.DEPLOY)}>Back</Button>
+                      <Button variant="outline" onClick={() => setSub(SUB.DEPLOY)}>
+                        Back
+                      </Button>
                       <Button onClick={verify} disabled={busy || !roleArn.trim()}>
                         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                         Verify Connection
@@ -484,7 +527,9 @@ export default function ConnectAwsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Connected</CardTitle>
-                    <CardDescription>Bellu can now assume the role and collect AWS data.</CardDescription>
+                    <CardDescription>
+                      Bellu can now assume the role and collect AWS data.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center gap-2 text-sm">
@@ -498,20 +543,38 @@ export default function ConnectAwsPage() {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-medium">Member accounts</div>
-                          <Button variant="outline" size="sm" onClick={expandAccounts} disabled={expanding}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={expandAccounts}
+                            disabled={expanding}
+                          >
                             {expanding && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Refresh
                           </Button>
                         </div>
                         {members.length === 0 ? (
                           <p className="text-xs text-muted-foreground">
-                            {expanding ? 'Finding accounts…' : 'No member accounts found yet. The StackSet may still be deploying — Refresh in a minute.'}
+                            {expanding
+                              ? 'Finding accounts…'
+                              : 'No member accounts found yet. The StackSet may still be deploying — Refresh in a minute.'}
                           </p>
                         ) : (
                           <div className="divide-y rounded-md border">
                             {members.map((mconn) => (
-                              <div key={mconn.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                              <div
+                                key={mconn.id}
+                                className="flex items-center justify-between px-3 py-2 text-sm"
+                              >
                                 <span className="font-mono">{mconn.account_id}</span>
-                                <Badge variant={mconn.status === 'CONNECTED' || mconn.status === 'COMPLETE' ? 'success' : mconn.status === 'ERROR' ? 'danger' : 'outline'}>
+                                <Badge
+                                  variant={
+                                    mconn.status === 'CONNECTED' || mconn.status === 'COMPLETE'
+                                      ? 'success'
+                                      : mconn.status === 'ERROR'
+                                        ? 'danger'
+                                        : 'outline'
+                                  }
+                                >
                                   {mconn.status}
                                 </Badge>
                               </div>
@@ -522,7 +585,9 @@ export default function ConnectAwsPage() {
                     )}
 
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => navigate('/connectors')}>Done</Button>
+                      <Button variant="outline" onClick={() => navigate('/connectors')}>
+                        Done
+                      </Button>
                       <Button onClick={startDiscovery} disabled={busy}>
                         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                         Start Discovery
@@ -540,7 +605,15 @@ export default function ConnectAwsPage() {
 }
 
 // DeployStep renders the method-specific deployment instructions.
-function DeployStep({ setup, onNext, onDownload }) {
+function DeployStep({
+  setup,
+  onNext,
+  onDownload,
+}: {
+  setup: Setup
+  onNext: () => void
+  onDownload: (name: string, content: string) => void
+}) {
   const method = setup.deployment_method
   return (
     <Card>
@@ -557,7 +630,9 @@ function DeployStep({ setup, onNext, onDownload }) {
             <div className="mb-1 font-medium">Before you start (one time)</div>
             <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
               <li>Sign in to your AWS Organization management account.</li>
-              <li>In AWS Organizations → Services → CloudFormation StackSets, enable trusted access.</li>
+              <li>
+                In AWS Organizations → Services → CloudFormation StackSets, enable trusted access.
+              </li>
             </ul>
           </div>
         )}
@@ -579,14 +654,20 @@ function DeployStep({ setup, onNext, onDownload }) {
                 </a>
               ) : (
                 <span className="text-xs text-muted-foreground">
-                  One-click launch isn't configured on this server. Download the template and upload it under
-                  CloudFormation → Create stack.
+                  One-click launch isn't configured on this server. Download the template and upload
+                  it under CloudFormation → Create stack.
                 </span>
               )}
-              <CopyButton text={setup.template} label="Copy template" />
-              <Button variant="outline" size="sm" onClick={() => onDownload('bellu-connector.yaml', setup.template)}>
-                <Download className="h-3.5 w-3.5" /> Download template
-              </Button>
+              {setup.template && <CopyButton text={setup.template} label="Copy template" />}
+              {setup.template && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDownload('bellu-connector.yaml', setup.template!)}
+                >
+                  <Download className="h-3.5 w-3.5" /> Download template
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -594,8 +675,11 @@ function DeployStep({ setup, onNext, onDownload }) {
         {method === 'terraform' && (
           <div className="space-y-2">
             <div className="font-medium">Terraform</div>
-            {(setup.files || []).map((f) => (
-              <div key={f.name} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+            {(setup.files ?? []).map((f) => (
+              <div
+                key={f.name}
+                className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+              >
                 <span className="font-mono">{f.name}</span>
                 <div className="flex gap-2">
                   <CopyButton text={f.content} />
@@ -616,7 +700,10 @@ function DeployStep({ setup, onNext, onDownload }) {
                 {JSON.stringify(setup.trust_policy, null, 2)}
               </pre>
               <div className="mt-2">
-                <CopyButton text={JSON.stringify(setup.trust_policy, null, 2)} label="Copy trust policy" />
+                <CopyButton
+                  text={JSON.stringify(setup.trust_policy, null, 2)}
+                  label="Copy trust policy"
+                />
               </div>
             </div>
             <div className="rounded-md border p-3">
@@ -625,14 +712,17 @@ function DeployStep({ setup, onNext, onDownload }) {
                 {JSON.stringify(setup.permission_policy, null, 2)}
               </pre>
               <div className="mt-2">
-                <CopyButton text={JSON.stringify(setup.permission_policy, null, 2)} label="Copy permission policy" />
+                <CopyButton
+                  text={JSON.stringify(setup.permission_policy, null, 2)}
+                  label="Copy permission policy"
+                />
               </div>
             </div>
           </div>
         )}
 
         <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-          {(setup.instructions || []).map((stepText, i) => (
+          {(setup.instructions ?? []).map((stepText, i) => (
             <li key={i}>{stepText}</li>
           ))}
         </ol>

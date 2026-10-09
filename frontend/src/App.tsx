@@ -1,31 +1,35 @@
-import { Routes, Route, Navigate, useLocation, type ReactElement } from 'react-router-dom'
+import type { ReactElement } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth'
 import { Spinner } from '@/components/ui/spinner'
 import { AppShell } from '@/components/common/AppShell'
 import { ModulePlaceholder } from '@/components/common/ModulePlaceholder'
 
-// Foundation pages are still JSX until Task 7 migrates them; import by path.
-import Login from './pages/Login.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Entities from './pages/Entities.jsx'
-import AttackPaths from './pages/AttackPaths.jsx'
-import Findings from './pages/Findings.jsx'
-import Explain from './pages/Explain.jsx'
-import UsersPage from './pages/Users.jsx'
-import ProjectsPage from './pages/Projects.jsx'
-import RolesPage from './pages/Roles.jsx'
-import ConnectorsPage from './pages/Connectors.jsx'
-import ConnectAwsPage from './pages/ConnectAws.jsx'
+// Migrated AI-SPM foundation pages (TypeScript + shadcn + charts).
+import Login from '@/features/ai-spm/Login'
+import SecurityOverview from '@/features/ai-spm/SecurityOverview'
+import AiInventory from '@/features/ai-spm/AiInventory'
+import TraceGraphPage from '@/features/ai-spm/TraceGraphPage'
+import Findings from '@/features/ai-spm/Findings'
+import Investigate from '@/features/ai-spm/Investigate'
+// Add-on modules (Preview, mock-data).
+import Gateway from '@/features/gateway/Gateway'
+import Runtime from '@/features/runtime/Runtime'
+import Agents from '@/features/agents/Agents'
+import DataSecurity from '@/features/data/DataSecurity'
+import SupplyChain from '@/features/supply-chain/SupplyChain'
+import Media from '@/features/media/Media'
+import Governance from '@/features/governance/Governance'
+// Platform pages (TypeScript + shadcn).
+import UsersPage from '@/features/platform/Users'
+import ProjectsPage from '@/features/platform/Projects'
+import RolesPage from '@/features/platform/Roles'
+import ConnectorsPage from '@/features/platform/Connectors'
+import ConnectAwsPage from '@/features/platform/ConnectAws'
 
 // RequireAuth gates a route: redirects to /login when unauthenticated and shows
 // a 403 notice (inside the shell) when the user lacks the required permission.
-function RequireAuth({
-  permission,
-  children,
-}: {
-  permission?: string
-  children: ReactElement
-}) {
+function RequireAuth({ permission, children }: { permission?: string; children: ReactElement }) {
   const { principal, loading, can } = useAuth()
   const location = useLocation()
 
@@ -51,24 +55,16 @@ function RequireAuth({
   return <AppShell>{children}</AppShell>
 }
 
-const ADDON_MODULES: { path: string; perm: string; title: string; blurb: string }[] = [
-  { path: '/gateway', perm: 'gateway:read', title: 'AI Gateway', blurb: 'Govern and route AI traffic.' },
-  { path: '/runtime', perm: 'runtime:read', title: 'Runtime Defense', blurb: 'Live prompt/response protection.' },
-  { path: '/agents', perm: 'agents:read', title: 'Agent Security', blurb: 'Inventory and control AI agents.' },
-  { path: '/data', perm: 'data:read', title: 'AI Data Security', blurb: 'Track sensitive data in AI flows.' },
-  {
-    path: '/supply-chain',
-    perm: 'supplychain:read',
-    title: 'AI Supply Chain',
-    blurb: 'Scan models and dependencies.',
-  },
-  { path: '/media', perm: 'media:read', title: 'Media Authenticity', blurb: 'Detect synthetic media.' },
-  {
-    path: '/governance',
-    perm: 'governance:read',
-    title: 'Governance & Compliance',
-    blurb: 'Reports, policies and audit trails.',
-  },
+// Add-on (Preview) modules, each a mock-backed feature gated by its proposed
+// permission string.
+const ADDON_MODULES: { path: string; perm: string; element: ReactElement }[] = [
+  { path: '/gateway', perm: 'gateway:read', element: <Gateway /> },
+  { path: '/runtime', perm: 'runtime:read', element: <Runtime /> },
+  { path: '/agents', perm: 'agents:read', element: <Agents /> },
+  { path: '/data', perm: 'data:read', element: <DataSecurity /> },
+  { path: '/supply-chain', perm: 'supplychain:read', element: <SupplyChain /> },
+  { path: '/media', perm: 'media:read', element: <Media /> },
+  { path: '/governance', perm: 'governance:read', element: <Governance /> },
 ]
 
 export default function App() {
@@ -82,7 +78,7 @@ export default function App() {
         path="/overview"
         element={
           <RequireAuth permission="graph:read">
-            <Dashboard />
+            <SecurityOverview />
           </RequireAuth>
         }
       />
@@ -90,7 +86,7 @@ export default function App() {
         path="/inventory"
         element={
           <RequireAuth permission="graph:read">
-            <Entities />
+            <AiInventory />
           </RequireAuth>
         }
       />
@@ -98,7 +94,7 @@ export default function App() {
         path="/tracegraph"
         element={
           <RequireAuth permission="graph:read">
-            <AttackPaths />
+            <TraceGraphPage />
           </RequireAuth>
         }
       />
@@ -114,7 +110,7 @@ export default function App() {
         path="/investigate"
         element={
           <RequireAuth permission="investigate">
-            <Explain />
+            <Investigate />
           </RequireAuth>
         }
       />
@@ -124,11 +120,7 @@ export default function App() {
         <Route
           key={m.path}
           path={m.path}
-          element={
-            <RequireAuth permission={m.perm}>
-              <ModulePlaceholder title={m.title} blurb={m.blurb} />
-            </RequireAuth>
-          }
+          element={<RequireAuth permission={m.perm}>{m.element}</RequireAuth>}
         />
       ))}
 

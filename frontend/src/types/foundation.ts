@@ -269,10 +269,12 @@ export interface PermissionRow {
 }
 
 export interface RoleRow {
+  id?: number
   key: string
   name: string
   description?: string
   scope_level?: string
+  builtin?: boolean
   permissions?: string[]
 }
 
@@ -280,6 +282,12 @@ export interface ProjectRow {
   id: number
   key: string
   name: string
+}
+
+/** User as returned by GET /api/users (list view adds roles/projects). */
+export interface UserRow extends User {
+  roles?: string[]
+  projects?: string[]
 }
 
 export interface CreateUserInput {

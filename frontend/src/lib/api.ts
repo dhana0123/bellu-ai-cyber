@@ -4,6 +4,8 @@
 import { API_BASE } from './env'
 import { getToken, setToken } from './token'
 import type {
+  AiCallRow,
+  AttackPathRow,
   CanonicalVuln,
   CapabilityCard,
   Connection,
@@ -22,7 +24,7 @@ import type {
   RoleRow,
   Setup,
   Stats,
-  User,
+  UserRow,
   VerifyResult,
 } from '@/types/foundation'
 
@@ -93,8 +95,8 @@ export const realApi = {
     ),
   runs: (limit = 50) => get<{ runs: unknown[] }>(`/api/runs?limit=${limit}`),
   conflicts: (limit = 100) => get<{ conflicts: unknown[] }>(`/api/conflicts?limit=${limit}`),
-  attackPaths: () => get<{ paths: unknown[] }>('/api/graph/attack-paths'),
-  aiCalls: () => get<{ calls: unknown[] }>('/api/graph/ai-calls'),
+  attackPaths: () => get<{ paths: AttackPathRow[] }>('/api/graph/attack-paths'),
+  aiCalls: () => get<{ calls: AiCallRow[] }>('/api/graph/ai-calls'),
   findEdges: (relation?: string, like?: string, limit = 100) =>
     get<{ edges: EdgeDetail[] }>(
       `/api/edges/find?limit=${limit}` +
@@ -127,7 +129,7 @@ export const realApi = {
     get<{ vulnerability: CanonicalVuln }>(`/api/intel/vulnerabilities/${encodeURIComponent(id)}`),
 
   // admin
-  users: () => get<{ users: User[] }>('/api/users'),
+  users: () => get<{ users: UserRow[] }>('/api/users'),
   createUser: (payload: CreateUserInput) => post<{ id: number }>('/api/users', payload),
   setUserActive: (id: number, active: boolean) =>
     patch<{ ok: true }>(`/api/users/${id}/active`, { active }),

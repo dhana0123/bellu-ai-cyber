@@ -1,14 +1,24 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Cloud, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { api } from '../api.js'
-import { useAuth } from '../auth.jsx'
-import { Card, CardContent } from '../components/ui/card.jsx'
-import { Button } from '../components/ui/button.jsx'
-import { Table, THead, TBody, TR, TH, TD, Spinner, Badge } from '../components/ui/misc.jsx'
+import { client } from '@/lib/client'
+import { useAuth } from '@/auth'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import type { BadgeProps } from '@/components/ui/badge'
+import type { Connection, ConnectorStatus } from '@/types/foundation'
 
-// statusVariant maps a connection status to a badge color.
-function statusVariant(status) {
+function statusVariant(status: ConnectorStatus): BadgeProps['variant'] {
   switch (status) {
     case 'CONNECTED':
     case 'COMPLETE':
@@ -27,31 +37,31 @@ export default function ConnectorsPage() {
   const { can } = useAuth()
   const navigate = useNavigate()
   const canManage = can('integrations:manage')
-  const [conns, setConns] = useState([])
+  const [conns, setConns] = useState<Connection[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [deleting, setDeleting] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<number>(0)
 
   async function reload() {
     setLoading(true)
     setError(null)
     try {
-      setConns((await api.connectors()).connections || [])
+      setConns((await client.connectors()).connections ?? [])
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setLoading(false)
     }
   }
-  async function remove(id) {
+  async function remove(id: number) {
     if (!window.confirm('Delete this connection? This cannot be undone.')) return
     setDeleting(id)
     setError(null)
     try {
-      await api.deleteConnector(id)
+      await client.deleteConnector(id)
       await reload()
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setDeleting(0)
     }
@@ -92,29 +102,29 @@ export default function ConnectorsPage() {
             </div>
           ) : (
             <Table>
-              <THead>
-                <TR>
-                  <TH>Provider</TH>
-                  <TH>Account</TH>
-                  <TH>Scope</TH>
-                  <TH>Capabilities</TH>
-                  <TH>Status</TH>
-                  <TH></TH>
-                </TR>
-              </THead>
-              <TBody>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Capabilities</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {conns.map((c) => (
-                  <TR key={c.id}>
-                    <TD className="font-medium uppercase">{c.provider}</TD>
-                    <TD className="font-mono text-xs">{c.account_id}</TD>
-                    <TD className="capitalize">{c.scope}</TD>
-                    <TD className="text-xs text-muted-foreground">
-                      {(c.capabilities || []).join(', ')}
-                    </TD>
-                    <TD>
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium uppercase">{c.provider}</TableCell>
+                    <TableCell className="font-mono text-xs">{c.account_id}</TableCell>
+                    <TableCell className="capitalize">{c.scope}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {(c.capabilities ?? []).join(', ')}
+                    </TableCell>
+                    <TableCell>
                       <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
-                    </TD>
-                    <TD className="text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-3">
                         <Link
                           to={`/connectors/new/aws?id=${c.id}`}
@@ -133,19 +143,19 @@ export default function ConnectorsPage() {
                           </button>
                         )}
                       </div>
-                    </TD>
-                  </TR>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {conns.length === 0 && (
-                  <TR>
-                    <TD colSpan={6} className="py-10 text-center text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                       <Cloud className="mx-auto mb-2 h-6 w-6 opacity-40" />
                       No cloud connectors yet.
                       {canManage && ' Click "Connect AWS" to get started.'}
-                    </TD>
-                  </TR>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </TBody>
+              </TableBody>
             </Table>
           )}
         </CardContent>
