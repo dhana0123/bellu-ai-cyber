@@ -8,6 +8,7 @@ import { ModulePlaceholder } from '@/components/common/ModulePlaceholder'
 // Migrated AI-SPM foundation pages (TypeScript + shadcn + charts).
 import Login from '@/features/ai-spm/Login'
 import Dashboard from '@/features/dashboard/Dashboard'
+import Issues from '@/features/issues/Issues'
 import SecurityOverview from '@/features/ai-spm/SecurityOverview'
 import AiInventory from '@/features/ai-spm/AiInventory'
 import TraceGraphPage from '@/features/ai-spm/TraceGraphPage'
@@ -112,6 +113,14 @@ export default function App() {
         element={
           <RequireAuth permission="findings:read">
             <Findings />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/issues"
+        element={
+          <RequireAuth permission="findings:read">
+            <Issues />
           </RequireAuth>
         }
       />

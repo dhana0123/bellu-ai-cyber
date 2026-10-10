@@ -55,6 +55,7 @@ export const navConfig: NavGroup[] = [
       { to: '/inventory', label: 'AI Inventory', icon: Boxes, permission: 'graph:read' },
       { to: '/tracegraph', label: 'TraceGraph', icon: ShieldAlert, permission: 'graph:read' },
       { to: '/findings', label: 'Findings', icon: FileWarning, permission: 'findings:read' },
+      { to: '/issues', label: 'Risk Issues', icon: ShieldAlert, permission: 'findings:read' },
       { to: '/investigate', label: 'Investigate', icon: Search, permission: 'investigate' },
     ],
   },
