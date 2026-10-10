@@ -16,6 +16,7 @@ import { dataMock } from '@/mocks/data'
 import { supplyChainMock } from '@/mocks/supply-chain'
 import { mediaMock } from '@/mocks/media'
 import { governanceMock } from '@/mocks/governance'
+import { dashboardMock } from '@/mocks/dashboard'
 
 export const client = {
   // --- Foundation (REAL backend) ---
@@ -29,6 +30,7 @@ export const client = {
   supplyChain: supplyChainMock,
   media: mediaMock,
   governance: governanceMock,
+  dashboard: dashboardMock,
 } as const
 
 export type Client = typeof client

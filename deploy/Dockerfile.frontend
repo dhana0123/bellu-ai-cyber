@@ -5,6 +5,9 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ ./
+# Dev/demo builds can reveal the Preview (mock) add-on modules. Default off.
+ARG VITE_SHOW_PREVIEW=false
+ENV VITE_SHOW_PREVIEW=$VITE_SHOW_PREVIEW
 RUN npm run build
 
 FROM nginx:1.27-alpine

@@ -1,0 +1,80 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Write bug condition exploration test (BEFORE implementing the fix)": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569823652
+      },
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569854888
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569827441
+      }
+    ],
+    "3.1 Add the `Capability` field to `TableSpec` and annotate the catalog": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569830333
+      }
+    ],
+    "3.2 Thread `Target.Capabilities` through `aws/adapter.Discover` into `SteampipeConfig`": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569832791
+      }
+    ],
+    "3.3 Read capabilities in `steampipe.Factory` into `Source.enabledCaps` and add the gate in `Collect`": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569835286
+      }
+    ],
+    "3.4 Add unit tests for the gate and factory wiring": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569837811
+      }
+    ],
+    "3.5 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569840261
+      }
+    ],
+    "3.6 Verify preservation tests still pass": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569843160
+      }
+    ],
+    "4. Add integration tests end-to-end through adapter, factory, and collector": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569845730
+      }
+    ],
+    "5. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
+        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
+        "timestamp": 1791569848282
+      }
+    ]
+  }
+}

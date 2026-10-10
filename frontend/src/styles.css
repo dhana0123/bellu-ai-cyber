@@ -81,4 +81,39 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* shadcn-style scrollbars. Mirrors the look of shadcn's <ScrollArea> (a thin,
+     rounded `bg-border` thumb with transparent track) but applied to native
+     overflow containers so it works everywhere — including the main content
+     scroller and the react-grid-layout cards — without wrapping each in a
+     Radix component. Vertical bar sits on the right as usual. */
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  /* WebKit / Chromium / Safari */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+    /* transparent border creates padding so the thumb reads as a thin pill,
+       exactly like shadcn's ScrollArea thumb. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }

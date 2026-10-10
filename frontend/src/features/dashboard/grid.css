@@ -1,0 +1,81 @@
+/* react-grid-layout base styles + Bellu theme overrides, tuned to mirror the
+   AWS Console Home dashboard: a muted drop placeholder, a 6-dot drag zone in the
+   header, and a diagonal corner resize grip. Imported from the Dashboard
+   feature so the grid behavior and its visuals live together. */
+@import 'react-grid-layout/css/styles.css';
+@import 'react-resizable/css/styles.css';
+
+/* Smooth AWS-style snap when items settle into tracks. */
+.react-grid-item {
+  transition:
+    transform 180ms ease,
+    width 180ms ease,
+    height 180ms ease;
+}
+
+/* --- Drop placement shadow / placeholder --------------------------------- */
+/* Muted gray fill + dashed outline sized to the exact target cell, shown while
+   a card is being dragged or resized. */
+.react-grid-item.react-grid-placeholder {
+  background: hsl(var(--muted-foreground) / 0.12);
+  border: 2px dashed hsl(var(--muted-foreground) / 0.45);
+  border-radius: var(--radius);
+  opacity: 1;
+  transition-duration: 120ms;
+  z-index: 2;
+}
+
+/* The card being actively dragged/resized floats above the rest. */
+.react-grid-item.react-draggable-dragging,
+.react-grid-item.resizing {
+  z-index: 3;
+  transition: none;
+  cursor: grabbing;
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.18);
+}
+
+/* --- Header drag zone ---------------------------------------------------- */
+.dash-drag-handle {
+  cursor: move;
+}
+.react-draggable-dragging .dash-drag-handle {
+  cursor: grabbing;
+}
+
+/* --- Resize handle (AWS-style diagonal corner grip) ---------------------- */
+/* Replace RGL's default white nub with a subtle slanted-hatch corner accent. */
+.react-grid-item > .react-resizable-handle {
+  width: 22px;
+  height: 22px;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  background: none; /* drop the default PNG arrow */
+  cursor: se-resize;
+}
+/* Two short diagonal hatch marks forming the ◢ corner grip. */
+.react-grid-item > .react-resizable-handle::before,
+.react-grid-item > .react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  background: hsl(var(--muted-foreground) / 0.55);
+  transform: rotate(45deg);
+  transform-origin: center;
+  border-radius: 1px;
+}
+.react-grid-item > .react-resizable-handle::after {
+  bottom: 4px;
+  width: 10px;
+  height: 2px;
+}
+.react-grid-item > .react-resizable-handle::before {
+  bottom: 8px;
+  width: 6px;
+  height: 2px;
+  right: 5px;
+}
+.react-grid-item:hover > .react-resizable-handle::before,
+.react-grid-item:hover > .react-resizable-handle::after {
+  background: hsl(var(--primary));
+}

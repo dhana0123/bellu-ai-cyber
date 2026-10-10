@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { realApi } from '@/lib/api'
 import { getToken, setToken } from '@/lib/token'
-import { IS_DEV } from '@/lib/env'
+import { SHOW_PREVIEW } from '@/lib/env'
 import type { LoginResponse, MeResponse, Principal } from '@/types/foundation'
 import { ADDON_PERMISSIONS } from '@/types/addons'
 
@@ -23,12 +23,13 @@ function toPrincipal(src: MeResponse | LoginResponse): Principal {
   return {
     user: src.user,
     memberships: src.memberships ?? [],
-    // DEV ONLY: the backend has no add-on permissions yet, so in dev we grant
-    // the Preview permissions to any authenticated user so the mock add-on
-    // modules are reachable. In production these are omitted — add-ons remain
-    // gated behind the real permissions once a backend ships them. This never
-    // fabricates data; it only reveals the demo-labeled Preview UI.
-    permissions: IS_DEV ? [...permissions, ...ADDON_PERMISSIONS] : permissions,
+    // The backend has no add-on permissions yet. When SHOW_PREVIEW is on (dev,
+    // or a build with VITE_SHOW_PREVIEW=true) we grant the Preview permissions
+    // to any authenticated user so the mock add-on modules are reachable.
+    // Off by default in production builds — add-ons stay gated behind real
+    // permissions once a backend ships them. This never fabricates data; it
+    // only reveals the demo-labeled Preview UI.
+    permissions: SHOW_PREVIEW ? [...permissions, ...ADDON_PERMISSIONS] : permissions,
   }
 }
 

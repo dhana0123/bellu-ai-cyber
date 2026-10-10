@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Gauge,
   Boxes,
   ShieldAlert,
   FileWarning,
@@ -44,6 +45,7 @@ export const navConfig: NavGroup[] = [
   {
     section: 'AI-SPM',
     items: [
+      { to: '/dashboard', label: 'Dashboard', icon: Gauge, permission: 'graph:read' },
       {
         to: '/overview',
         label: 'Security Overview',

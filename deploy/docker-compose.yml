@@ -197,6 +197,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.frontend
+      args:
+        # Dev stack: reveal the Preview (mock-data) add-on modules.
+        VITE_SHOW_PREVIEW: ${VITE_SHOW_PREVIEW:-true}
     depends_on:
       - bellu-api
     ports:

@@ -7,3 +7,11 @@ export const API_BASE: string = import.meta.env.VITE_API_BASE ?? ''
 
 /** True in `vite dev`, false in a production build. */
 export const IS_DEV: boolean = import.meta.env.DEV
+
+/**
+ * Reveal the Preview (mock-data) add-on modules even in a production build.
+ * Set `VITE_SHOW_PREVIEW=true` at build time (e.g. for a dev/demo container).
+ * Off by default so real deployments keep add-ons gated behind real backend
+ * permissions. Mock data stays clearly labeled "Preview — demo data".
+ */
+export const SHOW_PREVIEW: boolean = IS_DEV || import.meta.env.VITE_SHOW_PREVIEW === 'true'

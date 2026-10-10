@@ -7,6 +7,7 @@ import { ModulePlaceholder } from '@/components/common/ModulePlaceholder'
 
 // Migrated AI-SPM foundation pages (TypeScript + shadcn + charts).
 import Login from '@/features/ai-spm/Login'
+import Dashboard from '@/features/dashboard/Dashboard'
 import SecurityOverview from '@/features/ai-spm/SecurityOverview'
 import AiInventory from '@/features/ai-spm/AiInventory'
 import TraceGraphPage from '@/features/ai-spm/TraceGraphPage'
@@ -73,7 +74,15 @@ export default function App() {
       <Route path="/login" element={<Login />} />
 
       {/* AI-SPM foundation (real API) */}
-      <Route path="/" element={<Navigate to="/overview" replace />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/dashboard"
+        element={
+          <RequireAuth permission="graph:read">
+            <Dashboard />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/overview"
         element={
@@ -183,7 +192,7 @@ export default function App() {
       <Route path="/attack-paths" element={<Navigate to="/tracegraph" replace />} />
       <Route path="/explain" element={<Navigate to="/investigate" replace />} />
 
-      <Route path="*" element={<Navigate to="/overview" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }
