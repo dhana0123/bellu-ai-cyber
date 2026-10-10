@@ -1,0 +1,97 @@
+/* Styles for the Topology Map view. Scoped by the `.topo-canvas` root so these
+   dark-mode visuals don't leak into the rest of the themed app. */
+
+.topo-canvas {
+  background-color: #090d10;
+  background-image:
+    radial-gradient(circle at 25% 40%, rgba(239, 68, 68, 0.08), transparent 40%),
+    radial-gradient(circle at 70% 55%, rgba(16, 163, 127, 0.08), transparent 45%);
+  color: #e6edf3;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle dotted grid underlay that pans with the content. */
+.topo-grid-dots {
+  position: absolute;
+  inset: -2000px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
+
+/* Flowing particles along the connector splines (left → right). */
+@keyframes topo-dash-flow {
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+.topo-spline-flow {
+  stroke-dasharray: 6 20;
+  animation: topo-dash-flow 3s linear infinite;
+}
+
+/* Red pulsing glow for the critical orb. */
+@keyframes topo-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 24px 6px rgba(239, 68, 68, 0.25);
+  }
+}
+.topo-pulse-red {
+  animation: topo-pulse 2.4s ease-in-out infinite;
+}
+
+/* Ticker cross-fade. */
+.topo-ticker-fade {
+  transition: opacity 600ms ease;
+}
+
+/* Organic layout-transition easing shared by the SLA-tree exit and the detail
+   panel entrance (Part 2). */
+.topo-ease {
+  transition:
+    opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hidden scrollbar for the in-canvas detail list (scroll still works). */
+.custom-scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.custom-scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Edge-lighting: neon orange glow pulse for an illuminated spline. */
+@keyframes topo-edge-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px #f97316);
+  }
+  50% {
+    filter: drop-shadow(0 0 12px #f97316);
+  }
+}
+.topo-edge-lit {
+  animation: topo-edge-glow 1.8s ease-in-out infinite;
+}
+
+/* Pulsing orange selection node on each rule card. */
+@keyframes topo-node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(249, 115, 22, 0);
+  }
+}
+.topo-node-pulse {
+  animation: topo-node-pulse 1.8s ease-in-out infinite;
+}

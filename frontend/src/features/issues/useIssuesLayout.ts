@@ -8,19 +8,22 @@ import type { Layout } from 'react-grid-layout'
 export const GRID_COLS = 12
 export const ROW_HEIGHT = 40
 const STORAGE_KEY = 'bellu.issues.analytics.layout'
-const LAYOUT_VERSION = 1
+const LAYOUT_VERSION = 2
 
 export const ISSUE_CARD_IDS = {
   severity: 'issue-severity',
   openResolved: 'open-resolved',
   openIssues: 'open-issues-trend',
+  table: 'vulnerability-grid',
 } as const
 
-// Three analytics cards at w:4 each (fills the 12-col row), resizable 3..12.
+// Three analytics cards at w:4 each (fills the 12-col row), resizable 3..12,
+// plus the full-width vulnerability grid table below them.
 export const DEFAULT_ISSUES_LAYOUT: Layout[] = [
   { i: ISSUE_CARD_IDS.severity, x: 0, y: 0, w: 4, h: 7, minW: 3, maxW: 12, minH: 5 },
   { i: ISSUE_CARD_IDS.openResolved, x: 4, y: 0, w: 4, h: 7, minW: 3, maxW: 12, minH: 5 },
   { i: ISSUE_CARD_IDS.openIssues, x: 8, y: 0, w: 4, h: 7, minW: 3, maxW: 12, minH: 5 },
+  { i: ISSUE_CARD_IDS.table, x: 0, y: 7, w: 12, h: 11, minW: 4, maxW: 12, minH: 6 },
 ]
 
 interface StoredLayout {

@@ -165,15 +165,19 @@ export default function Issues() {
             />
           </DashboardCard>
         </div>
-      </ResponsiveGridLayout>
 
-      {/* Row 6 — vulnerability grid */}
-      <VulnerabilityGrid
-        issues={filtered}
-        selected={selected}
-        onToggle={toggle}
-        onToggleAll={toggleAll}
-      />
+        {/* Row 6 — vulnerability grid, now a full-width draggable/resizable item */}
+        <div key={ISSUE_CARD_IDS.table}>
+          <DashboardCard title="Open Issues — Vulnerability Grid">
+            <VulnerabilityGrid
+              issues={filtered}
+              selected={selected}
+              onToggle={toggle}
+              onToggleAll={toggleAll}
+            />
+          </DashboardCard>
+        </div>
+      </ResponsiveGridLayout>
     </div>
   )
 }
