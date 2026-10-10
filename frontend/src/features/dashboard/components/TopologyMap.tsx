@@ -223,7 +223,7 @@ function ImpactTree({ gauges, hidden }: { gauges: DashboardData['issue_age']; hi
       className="topo-ease"
       style={{
         opacity: hidden ? 0 : 1,
-        transform: hidden ? 'translateX(50px)' : 'translateX(0)',
+        transform: hidden ? 'translateX(40px)' : 'translateX(0)',
         pointerEvents: hidden ? 'none' : undefined,
       }}
     >
@@ -297,25 +297,76 @@ function Splines({
     return { d, midX, midY, issue: issues[i] }
   })
 
+  // Big sweeping arc behind the right-hand list (reference's green bloom arc).
+  const arcD = `M ${HUB.x + 120} 60 C ${WORLD_W - 120} 180, ${WORLD_W - 120} ${WORLD_H - 180}, ${HUB.x + 120} ${WORLD_H - 60}`
+
   return (
     <>
       <svg className="absolute inset-0" width={WORLD_W} height={WORLD_H}>
+        <defs>
+          {/* Soft neon glow for strokes. */}
+          <filter id="topo-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="topo-glow-strong" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="10" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Big breathing green arc (bloom halo behind the right side). */}
+        <path
+          d={arcD}
+          fill="none"
+          stroke="#10a37f"
+          strokeWidth={3}
+          strokeLinecap="round"
+          opacity={0.5}
+          filter="url(#topo-glow-strong)"
+          className="topo-arc-breathe"
+        />
+
         {paths.map((p, i) => {
           const active = hover === i
           const lit = p.issue != null && litSplineId === p.issue.id
           // When any spline is lit, dim the others for isolation.
           const dimmed = litSplineId != null && !lit
+          const stroke = lit ? '#f97316' : '#ef4444'
           return (
             <g key={i}>
               <path d={p.d} fill="none" stroke="#223042" strokeWidth={2} />
               <path
                 d={p.d}
                 fill="none"
-                stroke={lit ? '#f97316' : '#ef4444'}
+                stroke={stroke}
                 strokeWidth={lit ? 4 : active ? 3 : 2}
                 className={lit ? 'topo-spline-flow topo-edge-lit' : 'topo-spline-flow'}
                 opacity={lit ? 1 : dimmed ? 0.15 : active ? 1 : 0.9}
+                filter={lit || active ? 'url(#topo-glow)' : undefined}
               />
+              {/* Flowing light particles traveling along the path. */}
+              {!dimmed &&
+                [0, 1, 2].map((k) => (
+                  <circle
+                    key={k}
+                    r={lit ? 3 : 2}
+                    fill={lit ? '#fdba74' : '#fca5a5'}
+                    className="topo-particle"
+                    style={{
+                      offsetPath: `path("${p.d}")`,
+                      animationDelay: `${k * 0.9}s`,
+                      opacity: lit ? 1 : 0.8,
+                    }}
+                    filter="url(#topo-glow)"
+                  />
+                ))}
               {/* Wide invisible hit-path so the thin spline is easy to hover. */}
               {p.issue && (
                 <path
@@ -426,10 +477,10 @@ function AdvisoryTicker({ advisories }: { advisories: DashboardData['advisories'
 
 // ---- In-canvas vulnerability detail module ---------------------------------
 // Borderless + transparent, anchored absolutely to the right sector of the
-// viewport (right:340, top:120) — never floats over the center hub. Slides/fades
-// in over 300ms (cubic-bezier(0.16,1,0.3,1)) into the space the SLA tree vacates.
-// Only the nested rule cards carry a faint back-panel; each has an orange
-// selection node that illuminates its matching connector spline.
+// viewport (right:80, top:120, w:340, z:40) — never floats over the center hub.
+// Slides/fades in over 300ms (cubic-bezier(0.16,1,0.3,1)) into the space the SLA
+// tree vacates. Rows are 100% transparent (no card background/border/shadow);
+// each has an orange selection node that illuminates its matching spline.
 function IssuesPanel({
   severity,
   color,
@@ -457,28 +508,29 @@ function IssuesPanel({
 
   return (
     <div
-      className="topo-ease absolute z-20 flex w-[340px] max-w-[42%] flex-col"
+      className="topo-ease absolute flex w-[340px] flex-col"
       style={{
-        right: 340,
+        right: 80,
         top: 120,
+        zIndex: 40,
         opacity: entered ? 1 : 0,
-        transform: entered ? 'translateX(0)' : 'translateX(50px)',
+        transform: entered ? 'translateX(0)' : 'translateX(40px)',
       }}
     >
       {/* Header — transparent, borderless */}
-      <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-4">
+      <div className="flex items-start justify-between gap-3 pb-2">
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-full" style={{ background: color }} />
           <div>
             <div className="text-sm font-semibold capitalize text-white">{severity} Issues</div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-[#8B949E]">
               {metric?.count ?? rows.length} open · {rows.length} top rules
             </div>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-[#8B949E] hover:bg-white/10 hover:text-white"
           aria-label="Close issues panel"
         >
           <X className="h-4 w-4" />
@@ -488,55 +540,54 @@ function IssuesPanel({
       {/* Scroll region with smoky top/bottom fade caps */}
       <div className="relative">
         {/* Top smoke cap (48px) */}
-        <div className="pointer-events-none absolute left-0 top-0 z-30 h-12 w-full bg-gradient-to-b from-[#090D10] to-transparent" />
+        <div className="pointer-events-none absolute left-0 top-0 z-20 h-12 w-full bg-gradient-to-b from-[#090D10] to-transparent" />
 
-        <div className="custom-scrollbar-hidden relative max-h-[480px] space-y-3 overflow-y-auto bg-transparent px-4 py-6">
+        <div className="custom-scrollbar-hidden relative max-h-[480px] divide-y divide-white/5 overflow-y-auto bg-transparent py-6">
           {rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">
+            <p className="py-6 text-center text-sm text-[#8B949E]">
               No top rules for this severity.
             </p>
           ) : (
             rows.map((it) => {
               const lit = litSplineId === it.id
               return (
-                <div
-                  key={it.id}
-                  className={`rounded-xl border border-white/5 bg-[#161B22]/40 p-4 backdrop-blur-sm transition-colors ${
-                    lit ? 'ring-1 ring-orange-500/50' : 'hover:bg-[#161B22]/60'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Orange selection node — illuminates the matching spline */}
-                    <button
-                      onClick={() => onRuleNodeSelect(it.id)}
-                      aria-label={`Illuminate path for ${it.rule}`}
-                      aria-pressed={lit}
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${
-                        lit
-                          ? 'border-orange-400 bg-orange-500 shadow-[0_0_10px_#f97316]'
-                          : 'topo-node-pulse border-orange-500/70 bg-orange-500/20 hover:bg-orange-500/40'
-                      }`}
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${lit ? 'bg-white' : 'bg-orange-400'}`}
-                      />
-                    </button>
+                // Fully transparent row — no card background, border, or shadow.
+                <div key={it.id} className="flex items-start gap-2.5 py-2.5">
+                  {/* Orange selection node — illuminates the matching spline */}
+                  <button
+                    onClick={() => onRuleNodeSelect(it.id)}
+                    aria-label={`Illuminate path for ${it.rule}`}
+                    aria-pressed={lit}
+                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all ${
+                      lit
+                        ? 'border-orange-400 bg-orange-500 shadow-[0_0_10px_#f97316]'
+                        : 'topo-node-pulse border-orange-500/70 bg-orange-500/20 hover:bg-orange-500/40'
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${lit ? 'bg-white' : 'bg-orange-400'}`}
+                    />
+                  </button>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm leading-snug text-slate-100">{it.rule}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[11px] font-medium text-orange-300">
-                          {it.issues} Issues
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`text-[13px] leading-snug ${lit ? 'text-white' : 'text-slate-200'}`}
+                    >
+                      {it.rule}
+                    </div>
+                    {/* Muted tag capsules nestled directly under the header */}
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <span className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-[#8B949E]">
+                        {it.issues} Issues
+                      </span>
+                      {it.risks.map((r) => (
+                        <span
+                          key={r.id}
+                          className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-[#8B949E]"
+                        >
+                          {r.label}
                         </span>
-                        {it.risks.map((r) => (
-                          <span
-                            key={r.id}
-                            className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-400"
-                          >
-                            {r.label}
-                          </span>
-                        ))}
-                      </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -546,7 +597,7 @@ function IssuesPanel({
         </div>
 
         {/* Bottom smoke cap (48px) */}
-        <div className="pointer-events-none absolute bottom-0 left-0 z-30 h-12 w-full bg-gradient-to-t from-[#090D10] to-transparent" />
+        <div className="pointer-events-none absolute bottom-0 left-0 z-20 h-12 w-full bg-gradient-to-t from-[#090D10] to-transparent" />
       </div>
     </div>
   )

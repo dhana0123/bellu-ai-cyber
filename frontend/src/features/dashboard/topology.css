@@ -2,11 +2,9 @@
    dark-mode visuals don't leak into the rest of the themed app. */
 
 .topo-canvas {
-  background-color: #090d10;
-  background-image:
-    radial-gradient(circle at 25% 40%, rgba(239, 68, 68, 0.08), transparent 40%),
-    radial-gradient(circle at 70% 55%, rgba(16, 163, 127, 0.08), transparent 45%);
-  color: #e6edf3;
+  /* Plain card background, matching the other dashboard cards (no gradient). */
+  background-color: hsl(var(--card));
+  color: inherit;
   position: relative;
   overflow: hidden;
 }
@@ -94,4 +92,45 @@
 }
 .topo-node-pulse {
   animation: topo-node-pulse 1.8s ease-in-out infinite;
+}
+
+/* ---- Cinematic upgrade: particles, soft glow ----------------------------- */
+
+/* Particle traveling along a spline path (SVG offset-path). */
+@keyframes topo-particle-run {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+.topo-particle {
+  animation: topo-particle-run 2.8s linear infinite;
+}
+
+/* Soft breathing opacity for the big background arc. */
+@keyframes topo-arc-breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.78;
+  }
+}
+.topo-arc-breathe {
+  animation: topo-arc-breathe 6s ease-in-out infinite;
+}
+
+/* Respect reduced-motion: freeze ambient animations. */
+@media (prefers-reduced-motion: reduce) {
+  .topo-spline-flow,
+  .topo-particle,
+  .topo-arc-breathe,
+  .topo-pulse-red,
+  .topo-edge-lit,
+  .topo-node-pulse {
+    animation: none !important;
+  }
 }
