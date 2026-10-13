@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// TestCatalogContainsFourCapabilities asserts the catalog defines exactly the
-// four modular capabilities.
+// TestCatalogContainsExpectedCapabilities asserts the catalog defines exactly
+// the modular capabilities (core, eks, workload, dspm, ai).
 func TestCatalogContainsFourCapabilities(t *testing.T) {
-	want := []Capability{Core, EKS, Workload, DSPM}
+	want := []Capability{Core, EKS, Workload, DSPM, AI}
 	if len(Catalog) != len(want) {
 		t.Fatalf("catalog has %d capabilities, want %d", len(Catalog), len(want))
 	}
@@ -73,11 +73,27 @@ func TestProbesMatchPermissions(t *testing.T) {
 	}
 }
 
-// TestDefaultSelection asserts the default selection is exactly ["core"].
+// TestDefaultSelection asserts the default selection is core plus the read-only
+// compute-visibility capabilities (eks, workload), with DSPM left opt-in.
 func TestDefaultSelection(t *testing.T) {
 	got := DefaultSelection()
-	if len(got) != 1 || got[0] != string(Core) {
-		t.Errorf("DefaultSelection() = %v, want [core]", got)
+	want := map[string]bool{
+		string(Core):     true,
+		string(EKS):      true,
+		string(Workload): true,
+		string(AI):       true,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("DefaultSelection() = %v, want %d capabilities", got, len(want))
+	}
+	for _, c := range got {
+		if !want[c] {
+			t.Errorf("DefaultSelection() returned unexpected capability %q", c)
+		}
+		delete(want, c)
+	}
+	if len(want) != 0 {
+		t.Errorf("DefaultSelection() missing capabilities: %v", want)
 	}
 }
 

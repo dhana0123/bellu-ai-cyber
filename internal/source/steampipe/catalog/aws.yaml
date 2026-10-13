@@ -1,6 +1,12 @@
 # Steampipe AWS catalog. Column names follow the Steampipe AWS plugin schema.
 # Confirm exact names in a given plugin version with `.inspect <table>` in the
 # steampipe query shell; the ones below are the stable, documented columns.
+#
+# Each table declares the connector capability that grants the IAM permissions
+# it needs. The collector skips a table whose capability is not in the
+# connection's enabled set, so an ungranted capability never produces an
+# AccessDenied error. "core" is always-on (never gated). A table with no
+# capability is ungated and always collected.
 provider: aws
 connection: aws
 
@@ -8,60 +14,73 @@ tables:
   - table: aws_account
     id_column: account_id
     scope_column: account_id
+    capability: core
 
   - table: aws_iam_role
     id_column: arn
     scope_column: account_id
+    capability: core
 
   - table: aws_iam_user
     id_column: arn
     scope_column: account_id
+    capability: core
 
   - table: aws_iam_policy
     id_column: arn
     scope_column: account_id
+    capability: core
 
   - table: aws_s3_bucket
     id_column: arn
     scope_column: account_id
     region_column: region
+    capability: core
 
   - table: aws_ec2_instance
     id_column: arn
     scope_column: account_id
     region_column: region
+    capability: core
 
   - table: aws_vpc_security_group
     id_column: group_id
     scope_column: account_id
     region_column: region
+    capability: core
 
   - table: aws_eks_cluster
     id_column: arn
     scope_column: account_id
     region_column: region
+    capability: eks
 
   - table: aws_ecs_task_definition
     id_column: task_definition_arn
     scope_column: account_id
     region_column: region
+    capability: workload
 
   - table: aws_ecr_image
     id_column: image_digest
     scope_column: account_id
     region_column: region
+    capability: workload
 
   - table: aws_lambda_function
     id_column: arn
     scope_column: account_id
     region_column: region
+    capability: workload
 
   - table: aws_bedrock_custom_model
     id_column: arn
     scope_column: account_id
     region_column: region
+    capability: ai
 
   - table: aws_sagemaker_model
     id_column: arn
     scope_column: account_id
     region_column: region
+    capability: ai

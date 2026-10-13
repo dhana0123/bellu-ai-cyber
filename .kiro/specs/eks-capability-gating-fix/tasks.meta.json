@@ -1,80 +1,79 @@
 {
-  "pbtResults": {},
+  "pbtResults": {
+    "property1_bugCondition": {
+      "test": "TestBugCondition_UngrantedCapabilityTablesAreQueried",
+      "file": "internal/source/steampipe/capability_gating_test.go",
+      "unfixedOutcome": "FAIL",
+      "fixedOutcome": "PASS",
+      "counterexamples": [
+        "aws_eks_cluster (eks) queried with enabled [core]",
+        "aws_lambda_function (workload) queried with enabled [core]",
+        "aws_bedrock_custom_model (ai) queried with enabled [core]",
+        "aws_rds_db_instance (dspm, synthetic) queried with enabled [core]",
+        "aws_made_up_table (unused-cap) queried with enabled [core]"
+      ],
+      "rootCause": "Collect had no capability gate and Source carried no enabled-capability data, so every catalog table was queried regardless of the connection's granted capabilities."
+    },
+    "property2_preservation": {
+      "tests": [
+        "TestPreserve_CoreTableAlwaysQueried",
+        "TestPreserve_EnabledGatedTableIsQueried",
+        "TestPreserve_UngatedTableAlwaysQueried",
+        "TestPreserve_NoGatingConfiguredCollectsEverything",
+        "TestPreserve_ErrorIsolationAndContinuation"
+      ],
+      "file": "internal/source/steampipe/capability_gating_test.go",
+      "unfixedOutcome": "PASS",
+      "fixedOutcome": "PASS"
+    }
+  },
   "executionHistory": {
-    "1. Write bug condition exploration test (BEFORE implementing the fix)": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569823652
-      },
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569854888
-      }
-    ],
-    "2. Write preservation property tests (BEFORE implementing the fix)": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569827441
-      }
-    ],
-    "3.1 Add the `Capability` field to `TableSpec` and annotate the catalog": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569830333
-      }
-    ],
-    "3.2 Thread `Target.Capabilities` through `aws/adapter.Discover` into `SteampipeConfig`": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569832791
-      }
-    ],
-    "3.3 Read capabilities in `steampipe.Factory` into `Source.enabledCaps` and add the gate in `Collect`": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569835286
-      }
-    ],
-    "3.4 Add unit tests for the gate and factory wiring": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569837811
-      }
-    ],
-    "3.5 Verify bug condition exploration test now passes": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569840261
-      }
-    ],
-    "3.6 Verify preservation tests still pass": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569843160
-      }
-    ],
-    "4. Add integration tests end-to-end through adapter, factory, and collector": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569845730
-      }
-    ],
-    "5. Checkpoint - Ensure all tests pass": [
-      {
-        "executionId": "cc42ea89-d4e5-495a-a25e-7adcf087a1ef",
-        "chatSessionId": "sess_410be579-c988-4811-9be1-f2ced3b54024",
-        "timestamp": 1791569848282
-      }
-    ]
+    "1": {
+      "status": "completed",
+      "summary": "Wrote bug-condition exploration test with a recording query layer. Confirmed it FAILS on unfixed code (5 counterexamples), proving the collector queries ungranted-capability tables.",
+      "artifacts": ["internal/source/steampipe/capability_gating_test.go"]
+    },
+    "2": {
+      "status": "completed",
+      "summary": "Wrote 5 preservation property tests (core always queried, enabled gated table queried, ungated always queried, no-gating fallback, error isolation/continuation). All PASS on unfixed code, establishing the baseline to preserve.",
+      "artifacts": ["internal/source/steampipe/capability_gating_test.go"]
+    },
+    "3.1": {
+      "status": "completed",
+      "summary": "TableSpec.Capability (yaml:\"capability\") documented; Catalog.Validate() left unchanged (empty = ungated). Annotated all 13 aws.yaml tables: core(7), eks(1), workload(3), ai(2); no table maps to dspm.",
+      "artifacts": ["internal/source/steampipe/catalog.go", "internal/source/steampipe/catalog/aws.yaml"]
+    },
+    "3.2": {
+      "status": "completed",
+      "summary": "aws/adapter.Discover now sets cfg[\"capabilities\"] = t.Capabilities so the DiscoveryPlan's SteampipeConfig carries the connection's enabled capability set to Factory.",
+      "artifacts": ["internal/connector/provider/aws/adapter.go"]
+    },
+    "3.3": {
+      "status": "completed",
+      "summary": "Added Source.enabledCaps, capsFromConfig ([]string/[]any), capsToSet (always adds core; nil/empty = no gating), capabilityEnabled helper, and the gate `if !s.capabilityEnabled(spec.Capability) { continue }` in Collect. Factory reads the capabilities config key.",
+      "artifacts": ["internal/source/steampipe/steampipe.go"]
+    },
+    "3.4": {
+      "status": "completed",
+      "summary": "Unit tests: capabilityEnabled (9 cases), capsToSet, capsFromConfig, Collect gate skip/query, Factory wiring ([]string/[]any/missing), and aws.yaml capability validity against the known capability set.",
+      "artifacts": ["internal/source/steampipe/capability_unit_test.go"]
+    },
+    "3.5": {
+      "status": "completed",
+      "summary": "Re-ran the task-1 bug-condition test unchanged; it now PASSES, confirming ungranted-capability tables are skipped (no query, no AccessDenied)."
+    },
+    "3.6": {
+      "status": "completed",
+      "summary": "Re-ran the task-2 preservation tests unchanged; all 5 still PASS, confirming no regression."
+    },
+    "4": {
+      "status": "completed",
+      "summary": "End-to-end integration tests through adapter.Discover -> steampipe.Factory -> Collect: core+eks queries core/eks tables and skips workload/ai; nil capabilities collects every catalog table (back-compat).",
+      "artifacts": ["internal/source/steampipe/capability_integration_test.go"]
+    },
+    "5": {
+      "status": "completed",
+      "summary": "Checkpoint: go build ./..., go vet ./..., and go test ./... all clean across the module (including internal/source/steampipe, internal/connector/capability, internal/connector/provider/aws)."
+    }
   }
 }

@@ -12,6 +12,7 @@ const (
 	EKS      Capability = "eks"
 	Workload Capability = "workload"
 	DSPM     Capability = "dspm"
+	AI       Capability = "ai"
 )
 
 // Definition is a capability's least-privilege, read-oriented permission set
@@ -51,6 +52,11 @@ type Card struct {
 
 // Catalog is the authoritative set of capabilities and their permission bundles.
 var Catalog = map[Capability]Definition{
+	// Permissions below are derived from the exact IAM actions the Steampipe AWS
+	// plugin's List/Get/Hydrate functions call for the tables Bellu queries (see
+	// internal/source/steampipe/catalog/aws.yaml). Each table's required actions
+	// come from the plugin's per-table `Tags{service,action}` metadata, so this
+	// set is exhaustive for discovery — no trial-and-error AccessDenied.
 	Core: {
 		Name:        Core,
 		Title:       "Core Security",
@@ -59,15 +65,24 @@ var Catalog = map[Capability]Definition{
 			"sts:GetCallerIdentity",
 			"account:ListRegions",
 			"account:GetContactInformation",
+			// aws_ec2_instance: DescribeInstances/InstanceAttribute/InstanceStatus
+			// + GetLaunchTemplateData; aws_vpc_security_group: DescribeSecurityGroups.
 			"ec2:Describe*",
+			"ec2:GetLaunchTemplateData",
+			// aws_iam_role/user/policy: List*/Get* across roles, users, policies,
+			// attached + inline policies, instance profiles, MFA, login profiles.
 			"iam:Get*",
 			"iam:List*",
 			"iam:GenerateCredentialReport",
 			"iam:GenerateServiceLastAccessedDetails",
+			// aws_s3_bucket: ListAllMyBuckets + a wide set of per-bucket Get*
+			// (acl, policy, policyStatus, versioning, encryption, lifecycle,
+			// replication, logging, website, notification, ownership, objectLock).
 			"s3:List*",
-			"s3:GetBucket*",
-			"s3:GetAccountPublicAccessBlock",
-			"s3:GetEncryptionConfiguration",
+			"s3:Get*",
+			// aws_account org details.
+			"organizations:DescribeOrganization",
+			// Supporting posture reads (KMS/CloudTrail/Config/tags).
 			"kms:DescribeKey",
 			"kms:ListKeys",
 			"kms:ListAliases",
@@ -82,6 +97,7 @@ var Catalog = map[Capability]Definition{
 		Title:       "EKS Scanning",
 		Description: "Kubernetes / EKS cluster visibility.",
 		Permissions: []string{
+			// aws_eks_cluster: ListClusters + DescribeCluster.
 			"eks:List*",
 			"eks:Describe*",
 		},
@@ -89,12 +105,17 @@ var Catalog = map[Capability]Definition{
 	Workload: {
 		Name:        Workload,
 		Title:       "Workload Scanning",
-		Description: "ECS / Lambda workload visibility.",
+		Description: "ECS / Lambda / ECR workload visibility.",
 		Permissions: []string{
+			// aws_ecs_task_definition: ListTaskDefinitions + DescribeTaskDefinition.
 			"ecs:List*",
 			"ecs:Describe*",
+			// aws_lambda_function: ListFunctions, GetFunction, GetPolicy,
+			// GetFunctionUrlConfig.
 			"lambda:List*",
 			"lambda:GetFunction*",
+			"lambda:GetPolicy",
+			// aws_ecr_image: parent DescribeRepositories + DescribeImages.
 			"ecr:Describe*",
 			"ecr:List*",
 			"ecr:GetRepositoryPolicy",
@@ -113,10 +134,24 @@ var Catalog = map[Capability]Definition{
 			"dynamodb:DescribeTable",
 		},
 	},
+	AI: {
+		Name:        AI,
+		Title:       "AI Services",
+		Description: "Amazon Bedrock & SageMaker model/endpoint visibility.",
+		Permissions: []string{
+			// aws_bedrock_custom_model: ListCustomModels + GetCustomModel (List*/Get*
+			// also covers foundation models, agents, guardrails read-only).
+			"bedrock:List*",
+			"bedrock:Get*",
+			// aws_sagemaker_model: ListModels, DescribeModel, ListTags.
+			"sagemaker:List*",
+			"sagemaker:Describe*",
+		},
+	},
 }
 
 // cardOrder is the stable display order for capability cards.
-var cardOrder = []Capability{Core, DSPM, Workload, EKS}
+var cardOrder = []Capability{Core, AI, DSPM, Workload, EKS}
 
 // init populates each Definition's Probes from its Permissions so the verifier
 // has a concrete read-only probe per required permission.
@@ -132,9 +167,12 @@ func init() {
 }
 
 // DefaultSelection is the capability set enabled when a connection is created
-// without an explicit selection.
+// without an explicit selection. Core plus the read-only compute-visibility
+// capabilities (EKS, Workload) are enabled by default so discovery can query
+// EKS/ECS/Lambda without an AccessDenied; DSPM stays opt-in because it reaches
+// into data stores. All remain least-privilege, read-only bundles.
 func DefaultSelection() []string {
-	return []string{string(Core)}
+	return []string{string(Core), string(EKS), string(Workload), string(AI)}
 }
 
 // Known reports whether name is a defined capability.

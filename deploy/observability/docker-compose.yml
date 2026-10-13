@@ -1,0 +1,80 @@
+# Bellu OBSERVABILITY stack (local dev) — centralized container logs.
+#
+# A SEPARATE compose project (like deploy/global-intel) so it can start/stop
+# independently of the app stacks and never shares volumes or credentials with
+# them. It collects logs from ALL running Docker containers on the host (the
+# customer plane, global-intel, and itself) via the Docker socket.
+#
+#   collector : Grafana Alloy   — tails container stdout/stderr -> Loki
+#   store     : Grafana Loki    — stores + indexes logs, serves queries
+#   viewer    : Grafana         — web UI to search logs / dashboards (:3001)
+#
+# Start:
+#   docker compose -f deploy/observability/docker-compose.yml up -d
+# Then open Grafana at http://localhost:3001 (admin / admin by default) — the
+# Loki datasource and a "Bellu Container Logs" dashboard are pre-provisioned.
+#
+# Alloy reads the host Docker socket read-only to discover and tail containers;
+# it needs no app changes. Loki stores to a named volume (7-day retention).
+
+name: bellu-observability
+
+services:
+  # --- Store: Loki -----------------------------------------------------------
+  loki:
+    image: grafana/loki:3.3.2
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready | grep -q ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  # --- Collector: Grafana Alloy ---------------------------------------------
+  alloy:
+    image: grafana/alloy:v1.5.1
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+    ports:
+      - "127.0.0.1:12345:12345" # Alloy's own UI (pipeline health)
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Read-only access to the Docker socket to discover + tail containers.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  # --- Viewer: Grafana -------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      # 3001 on the host to avoid colliding with memgraph-lab (:3000).
+      - "127.0.0.1:3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+
+volumes:
+  loki_data:
+  alloy_data:
+  grafana_data:

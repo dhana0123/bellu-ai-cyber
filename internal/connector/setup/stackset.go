@@ -1,8 +1,6 @@
 package setup
 
 import (
-	"fmt"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,8 +26,9 @@ func renderCloudFormationStackSet(in Input) (*Artifact, error) {
 	member := map[string]any{
 		"AWSTemplateFormatVersion": "2010-09-09",
 		"Description":              "Bellu Cloud Connector member-account role",
+		"Parameters":               map[string]any{ExternalIdParameter: externalIdParamDef()},
 		"Resources": map[string]any{
-			"BelluConnectorRole": roleResource(in.RoleName, in.TrustPolicy, in.PermissionPolicy, nil),
+			"BelluConnectorRole": roleResource(in.RoleName, templateTrustPolicy(in.TrustPolicy), in.PermissionPolicy, nil),
 		},
 		"Outputs": roleARNOutput("ARN of the Bellu connector role in this member account"),
 	}
@@ -62,10 +61,13 @@ func renderCloudFormationStackSet(in Input) (*Artifact, error) {
 
 	tmpl := map[string]any{
 		"AWSTemplateFormatVersion": "2010-09-09",
-		"Description":              fmt.Sprintf("Bellu Cloud Connector for an AWS Organization (external id %s)", in.ExternalID),
-		"Parameters":               map[string]any{OrgTargetParameter: param},
+		"Description":              "Bellu Cloud Connector for an AWS Organization",
+		"Parameters": map[string]any{
+			OrgTargetParameter:  param,
+			ExternalIdParameter: externalIdParamDef(),
+		},
 		"Resources": map[string]any{
-			"BelluConnectorRole": roleResource(in.RoleName, in.TrustPolicy, in.PermissionPolicy, orgRead),
+			"BelluConnectorRole": roleResource(in.RoleName, templateTrustPolicy(in.TrustPolicy), in.PermissionPolicy, orgRead),
 			"BelluMemberRoles": map[string]any{
 				"Type": "AWS::CloudFormation::StackSet",
 				"Properties": map[string]any{
@@ -82,6 +84,12 @@ func renderCloudFormationStackSet(in Input) (*Artifact, error) {
 						"FailureTolerancePercentage": 100,
 						"MaxConcurrentPercentage":    100,
 					},
+					// Forward the external id into every member stack instance so
+					// the member role trusts the same id.
+					"Parameters": []map[string]any{{
+						"ParameterKey":   ExternalIdParameter,
+						"ParameterValue": map[string]any{"Ref": ExternalIdParameter},
+					}},
 					"StackInstancesGroup": []map[string]any{{
 						"DeploymentTargets": map[string]any{
 							"OrganizationalUnitIds": map[string]any{

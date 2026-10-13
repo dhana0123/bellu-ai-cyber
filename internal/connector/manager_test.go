@@ -202,8 +202,16 @@ func TestCreateDefaultsCoreAndPending(t *testing.T) {
 	if c.Status != StatusPending {
 		t.Errorf("status = %s, want PENDING", c.Status)
 	}
-	if len(c.Capabilities) != 1 || c.Capabilities[0] != "core" {
-		t.Errorf("capabilities = %v, want [core]", c.Capabilities)
+	// Default selection is core plus the read-only compute capabilities so
+	// discovery can query EKS/ECS/Lambda without AccessDenied.
+	wantCaps := map[string]bool{"core": true, "eks": true, "workload": true, "ai": true}
+	if len(c.Capabilities) != len(wantCaps) {
+		t.Errorf("capabilities = %v, want %d", c.Capabilities, len(wantCaps))
+	}
+	for _, cap := range c.Capabilities {
+		if !wantCaps[cap] {
+			t.Errorf("unexpected default capability %q", cap)
+		}
 	}
 	if c.ExternalID == "" || c.CreatedAt.IsZero() {
 		t.Errorf("external id / created_at not set: %+v", c)

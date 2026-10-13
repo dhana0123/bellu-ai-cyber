@@ -75,19 +75,28 @@ func (s *S3TemplateStore) Publish(ctx context.Context, key string, body []byte) 
 	return req.URL, nil
 }
 
-// templateKey is a content-addressed object key for a connection's template.
-func templateKey(connID int64, body []byte) string {
+// templateKey is a content-addressed object key for a template. Because the
+// template body is now connection-independent (the external id is a CFN
+// parameter, not embedded), identical templates collapse to the SAME key — so
+// S3 stores one reusable object instead of one folder per connection.
+func templateKey(body []byte) string {
 	sum := sha256.Sum256(body)
-	return fmt.Sprintf("templates/%d/%s.yaml", connID, hex.EncodeToString(sum[:8]))
+	return fmt.Sprintf("templates/%s.yaml", hex.EncodeToString(sum[:16]))
 }
 
 // quickCreateURL builds a CloudFormation quick-create link that opens the
-// "Quick create stack" page with the template and stack name pre-filled.
-func quickCreateURL(region, templateURL string) string {
+// "Quick create stack" page with the template, stack name, and the per-
+// connection external id pre-filled (CFN reads param_<Name> from the URL and
+// auto-fills the matching parameter field).
+func quickCreateURL(region, templateURL, externalID string) string {
 	if region == "" {
 		region = "us-east-1"
 	}
-	return fmt.Sprintf(
+	u := fmt.Sprintf(
 		"https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?templateURL=%s&stackName=%s",
 		region, region, url.QueryEscape(templateURL), setup.StackName)
+	if externalID != "" {
+		u += "&param_" + setup.ExternalIdParameter + "=" + url.QueryEscape(externalID)
+	}
+	return u
 }

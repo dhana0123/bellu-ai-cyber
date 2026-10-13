@@ -2,7 +2,6 @@ package setup
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"gopkg.in/yaml.v3"
 )
@@ -10,17 +9,75 @@ import (
 // StackName is the CloudFormation stack name used in launch links.
 const StackName = "BelluConnector"
 
+// ExternalIdParameter is the CloudFormation parameter that carries the
+// per-connection external id. Making it a parameter (rather than embedding the
+// value) keeps the template BODY identical across connections, so S3 stores a
+// single reusable object; the unique value rides in the quick-create URL
+// (param_ExternalId=...) and auto-fills on the launch page.
+const ExternalIdParameter = "ExternalId"
+
+// externalIdParamDef is the parameter definition injected into every
+// CloudFormation template. NoEcho masks the shared-secret value in the console.
+func externalIdParamDef() map[string]any {
+	return map[string]any{
+		"Type":        "String",
+		"NoEcho":      true,
+		"Description": "Bellu-provided external id (auto-filled from the Bellu launch link; conditions the role's AssumeRole trust).",
+		"MinLength":   1,
+	}
+}
+
+// templateTrustPolicy rewrites the backend trust policy so the sts:ExternalId
+// condition references the ExternalId parameter ({"Ref":"ExternalId"}) instead
+// of the literal value. This is what makes the template body connection-
+// independent. The literal trust policy is still used elsewhere (Terraform,
+// manual, Bellu's own AssumeRole), so only the CloudFormation body is affected.
+func templateTrustPolicy(trust map[string]any) map[string]any {
+	// Deep-ish copy: we only need to replace the sts:ExternalId leaf, so walk the
+	// known shape and swap it, leaving everything else intact.
+	out := map[string]any{"Version": trust["Version"]}
+	stmts, _ := trust["Statement"].([]map[string]any)
+	newStmts := make([]map[string]any, 0, len(stmts))
+	for _, s := range stmts {
+		ns := map[string]any{}
+		for k, v := range s {
+			ns[k] = v
+		}
+		if cond, ok := ns["Condition"].(map[string]any); ok {
+			if se, ok := cond["StringEquals"].(map[string]any); ok {
+				if _, has := se["sts:ExternalId"]; has {
+					newSE := map[string]any{}
+					for k, v := range se {
+						newSE[k] = v
+					}
+					newSE["sts:ExternalId"] = map[string]any{"Ref": ExternalIdParameter}
+					newCond := map[string]any{}
+					for k, v := range cond {
+						newCond[k] = v
+					}
+					newCond["StringEquals"] = newSE
+					ns["Condition"] = newCond
+				}
+			}
+		}
+		newStmts = append(newStmts, ns)
+	}
+	out["Statement"] = newStmts
+	return out
+}
+
 // renderCloudFormation produces a single-account YAML template that creates the
-// Bellu IAM role with its trust policy and an inline least-privilege permission
-// policy. The template embeds the authoritative policies the backend generated.
-// The one-click launch link is added by the provider once the template is
-// published to S3 (CloudFormation can only pre-load templates hosted in S3).
+// Bellu IAM role. The external id is a CloudFormation Parameter (not embedded),
+// so the template body is identical for every connection — S3 stores one
+// reusable object and the value auto-fills from the quick-create link. The one-
+// click launch link is added by the provider once the template is published.
 func renderCloudFormation(in Input) (*Artifact, error) {
 	tmpl := map[string]any{
 		"AWSTemplateFormatVersion": "2010-09-09",
-		"Description":              fmt.Sprintf("Bellu Cloud Connector cross-account role (external id %s)", in.ExternalID),
+		"Description":              "Bellu Cloud Connector cross-account role",
+		"Parameters":               map[string]any{ExternalIdParameter: externalIdParamDef()},
 		"Resources": map[string]any{
-			"BelluConnectorRole": roleResource(in.RoleName, in.TrustPolicy, in.PermissionPolicy, nil),
+			"BelluConnectorRole": roleResource(in.RoleName, templateTrustPolicy(in.TrustPolicy), in.PermissionPolicy, nil),
 		},
 		"Outputs": roleARNOutput("ARN of the Bellu connector role (paste back into Bellu)"),
 	}
@@ -33,7 +90,7 @@ func renderCloudFormation(in Input) (*Artifact, error) {
 		Template:       string(body),
 		TemplateFormat: "yaml",
 		Instructions: []string{
-			"Click Launch CloudFormation (or upload the template under CloudFormation → Create stack).",
+			"Click Launch CloudFormation (the external id is pre-filled from Bellu). Or upload the template under CloudFormation → Create stack and paste the external id from Bellu into the ExternalId field.",
 			"Tick \"I acknowledge that AWS CloudFormation might create IAM resources with custom names\".",
 			"Click Create stack and wait for CREATE_COMPLETE.",
 			"Copy the RoleArn value from the stack's Outputs tab and paste it into Bellu to verify.",

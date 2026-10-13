@@ -50,10 +50,26 @@ func TestCloudFormationRender(t *testing.T) {
 	if art.TemplateFormat != "yaml" {
 		t.Errorf("template format = %q, want yaml", art.TemplateFormat)
 	}
-	for _, want := range []string{"AWS::IAM::Role", "BelluConnectorRole", "BELLU-TEST123", "AssumeRolePolicyDocument", "Outputs:"} {
+	for _, want := range []string{"AWS::IAM::Role", "BelluConnectorRole", "AssumeRolePolicyDocument", "Outputs:"} {
 		if !strings.Contains(art.Template, want) {
 			t.Errorf("cloudformation template missing %q", want)
 		}
+	}
+	// The external id is a parameter now, not an embedded literal: the body must
+	// NOT contain the literal id, must declare the ExternalId parameter, and the
+	// trust condition must reference it.
+	if strings.Contains(art.Template, "BELLU-TEST123") {
+		t.Error("template must not embed the literal external id (it is a parameter)")
+	}
+	var tmpl map[string]any
+	if err := yaml.Unmarshal([]byte(art.Template), &tmpl); err != nil {
+		t.Fatalf("cloudformation template is not valid YAML: %v", err)
+	}
+	if _, ok := tmpl["Parameters"].(map[string]any)[ExternalIdParameter]; !ok {
+		t.Errorf("missing %s parameter", ExternalIdParameter)
+	}
+	if !strings.Contains(art.Template, ExternalIdParameter) {
+		t.Errorf("trust policy must reference the %s parameter", ExternalIdParameter)
 	}
 	// No wildcard full access leaked in.
 	if strings.Contains(art.Template, "\"*\"") && strings.Contains(art.Template, "AdministratorAccess") {
@@ -121,8 +137,20 @@ func TestCloudFormationStackSetRender(t *testing.T) {
 	if err := json.Unmarshal([]byte(props["TemplateBody"].(string)), &member); err != nil {
 		t.Fatalf("member TemplateBody is not valid JSON: %v", err)
 	}
-	if !strings.Contains(props["TemplateBody"].(string), "BELLU-TEST123") {
-		t.Error("member role must trust the same ExternalId")
+	// The member body no longer embeds the literal id; it declares the
+	// ExternalId parameter and references it, and the StackSet forwards the id
+	// into every member instance.
+	if strings.Contains(props["TemplateBody"].(string), "BELLU-TEST123") {
+		t.Error("member body must not embed the literal external id (it is a parameter)")
+	}
+	if _, ok := member["Parameters"].(map[string]any)[ExternalIdParameter]; !ok {
+		t.Error("member template must declare the ExternalId parameter")
+	}
+	if _, ok := tmpl["Parameters"].(map[string]any)[ExternalIdParameter]; !ok {
+		t.Errorf("org template must declare the %s parameter", ExternalIdParameter)
+	}
+	if props["Parameters"] == nil {
+		t.Error("StackSet must forward the ExternalId to member instances")
 	}
 	if strings.Contains(props["TemplateBody"].(string), "organizations:") {
 		t.Error("member roles must not get Organizations permissions")

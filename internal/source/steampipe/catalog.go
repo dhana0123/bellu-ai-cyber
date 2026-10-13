@@ -30,6 +30,14 @@ type TableSpec struct {
 	RegionColumn string `yaml:"region_column"`
 	// Where is an optional SQL predicate appended to the query.
 	Where string `yaml:"where"`
+	// Capability names the connector capability that grants the IAM permissions
+	// this table needs (e.g. "eks", "workload", "ai"). Empty means ungated —
+	// the table is always collected. The special value "core" is treated as
+	// always-on. The collector skips a table whose capability is not in the
+	// connection's enabled set, so no AccessDenied is produced for an ungranted
+	// capability. It is intentionally NOT required by Catalog.Validate(): an
+	// empty capability is valid and means ungated.
+	Capability string `yaml:"capability"`
 }
 
 // Catalog is a provider's set of table specs.

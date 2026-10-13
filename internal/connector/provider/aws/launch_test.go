@@ -38,7 +38,12 @@ func TestCreateSetupPublishesAndBuildsQuickCreateLink(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", scope, err)
 		}
-		if string(store.body) != s.Template || !strings.HasPrefix(store.key, "templates/7/") {
+		// Key is now content-addressed (connection-independent) so identical
+		// templates share one S3 object: templates/<hash>.yaml.
+		if string(store.body) != s.Template ||
+			!strings.HasPrefix(store.key, "templates/") ||
+			!strings.HasSuffix(store.key, ".yaml") ||
+			strings.Contains(strings.TrimSuffix(strings.TrimPrefix(store.key, "templates/"), ".yaml"), "/") {
 			t.Errorf("%s: template not published as returned (key %q)", scope, store.key)
 		}
 		u, err := url.Parse(s.LaunchURL)
@@ -51,6 +56,10 @@ func TestCreateSetupPublishesAndBuildsQuickCreateLink(t *testing.T) {
 		q, _ := url.ParseQuery(strings.TrimPrefix(u.EscapedFragment(), "/stacks/create/review?"))
 		if q.Get("templateURL") != s.TemplateURL || q.Get("stackName") != "BelluConnector" {
 			t.Errorf("%s: templateURL/stackName not encoded correctly: %v", scope, q)
+		}
+		// The external id must ride in the quick-create URL so it auto-fills.
+		if q.Get("param_ExternalId") != "BELLU-X" {
+			t.Errorf("%s: launch url must prefill param_ExternalId, got %q", scope, q.Get("param_ExternalId"))
 		}
 		if !strings.Contains(s.Template, "arn:aws:iam::001018342000:user/bellu-connector") {
 			t.Errorf("%s: trust policy must name the Bellu principal", scope)

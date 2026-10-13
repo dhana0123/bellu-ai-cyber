@@ -18,6 +18,8 @@ import { mediaMock } from '@/mocks/media'
 import { governanceMock } from '@/mocks/governance'
 import { dashboardMock } from '@/mocks/dashboard'
 import { issuesMock } from '@/mocks/issues'
+import { vulnerabilitiesMock } from '@/mocks/vulnerabilities'
+import { aiInventoryMock } from '@/mocks/aiInventory'
 
 export const client = {
   // --- Foundation (REAL backend) ---
@@ -33,6 +35,8 @@ export const client = {
   governance: governanceMock,
   dashboard: dashboardMock,
   issues: issuesMock,
+  vulnerabilities: vulnerabilitiesMock,
+  aiInventory: aiInventoryMock,
 } as const
 
 export type Client = typeof client

@@ -17,6 +17,7 @@ var capabilitySid = map[string]string{
 	string(capability.EKS):      "BelluEksReadOnly",
 	string(capability.Workload): "BelluWorkloadReadOnly",
 	string(capability.DSPM):     "BelluDspmReadOnly",
+	string(capability.AI):       "BelluAiReadOnly",
 }
 
 // sidForCapability maps a capability name to a policy statement Sid.
@@ -105,7 +106,12 @@ func orderCapabilities(caps []string) []string {
 	if seen[string(capability.Core)] {
 		out = append(out, string(capability.Core))
 	}
-	for _, c := range []string{string(capability.EKS), string(capability.Workload), string(capability.DSPM)} {
+	for _, c := range []string{
+		string(capability.EKS),
+		string(capability.Workload),
+		string(capability.AI),
+		string(capability.DSPM),
+	} {
 		if seen[c] {
 			out = append(out, c)
 		}

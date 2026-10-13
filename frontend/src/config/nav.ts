@@ -1,71 +1,80 @@
 import {
-  LayoutDashboard,
   Gauge,
   Boxes,
-  ShieldAlert,
-  FileWarning,
-  Search,
-  Users,
-  FolderKanban,
-  KeyRound,
-  Cloud,
-  Network,
-  Radar,
+  GitBranch,
   Bot,
+  Bug,
+  ShieldAlert,
+  Search,
+  Shield,
+  ShieldCheck,
   Database,
   Boxes as BoxesIcon,
   ScanFace,
   Scale,
+  Radar,
+  MessagesSquare,
+  FlaskConical,
+  Cloud,
+  Users,
+  FolderKanban,
+  KeyRound,
   Settings,
+  SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 
-export interface NavItem {
+// A leaf navigation link.
+export interface NavLeaf {
   to: string
   label: string
   icon: LucideIcon
   /** Required permission; items the user lacks are hidden. */
   permission?: string
-  /** Exact-match route (for the index route). */
   end?: boolean
 }
 
-export interface NavGroup {
-  section: string
-  /** Marks the whole section as a Preview (mock-data) add-on area. */
+// A primary sidebar entry. Either a direct link (has `to`) or a flyout parent
+// (has `children`). `preview` marks a mock-data (Preview) area.
+export interface NavNode {
+  label: string
+  icon: LucideIcon
+  to?: string
+  end?: boolean
+  permission?: string
   preview?: boolean
-  items: NavItem[]
+  children?: NavLeaf[]
 }
 
-// Config-driven sidebar. Each item is gated by an optional permission; items
-// the current user lacks permission for are hidden automatically (Shell/
-// AppShell filters). AI-SPM is the real-API foundation (TraceGraph lives inside
-// it); the Add-ons section is Preview (mock data); Platform is real-API.
-export const navConfig: NavGroup[] = [
+// The sidebar tree. Primary items with `children` render a hover flyout; items
+// with only `to` are direct links. Permission gating is applied per leaf (and
+// a parent is hidden when all its children are gated out).
+export const navTree: NavNode[] = [
+  { label: 'Dashboard', icon: Gauge, to: '/dashboard', permission: 'graph:read' },
   {
-    section: 'AI-SPM',
-    items: [
-      { to: '/dashboard', label: 'Dashboard', icon: Gauge, permission: 'graph:read' },
-      {
-        to: '/overview',
-        label: 'Security Overview',
-        icon: LayoutDashboard,
-        permission: 'graph:read',
-      },
+    label: 'Discovery',
+    icon: Radar,
+    children: [
       { to: '/inventory', label: 'AI Inventory', icon: Boxes, permission: 'graph:read' },
-      { to: '/tracegraph', label: 'TraceGraph', icon: ShieldAlert, permission: 'graph:read' },
-      { to: '/findings', label: 'Findings', icon: FileWarning, permission: 'findings:read' },
-      { to: '/issues', label: 'Risk Issues', icon: ShieldAlert, permission: 'findings:read' },
-      { to: '/investigate', label: 'Investigate', icon: Search, permission: 'investigate' },
+      { to: '/repositories', label: 'Repositories', icon: GitBranch, permission: 'graph:read' },
+      { to: '/ai-agents', label: 'AI Agents', icon: Bot, permission: 'graph:read' },
     ],
   },
   {
-    section: 'Add-ons',
+    label: 'Dangerous',
+    icon: ShieldAlert,
+    children: [
+      { to: '/vulnerabilities', label: 'Vulnerabilities', icon: Bug, permission: 'findings:read' },
+      { to: '/issues', label: 'Issues', icon: ShieldAlert, permission: 'findings:read' },
+    ],
+  },
+  { label: 'Investigate', icon: Search, to: '/investigate', permission: 'investigate' },
+  {
+    label: 'Defence',
+    icon: ShieldCheck,
     preview: true,
-    items: [
-      { to: '/gateway', label: 'AI Gateway', icon: Network, permission: 'gateway:read' },
-      { to: '/runtime', label: 'Runtime Defense', icon: Radar, permission: 'runtime:read' },
-      { to: '/agents', label: 'Agent Security', icon: Bot, permission: 'agents:read' },
+    children: [
+      { to: '/agents', label: 'Agent Security', icon: Shield, permission: 'agents:read' },
       { to: '/data', label: 'AI Data Security', icon: Database, permission: 'data:read' },
       {
         to: '/supply-chain',
@@ -78,8 +87,18 @@ export const navConfig: NavGroup[] = [
     ],
   },
   {
-    section: 'Platform',
-    items: [
+    label: 'Runtime',
+    icon: SlidersHorizontal,
+    preview: true,
+    children: [
+      { to: '/sessions', label: 'Sessions', icon: MessagesSquare, permission: 'runtime:read' },
+      { to: '/evaluations', label: 'Evaluations', icon: FlaskConical, permission: 'runtime:read' },
+    ],
+  },
+  {
+    label: 'Platform',
+    icon: Cloud,
+    children: [
       { to: '/connectors', label: 'Cloud Connectors', icon: Cloud, permission: 'projects:read' },
       { to: '/users', label: 'Users', icon: Users, permission: 'users:read' },
       { to: '/projects', label: 'Projects', icon: FolderKanban, permission: 'projects:read' },

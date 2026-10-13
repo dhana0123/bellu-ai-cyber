@@ -18,6 +18,13 @@ import (
 // abandoned so one slow/failing table cannot stall the whole run.
 const DefaultTableTimeout = 2 * time.Minute
 
+// querier is the minimal query surface the collector needs from a connection
+// pool. *pgxpool.Pool satisfies it; tests inject a recorder that captures the
+// SQL/table attempted without a live database.
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 // Source collects a provider catalog from a Steampipe service.
 type Source struct {
 	dsn          string
@@ -27,6 +34,81 @@ type Source struct {
 	// Steampipe connection (its Postgres schema). Empty means the default
 	// search path (aggregates across all connections of the plugin).
 	schema string
+	// connect opens the query connection for a run. nil means the default
+	// pgxpool path (the production behavior); tests inject a fake querier so
+	// the per-table query loop can be exercised without a live service.
+	connect func(ctx context.Context) (q querier, closeFn func(), err error)
+	// enabledCaps is the set of capabilities granted to the connection. A
+	// nil/empty set means "no gating configured" and preserves current
+	// behavior (collect every table). core is always treated as enabled.
+	enabledCaps map[string]bool
+}
+
+// setEnabledCapabilitiesForTest sets the enabled capability set on the Source.
+// Exposed for tests that construct a Source via New (production wiring goes
+// through Factory's "capabilities" config key).
+func (s *Source) setEnabledCapabilitiesForTest(caps []string) {
+	s.enabledCaps = capsToSet(caps)
+}
+
+// capsToSet builds the enabled-capability lookup set, always including core so
+// core tables are never gated out even if a caller omits it. A nil/empty input
+// yields a nil set, which the gate treats as "no gating configured".
+func capsToSet(caps []string) map[string]bool {
+	if len(caps) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(caps)+1)
+	for _, c := range caps {
+		if c != "" {
+			set[c] = true
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	set["core"] = true
+	return set
+}
+
+// capsFromConfig extracts the enabled-capability list from a Factory config
+// value. The discovery orchestrator may pass []string (the typed path from the
+// AWS adapter) or []any (e.g. after a JSON/YAML round-trip). Any other type —
+// including a missing key — yields nil, which capsToSet treats as "no gating
+// configured" so the collector preserves its collect-everything behavior.
+func capsFromConfig(v any) []string {
+	switch caps := v.(type) {
+	case []string:
+		return caps
+	case []any:
+		out := make([]string, 0, len(caps))
+		for _, c := range caps {
+			if s, ok := c.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// capabilityEnabled reports whether a table with the given capability should be
+// collected for this source. The gate is deliberately permissive so it can
+// only ever skip tables that are safe to skip:
+//   - no gating configured (nil/empty enabled set): collect everything, exactly
+//     as before this fix (backward compatible).
+//   - ungated table (empty capability): always collected.
+//   - "core": always collected (core permissions are always granted).
+//   - otherwise: collected only if the capability is in the enabled set.
+func (s *Source) capabilityEnabled(capability string) bool {
+	if len(s.enabledCaps) == 0 {
+		return true
+	}
+	if capability == "" || capability == "core" {
+		return true
+	}
+	return s.enabledCaps[capability]
 }
 
 // Config holds the resolved connection and catalog settings.
@@ -78,6 +160,10 @@ func Factory(cfg map[string]any) (source.Source, error) {
 		user, password, host, port, database)
 	src := New(dsn, cat)
 	src.schema = strOr(cfg, "connection_schema", "")
+	// Capability gating: tables whose capability is not enabled are skipped so
+	// an ungranted capability never produces AccessDenied. A missing/empty
+	// "capabilities" key leaves enabledCaps nil, preserving collect-everything.
+	src.enabledCaps = capsToSet(capsFromConfig(cfg["capabilities"]))
 	return src, nil
 }
 
@@ -95,15 +181,17 @@ func (s *Source) Collect(ctx context.Context, run source.Run) (<-chan rawevent.R
 		defer close(events)
 		defer close(errs)
 
-		pool, err := pgxpool.New(ctx, s.dsn)
+		connect := s.connect
+		if connect == nil {
+			connect = s.defaultConnect
+		}
+		q, closeFn, err := connect(ctx)
 		if err != nil {
-			errs <- fmt.Errorf("steampipe: connect: %w", err)
+			errs <- err
 			return
 		}
-		defer pool.Close()
-		if err := pool.Ping(ctx); err != nil {
-			errs <- fmt.Errorf("steampipe: ping service: %w", err)
-			return
+		if closeFn != nil {
+			defer closeFn()
 		}
 
 		collector := "steampipe:" + s.catalog.Provider
@@ -116,8 +204,16 @@ func (s *Source) Collect(ctx context.Context, run source.Run) (<-chan rawevent.R
 				errs <- err
 				return
 			}
+			// Capability gate: skip tables whose capability is not enabled for
+			// this connection. Skipping (rather than querying and swallowing the
+			// error) is what prevents the AccessDenied for ungranted
+			// capabilities. core/ungated tables and the no-gating fallback are
+			// never skipped — see capabilityEnabled.
+			if !s.capabilityEnabled(spec.Capability) {
+				continue
+			}
 			tctx, cancel := context.WithTimeout(ctx, s.tableTimeout)
-			n, err := s.collectTable(tctx, pool, run, collector, spec, events)
+			n, err := s.collectTable(tctx, q, run, collector, spec, events)
 			cancel()
 			if err != nil {
 				// Error isolation: record and continue with the next table.
@@ -129,6 +225,22 @@ func (s *Source) Collect(ctx context.Context, run source.Run) (<-chan rawevent.R
 	}()
 
 	return events, errs
+}
+
+// defaultConnect is the production connection path: open a pgx pool to the
+// Steampipe service and ping it. Returned closeFn closes the pool. This
+// preserves the original Collect behavior exactly; it is only indirected so
+// tests can inject a fake querier.
+func (s *Source) defaultConnect(ctx context.Context) (querier, func(), error) {
+	pool, err := pgxpool.New(ctx, s.dsn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("steampipe: connect: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("steampipe: ping service: %w", err)
+	}
+	return pool, pool.Close, nil
 }
 
 // qualifiedTable returns the table name scoped to the source's connection
@@ -143,7 +255,7 @@ func (s *Source) qualifiedTable(table string) string {
 }
 
 // collectTable queries one table and emits a RawEvent per row.
-func (s *Source) collectTable(ctx context.Context, pool *pgxpool.Pool, run source.Run, collector string, spec TableSpec, out chan<- rawevent.RawEvent) (int, error) {
+func (s *Source) collectTable(ctx context.Context, pool querier, run source.Run, collector string, spec TableSpec, out chan<- rawevent.RawEvent) (int, error) {
 	// Identifiers come from the vetted catalog, not user input. We still only
 	// ever interpolate the table name here.
 	q := fmt.Sprintf(`SELECT to_jsonb(t) AS row FROM %s t`, s.qualifiedTable(spec.Table))

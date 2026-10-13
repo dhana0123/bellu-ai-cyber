@@ -9,8 +9,8 @@ import (
 // descriptions but never raw IAM actions.
 func TestCardsExposeNoRawActions(t *testing.T) {
 	cards := Cards()
-	if len(cards) != 4 {
-		t.Fatalf("want 4 cards, got %d", len(cards))
+	if len(cards) != 5 {
+		t.Fatalf("want 5 cards, got %d", len(cards))
 	}
 	byName := map[string]Card{}
 	for _, c := range cards {

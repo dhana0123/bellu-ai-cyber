@@ -1,0 +1,60 @@
+// Grafana Alloy — log collector for the Bellu stack.
+//
+// Pipeline: discover Docker containers via the daemon socket -> read each
+// container's stdout/stderr -> relabel with friendly labels (container name,
+// compose service/project, image) -> forward to Loki.
+//
+// Alloy is the modern successor to Promtail/Grafana Agent; `loki.source.docker`
+// tails container logs directly from the Docker API (no file mounts needed).
+
+// --- Discover running Docker containers ------------------------------------
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Turn Docker metadata labels into clean Loki labels. Docker exposes container
+// name as "__meta_docker_container_name" (with a leading slash) and compose
+// metadata via container labels.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // Container name, e.g. "/bellu-bellu-api-1" -> "bellu-api-1".
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  // Compose service name (docker-compose.service label).
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  // Compose project (so we can tell the customer plane from global-intel).
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+
+  // Image name for extra context.
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+}
+
+// --- Read container logs and ship to Loki ----------------------------------
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = { job = "docker" }
+  forward_to = [loki.write.default.receiver]
+}
+
+// --- Forward to Loki --------------------------------------------------------
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

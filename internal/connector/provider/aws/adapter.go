@@ -112,7 +112,7 @@ func (a *Adapter) CreateSetup(ctx context.Context, in provider.SetupInput) (*pro
 	}
 	if s.DeploymentMethod == "cloudformation" && a.templates != nil && s.Template != "" {
 		body := []byte(s.Template)
-		u, err := a.templates.Publish(ctx, templateKey(in.ConnectionID, body), body)
+		u, err := a.templates.Publish(ctx, templateKey(body), body)
 		if err != nil {
 			// Publishing is best-effort: if the template bucket is unreachable
 			// (e.g. missing credentials), setup still works via download/upload.
@@ -120,7 +120,7 @@ func (a *Adapter) CreateSetup(ctx context.Context, in provider.SetupInput) (*pro
 			log.Printf("connector: template publish failed, launch link disabled: %v", err)
 		} else {
 			s.TemplateURL = u
-			s.LaunchURL = quickCreateURL(in.Region, u)
+			s.LaunchURL = quickCreateURL(in.Region, u, in.ExternalID)
 		}
 	}
 	return s, nil
@@ -177,6 +177,12 @@ func (a *Adapter) Discover(ctx context.Context, t provider.Target, creds *provid
 		"database":          a.steampipeDB,
 		"connection":        a.steampipeConn, // selects aws.yaml catalog
 		"connection_schema": connName,        // query targets this schema only
+		// Enabled capabilities gate which catalog tables the collector queries:
+		// a table whose capability is not in this set is skipped, so an
+		// ungranted capability never triggers an AccessDenied. An empty/nil set
+		// means "no gating configured" and the collector queries every table
+		// (backward-compatible behavior).
+		"capabilities": t.Capabilities,
 	}
 	env := map[string]string{
 		"AWS_ACCESS_KEY_ID":     creds.AccessKeyID,

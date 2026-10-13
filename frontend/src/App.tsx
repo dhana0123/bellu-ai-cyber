@@ -11,8 +11,10 @@ import Dashboard from '@/features/dashboard/Dashboard'
 import Issues from '@/features/issues/Issues'
 import SecurityOverview from '@/features/ai-spm/SecurityOverview'
 import AiInventory from '@/features/ai-spm/AiInventory'
+import AiEcosystemInventory from '@/features/ai-inventory/AiEcosystemInventory'
 import TraceGraphPage from '@/features/ai-spm/TraceGraphPage'
 import Findings from '@/features/ai-spm/Findings'
+import Vulnerabilities from '@/features/vulnerabilities/Vulnerabilities'
 import Investigate from '@/features/ai-spm/Investigate'
 // Add-on modules (Preview, mock-data).
 import Gateway from '@/features/gateway/Gateway'
@@ -96,6 +98,14 @@ export default function App() {
         path="/inventory"
         element={
           <RequireAuth permission="graph:read">
+            <AiEcosystemInventory />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/inventory-graph"
+        element={
+          <RequireAuth permission="graph:read">
             <AiInventory />
           </RequireAuth>
         }
@@ -117,10 +127,66 @@ export default function App() {
         }
       />
       <Route
+        path="/vulnerabilities"
+        element={
+          <RequireAuth permission="findings:read">
+            <Vulnerabilities />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/issues"
         element={
           <RequireAuth permission="findings:read">
             <Issues />
+          </RequireAuth>
+        }
+      />
+
+      {/* Discovery / Runtime nav items without a full page yet — placeholders. */}
+      <Route
+        path="/repositories"
+        element={
+          <RequireAuth permission="graph:read">
+            <ModulePlaceholder
+              title="Repositories"
+              blurb="Source code repositories feeding your AI supply chain."
+              preview={false}
+            />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/ai-agents"
+        element={
+          <RequireAuth permission="graph:read">
+            <ModulePlaceholder
+              title="AI Agents"
+              blurb="Discovered AI agents across your environments."
+              preview={false}
+            />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/sessions"
+        element={
+          <RequireAuth permission="runtime:read">
+            <ModulePlaceholder
+              title="Sessions"
+              blurb="Live and historical AI runtime sessions."
+            />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/evaluations"
+        element={
+          <RequireAuth permission="runtime:read">
+            <ModulePlaceholder
+              title="Evaluations"
+              blurb="Model and agent evaluation runs and scorecards."
+            />
           </RequireAuth>
         }
       />
