@@ -1,7 +1,9 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/connector"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/capability"
+	"github.com/bellu/bellu-ai-cyber/internal/connector/discovery"
 )
 
 // registerConnectorRoutes wires the RBAC-gated cloud-connector API under the
@@ -33,6 +36,10 @@ func (s *Server) registerConnectorRoutes(g *gin.RouterGroup) {
 	conns.GET("", s.auth.RequirePermission(auth.PermProjectsRead), s.handleListConnections)
 	conns.GET("/:id", s.auth.RequirePermission(auth.PermProjectsRead), s.handleGetConnection)
 	conns.GET("/:id/status", s.auth.RequirePermission(auth.PermProjectsRead), s.handleConnectionStatus)
+	// Live discovery progress over Server-Sent Events. Read-only, gated like the
+	// other reads. The browser EventSource cannot send an Authorization header,
+	// so Authenticate() also accepts the token via the access_token query param.
+	conns.GET("/:id/discover/stream", s.auth.RequirePermission(auth.PermProjectsRead), s.handleDiscoverStream)
 }
 
 // connectionForRequest loads the path :id connection scoped to the principal's
@@ -231,6 +238,88 @@ func (s *Server) handleDiscover(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"session": sess})
+}
+
+// handleDiscoverStream streams live discovery progress for a connection's
+// latest session over Server-Sent Events. It sends the current snapshot
+// immediately, a progress event on every change, and a terminal "done" event
+// when the session finishes, then closes. Client disconnect ends the stream and
+// never affects the running session. No cloud secrets are ever emitted — the
+// progress payload carries only table names, counts, states, and error strings.
+func (s *Server) handleDiscoverStream(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+
+	ch, cancel, ok, err := s.connector.SubscribeProgress(c.Request.Context(), conn.OrgID, conn.ID)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	if !ok {
+		// No live session to stream: respond rather than hanging the connection.
+		c.JSON(http.StatusNotFound, gin.H{"error": "no discovery session for this connection"})
+		return
+	}
+	defer cancel()
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming unsupported"})
+		return
+	}
+
+	h := c.Writer.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set("X-Accel-Buffering", "no") // disable proxy buffering (nginx)
+	c.Writer.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	writeEvent := func(event string, prog *discovery.Progress) bool {
+		data, err := json.Marshal(prog)
+		if err != nil {
+			return false
+		}
+		if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event, data); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	ctxDone := c.Request.Context().Done()
+	for {
+		select {
+		case <-ctxDone:
+			// Client disconnected; stop streaming without touching the run.
+			return
+		case prog, open := <-ch:
+			if !open {
+				// Hub closed: the session reached a terminal state. Emit a final
+				// snapshot (from the status view, which carries the frozen final
+				// progress) as the terminal "done" event, then close.
+				final := s.finalProgress(c, conn.OrgID, conn.ID)
+				writeEvent("done", final)
+				return
+			}
+			if !writeEvent("progress", prog) {
+				return
+			}
+		}
+	}
+}
+
+// finalProgress fetches the frozen final progress of the latest session via the
+// status view, used for the terminal SSE event after the live hub has closed.
+func (s *Server) finalProgress(c *gin.Context, orgID, id int64) *discovery.Progress {
+	view, err := s.connector.Status(c.Request.Context(), orgID, id)
+	if err != nil || view == nil || view.LatestSession == nil {
+		return nil
+	}
+	return view.LatestSession.Progress
 }
 
 func (s *Server) handleCancelDiscovery(c *gin.Context) {

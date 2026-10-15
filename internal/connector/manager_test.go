@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,12 +13,26 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/source"
 )
 
-// memRepo is an in-memory connRepo for manager unit tests.
+// memRepo is an in-memory connRepo for manager unit tests. Discovery now runs
+// in a background goroutine, so the repo is accessed concurrently (the terminal
+// callback writes status while the test reads it); mu makes it race-free.
 type memRepo struct {
+	mu       sync.Mutex
 	seq      int64
 	conns    map[int64]*Connection
 	saved    map[int64]*provider.VerifyResult
 	verified map[int64]time.Time
+	sessions []recordedSession
+}
+
+type recordedSession struct {
+	connID    int64
+	sessionID string
+	runID     string
+	status    string
+	started   time.Time
+	ended     *time.Time
+	errMsg    string
 }
 
 func newMemRepo() *memRepo {
@@ -25,6 +40,8 @@ func newMemRepo() *memRepo {
 }
 
 func (r *memRepo) Insert(ctx context.Context, c *Connection) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.seq++
 	c.ID = r.seq
 	cp := *c
@@ -32,6 +49,8 @@ func (r *memRepo) Insert(ctx context.Context, c *Connection) (int64, error) {
 	return c.ID, nil
 }
 func (r *memRepo) Get(ctx context.Context, orgID, id int64) (*Connection, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return nil, ErrNotFound
@@ -40,6 +59,8 @@ func (r *memRepo) Get(ctx context.Context, orgID, id int64) (*Connection, error)
 	return &cp, nil
 }
 func (r *memRepo) ListByOrg(ctx context.Context, orgID int64) ([]Connection, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	var out []Connection
 	for _, c := range r.conns {
 		if c.OrgID == orgID {
@@ -49,6 +70,8 @@ func (r *memRepo) ListByOrg(ctx context.Context, orgID int64) ([]Connection, err
 	return out, nil
 }
 func (r *memRepo) UpdateStatus(ctx context.Context, orgID, id int64, s Status) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return ErrNotFound
@@ -57,6 +80,8 @@ func (r *memRepo) UpdateStatus(ctx context.Context, orgID, id int64, s Status) e
 	return nil
 }
 func (r *memRepo) SetVerified(ctx context.Context, orgID, id int64, t time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return ErrNotFound
@@ -66,6 +91,8 @@ func (r *memRepo) SetVerified(ctx context.Context, orgID, id int64, t time.Time)
 	return nil
 }
 func (r *memRepo) SetAccountID(ctx context.Context, orgID, id int64, accountID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return ErrNotFound
@@ -74,6 +101,8 @@ func (r *memRepo) SetAccountID(ctx context.Context, orgID, id int64, accountID s
 	return nil
 }
 func (r *memRepo) SetManagementAccountID(ctx context.Context, orgID, id int64, accountID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return ErrNotFound
@@ -82,6 +111,8 @@ func (r *memRepo) SetManagementAccountID(ctx context.Context, orgID, id int64, a
 	return nil
 }
 func (r *memRepo) SetRoleARN(ctx context.Context, orgID, id int64, roleARN string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return ErrNotFound
@@ -90,6 +121,8 @@ func (r *memRepo) SetRoleARN(ctx context.Context, orgID, id int64, roleARN strin
 	return nil
 }
 func (r *memRepo) Delete(ctx context.Context, orgID, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	c, ok := r.conns[id]
 	if !ok || c.OrgID != orgID {
 		return ErrNotFound
@@ -98,11 +131,38 @@ func (r *memRepo) Delete(ctx context.Context, orgID, id int64) error {
 	return nil
 }
 func (r *memRepo) SaveVerification(ctx context.Context, connID int64, res *provider.VerifyResult) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.saved[connID] = res
 	return nil
 }
 func (r *memRepo) RecordSession(ctx context.Context, connID int64, sessionID, runID, status string, started time.Time, ended *time.Time, errMsg string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sessions = append(r.sessions, recordedSession{
+		connID: connID, sessionID: sessionID, runID: runID, status: status,
+		started: started, ended: ended, errMsg: errMsg,
+	})
 	return nil
+}
+
+// waitForStatus polls the repo until the connection reaches want or the
+// deadline passes, returning the final status. Used by async-discovery tests.
+func (r *memRepo) waitForStatus(orgID, id int64, want Status, d time.Duration) Status {
+	deadline := time.Now().Add(d)
+	for {
+		c, err := r.Get(context.Background(), orgID, id)
+		if err == nil && c.Status == want {
+			return c.Status
+		}
+		if time.Now().After(deadline) {
+			if err == nil {
+				return c.Status
+			}
+			return ""
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
 }
 
 // mgrFakeProvider is a configurable CloudProvider for manager tests.
@@ -148,7 +208,22 @@ func (discCreds) Revoke(int64) {}
 // okRunner is a PipelineRunner that always succeeds.
 type okRunner struct{}
 
-func (okRunner) Run(context.Context, source.Source, string) error { return nil }
+func (okRunner) Run(context.Context, source.Source, string, int64, source.ProgressReporter) error {
+	return nil
+}
+
+// blockingRunner blocks until release is closed (or ctx is cancelled), so a
+// discovery session stays running while a test exercises concurrent behavior.
+type blockingRunner struct{ release <-chan struct{} }
+
+func (r blockingRunner) Run(ctx context.Context, _ source.Source, _ string, _ int64, _ source.ProgressReporter) error {
+	select {
+	case <-r.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 func newManager(t *testing.T, repo connRepo, p provider.CloudProvider) *Manager {
 	reg := provider.NewRegistry()
@@ -158,6 +233,27 @@ func newManager(t *testing.T, repo connRepo, p provider.CloudProvider) *Manager 
 	orch := discovery.New(discovery.Options{
 		Factory: func(map[string]any) (source.Source, error) { return nil, nil },
 		Runner:  okRunner{},
+		Creds:   discCreds{},
+	})
+	return NewManager(Options{
+		Repo:       repo,
+		Registry:   reg,
+		Discovery:  orch,
+		ExternalID: newExtIDGen(),
+		Now:        func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) },
+	})
+}
+
+// newManagerBlockingRunner is like newManager but the discovery run blocks until
+// release is closed, so a session stays running for concurrency tests.
+func newManagerBlockingRunner(t *testing.T, repo connRepo, p provider.CloudProvider, release <-chan struct{}) *Manager {
+	reg := provider.NewRegistry()
+	if p != nil {
+		reg.Register(p)
+	}
+	orch := discovery.New(discovery.Options{
+		Factory: func(map[string]any) (source.Source, error) { return nil, nil },
+		Runner:  blockingRunner{release: release},
 		Creds:   discCreds{},
 	})
 	return NewManager(Options{
@@ -309,17 +405,45 @@ func TestDiscoverLifecycle(t *testing.T) {
 		t.Fatalf("verify: %v", err)
 	}
 
+	// Discovery is asynchronous: Discover returns a running session immediately
+	// and the run completes in the background.
 	sess, err := m.Discover(context.Background(), c.OrgID, c.ID)
 	if err != nil {
 		t.Fatalf("discover: %v", err)
 	}
-	if sess.Status != discovery.SessComplete {
-		t.Errorf("session status = %s, want complete", sess.Status)
+	if sess.Status != discovery.SessRunning {
+		t.Errorf("session status = %s, want running (async start)", sess.Status)
 	}
-	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
-	if got.Status != StatusComplete {
-		t.Errorf("connection status = %s, want COMPLETE", got.Status)
+	// The connection converges to COMPLETE once the background run finishes.
+	if got := repo.waitForStatus(c.OrgID, c.ID, StatusComplete, 2*time.Second); got != StatusComplete {
+		t.Errorf("connection status = %s, want COMPLETE", got)
 	}
+}
+
+// TestDiscoverRejectsConcurrent asserts a second discover while one is running
+// returns ErrConflict.
+func TestDiscoverRejectsConcurrent(t *testing.T) {
+	repo := newMemRepo()
+	// A provider whose discovery blocks until released, so the first session
+	// stays running while we attempt a second.
+	release := make(chan struct{})
+	prov := &mgrFakeProvider{verifyRes: &provider.VerifyResult{OK: true}}
+	m := newManagerBlockingRunner(t, repo, prov, release)
+	c, _ := m.Create(context.Background(), createInput())
+	if _, err := m.Verify(context.Background(), c.OrgID, c.ID, testRoleARN); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if _, err := m.Discover(context.Background(), c.OrgID, c.ID); err != nil {
+		t.Fatalf("first discover: %v", err)
+	}
+	// Give the background goroutine time to register the running session.
+	repo.waitForStatus(c.OrgID, c.ID, StatusDiscoveryRunning, time.Second)
+	_, err := m.Discover(context.Background(), c.OrgID, c.ID)
+	if !errors.Is(err, ErrConflict) {
+		t.Errorf("second discover: want ErrConflict, got %v", err)
+	}
+	close(release)
+	repo.waitForStatus(c.OrgID, c.ID, StatusComplete, 2*time.Second)
 }
 
 // TestGetTenantScoped asserts Get is tenant-scoped.
@@ -694,16 +818,15 @@ func TestReDiscoverFromComplete(t *testing.T) {
 	if _, err := m.Discover(context.Background(), c.OrgID, c.ID); err != nil {
 		t.Fatalf("first discover: %v", err)
 	}
-	got, _ := repo.Get(context.Background(), c.OrgID, c.ID)
-	if got.Status != StatusComplete {
-		t.Fatalf("after first discover status = %s, want COMPLETE", got.Status)
+	// Discovery is async; wait for the background run to converge to COMPLETE.
+	if got := repo.waitForStatus(c.OrgID, c.ID, StatusComplete, 2*time.Second); got != StatusComplete {
+		t.Fatalf("after first discover status = %s, want COMPLETE", got)
 	}
 	// Re-discover from COMPLETE must not error.
 	if _, err := m.Discover(context.Background(), c.OrgID, c.ID); err != nil {
 		t.Fatalf("re-discover: %v", err)
 	}
-	got, _ = repo.Get(context.Background(), c.OrgID, c.ID)
-	if got.Status != StatusComplete {
-		t.Errorf("after re-discover status = %s, want COMPLETE", got.Status)
+	if got := repo.waitForStatus(c.OrgID, c.ID, StatusComplete, 2*time.Second); got != StatusComplete {
+		t.Errorf("after re-discover status = %s, want COMPLETE", got)
 	}
 }

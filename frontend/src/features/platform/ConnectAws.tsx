@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { DiscoveryProgress } from './DiscoveryProgress'
 import type {
   CapabilityCard,
   Connection,
@@ -152,6 +153,9 @@ export default function ConnectAwsPage() {
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
   const [members, setMembers] = useState<Connection[]>([])
   const [expanding, setExpanding] = useState(false)
+  // discovering flips the final pane into the live progress view once a run has
+  // been kicked off, so the operator watches progress instead of a spinner.
+  const [discovering, setDiscovering] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -265,13 +269,26 @@ export default function ConnectAwsPage() {
     setBusy(true)
     setError(null)
     try {
+      // Discovery is asynchronous now: this returns immediately with a running
+      // session, and we switch the pane to the live progress view (SSE).
       await client.discoverConnector(connection.id)
-      const { connection: fresh } = await client.connector(connection.id)
-      setConnection(fresh)
+      setDiscovering(true)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Called by the progress panel when the run reaches a terminal state; refresh
+  // the connection so its status badge reflects COMPLETE/ERROR.
+  async function onDiscoveryDone() {
+    if (!connection) return
+    try {
+      const { connection: fresh } = await client.connector(connection.id)
+      setConnection(fresh)
+    } catch {
+      /* non-fatal; the panel already shows the outcome */
     }
   }
 
@@ -584,15 +601,26 @@ export default function ConnectAwsPage() {
                       </div>
                     )}
 
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => navigate('/connectors')}>
-                        Done
-                      </Button>
-                      <Button onClick={startDiscovery} disabled={busy}>
-                        {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                        Start Discovery
-                      </Button>
-                    </div>
+                    {discovering && connection ? (
+                      <div className="space-y-4">
+                        <DiscoveryProgress connectionId={connection.id} onDone={onDiscoveryDone} />
+                        <div className="flex justify-end">
+                          <Button variant="outline" onClick={() => navigate('/connectors')}>
+                            Done
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => navigate('/connectors')}>
+                          Done
+                        </Button>
+                        <Button onClick={startDiscovery} disabled={busy}>
+                          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                          Start Discovery
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}

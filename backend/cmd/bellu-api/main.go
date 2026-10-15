@@ -29,6 +29,8 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 	connectoraws "github.com/bellu/bellu-ai-cyber/internal/connector/provider/aws"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
+	"github.com/bellu/bellu-ai-cyber/internal/pipeline"
+	"github.com/bellu/bellu-ai-cyber/internal/redact"
 	"github.com/bellu/bellu-ai-cyber/internal/source"
 	"github.com/bellu/bellu-ai-cyber/internal/source/steampipe"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
@@ -87,7 +89,7 @@ func run() error {
 	// build the provider-agnostic manager. The AWS adapter authenticates via STS
 	// using the default AWS credential chain for Bellu's own principal; the
 	// per-connection assumed-role credentials it mints are never persisted.
-	connMgr := buildConnector(st)
+	connMgr := buildConnector(st, gw, cfg)
 
 	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, Connector: connMgr, AllowOrigin: allowOrigin})
 
@@ -200,7 +202,7 @@ func waitForSteampipeConnection(schema string, timeout time.Duration) {
 	}
 }
 
-func buildConnector(st *store.Store) *connector.Manager {
+func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *connector.Manager {
 	reg := provider.NewRegistry()
 
 	awsAdapter := connectoraws.New(connectoraws.Options{
@@ -217,9 +219,24 @@ func buildConnector(st *store.Store) *connector.Manager {
 	reg.Register(awsAdapter)
 
 	repo := connector.NewRepository(st)
+
+	// Build the shared normalize->resolve->persist processor and a redactor so
+	// discovery output lands in normalized_entities (what the inventory reads).
+	// Optional rule/mapping files are loaded by path with defaults when absent.
+	proc := pipeline.NewProcessor(
+		"internal/resolve/mappings.yaml",
+		"internal/normalize/aiagent/rules.yaml",
+	)
+	redactor, rerr := redact.New(cfg.Redaction.KeyPatterns, cfg.Redaction.JSONPaths)
+	if rerr != nil {
+		log.Printf("warning: redaction disabled (%v)", rerr)
+		redactor = nil
+	}
+	runner := connectorPipelineRunner{store: st, graph: gw, proc: proc, redactor: redactor}
+
 	disc := discovery.New(discovery.Options{
 		Factory: steampipe.Factory,
-		Runner:  connectorPipelineRunner{},
+		Runner:  runner,
 		Creds:   adapterCredentialer{adapter: awsAdapter},
 		Sink:    steampipeConfigSink(getenv("BELLU_STEAMPIPE_CONFIG_DIR", "")),
 	})
@@ -279,17 +296,55 @@ func (a adapterCredentialer) Revoke(connID int64) { a.adapter.Revoke(connID) }
 // source. The full ingest->normalize->resolve->sync wiring lives in the bellu
 // CLI; here the runner drains the source so discovery completes. Wiring the
 // complete pipeline is deferred to the pipeline-integration follow-up.
-type connectorPipelineRunner struct{}
+// connectorPipelineRunner drives a discovery source through the real pipeline:
+// it ingests collected RawEvents into Postgres (raw_events), then normalizes,
+// resolves, and persists them into normalized_entities/edges, and finally syncs
+// the resolved graph into Memgraph when available. This is what makes
+// discovered cloud resources appear in the inventory (GET /api/entities reads
+// normalized_entities). Previously this runner discarded events, so discovery
+// completed but produced nothing queryable.
+type connectorPipelineRunner struct {
+	store    *store.Store
+	graph    *graph.Writer // may be nil; graph sync is skipped when nil
+	proc     *pipeline.Processor
+	redactor *redact.Redactor
+}
 
-func (connectorPipelineRunner) Run(ctx context.Context, src source.Source, runID string) error {
-	events, errs := src.Collect(ctx, source.Run{RunID: runID})
+func (r connectorPipelineRunner) Run(ctx context.Context, src source.Source, runID string, projectID int64, reporter source.ProgressReporter) error {
+	// 1) Ingest: record the run and stream collected events into Postgres,
+	// redacting payloads first. We consume Collect directly (rather than via
+	// pipeline.Pipeline) so the progress reporter stays wired to the hub.
+	if err := r.store.StartRun(ctx, runID, "steampipe"); err != nil {
+		return fmt.Errorf("start run: %w", err)
+	}
+	sink := store.NewSink(r.store, runID)
+
+	collected := 0
+	events, errs := src.Collect(ctx, source.Run{RunID: runID, Reporter: reporter})
+	var runErr error
+drain:
 	for events != nil || errs != nil {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case _, ok := <-events:
+			runErr = ctx.Err()
+			break drain
+		case ev, ok := <-events:
 			if !ok {
 				events = nil
+				continue
+			}
+			collected++
+			out := ev
+			if r.redactor != nil {
+				red, rerr := r.redactor.Apply(out)
+				if rerr == nil {
+					out = red
+					out.Finalize() // recompute hash/id after payload rewrite
+				}
+			}
+			if err := sink.Write(ctx, out); err != nil {
+				// Non-fatal: record and keep going so one bad row doesn't abort.
+				log.Printf("discovery %s: write event: %v", runID, err)
 			}
 		case err, ok := <-errs:
 			if !ok {
@@ -297,8 +352,51 @@ func (connectorPipelineRunner) Run(ctx context.Context, src source.Source, runID
 				continue
 			}
 			if err != nil {
-				return err
+				// Per-table errors are isolated (reported via progress); keep
+				// the first as the run error but continue draining.
+				if runErr == nil {
+					runErr = err
+				}
 			}
+		}
+	}
+	_ = sink.Flush(ctx)
+	_ = r.store.FinishRun(context.Background(), runID, sink.Status(), sink.Written())
+
+	if runErr != nil {
+		return runErr
+	}
+
+	// 2) Normalize -> resolve -> derive-agents -> persist, scoped to THIS run's
+	// raw events (not the whole DB), so each discovery only reprocesses its own
+	// output.
+	raw, err := r.store.LoadRawEvents(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("load raw events: %w", err)
+	}
+	pres, err := r.proc.Process(ctx, r.store, raw)
+	if err != nil {
+		return err
+	}
+	log.Printf("discovery %s: collected=%d entities=%d edges=%d agents=%d",
+		runID, collected, pres.Entities, pres.Edges, pres.Agents)
+
+	// Tag the discovered entities with the connection's project so inventory can
+	// be scoped per project. Best-effort: a tagging failure must not fail the
+	// run (the entities are already persisted and visible org-wide).
+	if projectID > 0 {
+		if err := r.store.SaveEntityProjects(ctx, projectID, pres.CanonicalIDs); err != nil {
+			log.Printf("discovery %s: tag project %d failed (non-fatal): %v", runID, projectID, err)
+		}
+	}
+
+	// 3) Sync to Memgraph (optional; inventory reads from Postgres so this is
+	// best-effort and never fails the discovery run).
+	if r.graph != nil {
+		if ne, nr, serr := r.proc.Sync(ctx, r.store, r.graph); serr != nil {
+			log.Printf("discovery %s: graph sync failed (non-fatal): %v", runID, serr)
+		} else {
+			log.Printf("discovery %s: graph synced entities=%d edges=%d", runID, ne, nr)
 		}
 	}
 	return nil

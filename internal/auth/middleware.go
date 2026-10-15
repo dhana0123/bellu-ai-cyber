@@ -34,7 +34,7 @@ func PrincipalFrom(c *gin.Context) (*Principal, bool) {
 // the principal into the context.
 func (s *Service) Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenStr := bearerToken(c.Request)
+		tokenStr := requestToken(c.Request)
 		if tokenStr == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing bearer token"})
 			return
@@ -73,6 +73,18 @@ func (s *Service) RequirePermission(perm string) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// requestToken extracts the JWT from a request, preferring the standard
+// Authorization: Bearer header. When the header is absent it falls back to the
+// "access_token" query parameter. The query-param path exists for the SSE
+// progress stream: a browser EventSource cannot set request headers, so the
+// token must travel in the URL. The token is validated identically either way.
+func requestToken(r *http.Request) string {
+	if t := bearerToken(r); t != "" {
+		return t
+	}
+	return strings.TrimSpace(r.URL.Query().Get("access_token"))
 }
 
 func bearerToken(r *http.Request) string {

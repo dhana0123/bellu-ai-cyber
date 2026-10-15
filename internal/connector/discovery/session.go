@@ -30,5 +30,10 @@ type Session struct {
 	EndedAt      *time.Time    `json:"ended_at,omitempty"`
 	Error        string        `json:"error,omitempty"`
 
+	// Progress is the live, run-level progress snapshot of this session. It is
+	// nil until collection begins. Readers (status poll, SSE stream) must only
+	// read it through the orchestrator's lock; see progress.go.
+	Progress *Progress `json:"progress,omitempty"`
+
 	cancel context.CancelFunc // not serialized
 }

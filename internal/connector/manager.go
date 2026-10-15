@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -434,25 +435,84 @@ func (m *Manager) Retry(ctx context.Context, orgID, id int64) (*discovery.Sessio
 	return m.runDiscovery(ctx, c, EventRetry)
 }
 
+// runDiscovery starts discovery asynchronously: it resolves the provider,
+// transitions the connection to DISCOVERY_RUNNING, then launches the run in the
+// background and returns the running session immediately. When the run reaches a
+// terminal state, the connection status is transitioned and the session is
+// recorded on a background context (the request context is gone by then).
+//
+// A session already running for the connection is reported as ErrConflict.
 func (m *Manager) runDiscovery(ctx context.Context, c *Connection, start Event) (*discovery.Session, error) {
 	p, err := m.resolveProvider(c.Provider)
 	if err != nil {
 		return nil, err
 	}
+	// A connection already in DISCOVERY_RUNNING has a session in flight; starting
+	// another is a conflict. Checking the status here (rather than relying on the
+	// FSM to reject the transition) gives a clear ErrConflict instead of a
+	// generic invalid-transition error.
+	if c.Status == StatusDiscoveryRunning {
+		return nil, ErrConflict
+	}
+	// Transition to DISCOVERY_RUNNING before launching the run so a concurrent
+	// request observes the running status and conflicts.
 	if err := m.transition(ctx, c, start); err != nil {
 		return nil, err
 	}
 
-	sess, derr := m.disc.Discover(ctx, p, m.targetFor(c))
-	if sess != nil {
-		m.recordSession(ctx, c.ID, sess)
+	// Capture the fields the terminal callback needs; the Connection pointer is
+	// request-scoped and must not be touched from the background goroutine.
+	orgID, connID := c.OrgID, c.ID
+	onDone := func(sess *discovery.Session, derr error) {
+		bg := context.Background()
+		if sess != nil {
+			m.recordSession(bg, connID, sess)
+		}
+		if derr != nil || (sess != nil && sess.Status == discovery.SessFailed) {
+			m.transitionByID(bg, orgID, connID, EventDiscoverFailed)
+			return
+		}
+		m.transitionByID(bg, orgID, connID, EventDiscoverDone)
 	}
-	if derr != nil || (sess != nil && sess.Status == discovery.SessFailed) {
-		_ = m.transition(ctx, c, EventDiscoverFailed)
-		return sess, derr
+
+	sess, serr := m.disc.DiscoverAsync(p, m.targetFor(c), onDone)
+	if serr != nil {
+		// The orchestrator also guards against a running session (belt and
+		// suspenders with the status check above). Roll the connection back out
+		// of DISCOVERY_RUNNING so it is not stuck, and report the conflict.
+		if errors.Is(serr, discovery.ErrSessionRunning) {
+			m.transitionByID(ctx, c.OrgID, c.ID, EventDiscoverFailed)
+			return nil, ErrConflict
+		}
+		m.transitionByID(ctx, c.OrgID, c.ID, EventDiscoverFailed)
+		return nil, serr
 	}
-	_ = m.transition(ctx, c, EventDiscoverDone)
 	return sess, nil
+}
+
+// transitionByID loads the connection by id and applies an event. It is used by
+// the async terminal callback, which runs after the request-scoped Connection
+// pointer is no longer safe to use.
+func (m *Manager) transitionByID(ctx context.Context, orgID, id int64, e Event) {
+	c, err := m.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return
+	}
+	_ = m.transition(ctx, c, e)
+}
+
+// SubscribeProgress subscribes to live progress for a connection's latest
+// discovery session. It verifies the connection belongs to the org, then
+// returns a channel of progress snapshots (first is the current snapshot), a
+// cancel func, and ok=false when no live session exists. The caller must call
+// cancel when done. Subscribing never affects the running session.
+func (m *Manager) SubscribeProgress(ctx context.Context, orgID, id int64) (<-chan *discovery.Progress, func(), bool, error) {
+	c, err := m.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	ch, cancel, ok := m.disc.Subscribe(c.ID)
+	return ch, cancel, ok, nil
 }
 
 // Cancel stops a running discovery session for the connection.
@@ -483,7 +543,10 @@ func (m *Manager) Status(ctx context.Context, orgID, id int64) (*StatusView, err
 		return nil, err
 	}
 	v := &StatusView{ConnectionID: c.ID, Status: c.Status}
-	if sess, ok := m.disc.Latest(c.ID); ok {
+	// LatestView returns a race-free deep copy of the latest session with a
+	// fresh progress snapshot (live while running, frozen once terminal), so the
+	// status poll can serialize it without racing the collector goroutine.
+	if sess, ok := m.disc.LatestView(c.ID); ok {
 		v.LatestSession = sess
 	}
 	return v, nil
@@ -515,6 +578,7 @@ func (m *Manager) transition(ctx context.Context, c *Connection, e Event) error 
 func (m *Manager) targetFor(c *Connection) provider.Target {
 	return provider.Target{
 		ConnectionID: c.ID,
+		ProjectID:    c.ProjectID,
 		AccountID:    c.AccountID,
 		RoleARN:      c.RoleARN,
 		ExternalID:   c.ExternalID,

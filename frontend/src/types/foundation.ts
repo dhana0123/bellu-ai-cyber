@@ -386,6 +386,28 @@ export interface DiscoverySession {
   started_at: string
   ended_at?: string
   error?: string
+  /** Live/last progress of the session's collection phase. */
+  progress?: DiscoveryProgress
+}
+
+/** Per-table state within a discovery run. */
+export type TableState = 'pending' | 'running' | 'done' | 'error'
+
+/** Progress for one Steampipe table in a discovery run. */
+export interface TableProgress {
+  table: string
+  state: TableState
+  rows: number
+  error?: string
+}
+
+/** Run-level progress snapshot streamed over SSE / returned by the status poll. */
+export interface DiscoveryProgress {
+  tables_total: number
+  tables_done: number
+  resources_collected: number
+  current_table?: string
+  tables: TableProgress[]
 }
 
 export interface ConnectorStatusView {

@@ -136,7 +136,32 @@ func (s *Server) handleEntities(c *gin.Context) {
 	defer cancel()
 	kind := c.Query("kind")
 	limit := queryInt(c, "limit", 200)
-	ents, err := s.store.ListEntities(ctx, kind, limit)
+
+	// Optional project scoping. When project_id is given, the caller must be
+	// authorized for it, and only entities tagged with that project are
+	// returned. Without project_id, the listing is unscoped (preserves the
+	// prior all-entities behavior).
+	var ents []store.EntityRow
+	var err error
+	if pid := c.Query("project_id"); pid != "" {
+		projectID, perr := strconv.ParseInt(pid, 10, 64)
+		if perr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project_id"})
+			return
+		}
+		p, ok := auth.PrincipalFrom(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			return
+		}
+		if !p.CanAccessProject(projectID) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		ents, err = s.store.ListEntitiesForProjects(ctx, []int64{projectID}, kind, limit)
+	} else {
+		ents, err = s.store.ListEntities(ctx, kind, limit)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -199,28 +199,35 @@ func (s *Source) Collect(ctx context.Context, run source.Run) (<-chan rawevent.R
 			collector = "steampipe:" + s.catalog.Connection
 		}
 
+		// Progress reporting is nil-safe: the report* helpers no-op when
+		// run.Reporter is nil, so this preserves the collector's behavior
+		// exactly when no reporter is wired. Report the planned table count
+		// (after capability gating) so a progress UI can render the full
+		// checklist up front.
+		planned := make([]TableSpec, 0, len(s.catalog.Tables))
 		for _, spec := range s.catalog.Tables {
+			if s.capabilityEnabled(spec.Capability) {
+				planned = append(planned, spec)
+			}
+		}
+		reportPlanned(run.Reporter, len(planned))
+
+		for i, spec := range planned {
 			if err := ctx.Err(); err != nil {
 				errs <- err
 				return
 			}
-			// Capability gate: skip tables whose capability is not enabled for
-			// this connection. Skipping (rather than querying and swallowing the
-			// error) is what prevents the AccessDenied for ungranted
-			// capabilities. core/ungated tables and the no-gating fallback are
-			// never skipped — see capabilityEnabled.
-			if !s.capabilityEnabled(spec.Capability) {
-				continue
-			}
+			reportTableStarted(run.Reporter, spec.Table, i)
 			tctx, cancel := context.WithTimeout(ctx, s.tableTimeout)
 			n, err := s.collectTable(tctx, q, run, collector, spec, events)
 			cancel()
 			if err != nil {
 				// Error isolation: record and continue with the next table.
+				reportTableError(run.Reporter, spec.Table, err)
 				errs <- fmt.Errorf("steampipe: table %s: %w", spec.Table, err)
 				continue
 			}
-			_ = n
+			reportTableDone(run.Reporter, spec.Table, n)
 		}
 	}()
 
@@ -259,8 +266,11 @@ func (s *Source) collectTable(ctx context.Context, pool querier, run source.Run,
 	// Identifiers come from the vetted catalog, not user input. We still only
 	// ever interpolate the table name here.
 	q := fmt.Sprintf(`SELECT to_jsonb(t) AS row FROM %s t`, s.qualifiedTable(spec.Table))
-	if spec.Where != "" {
-		q += " WHERE " + spec.Where
+	// whereClause combines any explicit predicate with an optional per-table
+	// region restriction (e.g. Bedrock, which is not available in every
+	// region). Tables without a region restriction are unaffected.
+	if where := spec.whereClause(); where != "" {
+		q += " WHERE " + where
 	}
 
 	rows, err := pool.Query(ctx, q)
@@ -305,6 +315,33 @@ func (s *Source) collectTable(ctx context.Context, pool querier, run source.Run,
 		count++
 	}
 	return count, rows.Err()
+}
+
+// report* are nil-safe wrappers around the optional source.ProgressReporter so
+// the collection loop stays readable and a nil reporter (the default) costs
+// nothing and changes no behavior.
+func reportPlanned(r source.ProgressReporter, total int) {
+	if r != nil {
+		r.TablesPlanned(total)
+	}
+}
+
+func reportTableStarted(r source.ProgressReporter, table string, index int) {
+	if r != nil {
+		r.TableStarted(table, index)
+	}
+}
+
+func reportTableDone(r source.ProgressReporter, table string, rows int) {
+	if r != nil {
+		r.TableDone(table, rows)
+	}
+}
+
+func reportTableError(r source.ProgressReporter, table string, err error) {
+	if r != nil {
+		r.TableError(table, err)
+	}
 }
 
 func colString(obj map[string]any, col string) string {

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { ProjectSwitcher } from '@/components/common/ProjectSwitcher'
 
 // AppShell renders a Wiz-style two-level sidebar: a thin icon RAIL on the far
 // left, and — when the pointer is over a primary item that has sub-items — a
@@ -34,13 +35,7 @@ export function HeaderSlot({ children }: { children: ReactNode }) {
 // A primary rail item: a compact icon + label button. Direct-link nodes render
 // a NavLink; parent nodes render a hover trigger whose full-height sub-panel is
 // rendered as a sibling so the hover spans both (group/rail).
-function RailItem({
-  node,
-  onNavigate,
-}: {
-  node: NavNode
-  onNavigate?: () => void
-}) {
+function RailItem({ node, onNavigate }: { node: NavNode; onNavigate?: () => void }) {
   const location = useLocation()
   const children = node.children ?? []
   const isParent = children.length > 0
@@ -186,7 +181,9 @@ function RailAccount() {
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</TooltipContent>
+        <TooltipContent side="right">
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </TooltipContent>
       </Tooltip>
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>
@@ -201,7 +198,13 @@ function RailAccount() {
 }
 
 // Mobile nav: a flat, expanded list inside the Sheet (no rail/flyout).
-function MobileNav({ can, onNavigate }: { can: (perm: string) => boolean; onNavigate: () => void }) {
+function MobileNav({
+  can,
+  onNavigate,
+}: {
+  can: (perm: string) => boolean
+  onNavigate: () => void
+}) {
   const nodes = navTree
     .map((n): NavNode | null => {
       if (n.children) {
@@ -292,6 +295,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <MobileNav can={can} onNavigate={() => setMobileOpen(false)} />
               </SheetContent>
             </Sheet>
+
+            {/* Global project switcher: active project for all project-scoped views. */}
+            <ProjectSwitcher />
+
+            <div className="h-6 w-px bg-border" />
 
             {/* Page-provided header content renders here via <HeaderSlot>. */}
             <div id={HEADER_SLOT_ID} className="flex min-w-0 flex-1 items-center gap-3" />

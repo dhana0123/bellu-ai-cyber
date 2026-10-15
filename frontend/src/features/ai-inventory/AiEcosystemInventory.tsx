@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Responsive, WidthProvider } from 'react-grid-layout'
 import { RotateCcw } from 'lucide-react'
-import { client } from '@/lib/client'
+import { useProject } from '@/project'
 import { useAsync } from '@/useAsync'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
-import { PreviewBadge } from '@/components/common/PreviewBadge'
 import { HeaderSlot } from '@/components/common/AppShell'
+import { fetchInventory } from './realInventory'
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
 import { SearchFilterBar } from './components/SearchFilterBar'
 import {
@@ -28,14 +28,18 @@ import '@/features/dashboard/grid.css'
 // WidthProvider feeds a measured pixel width to the grid so it stays fluid.
 const ResponsiveGridLayout = WidthProvider(Responsive)
 
-// AI Ecosystem Inventory. DEMO data via the mock client. Layout:
+// AI Ecosystem Inventory. Real discovered inventory (GET /api/entities), mapped
+// to this page's data shape by ./realInventory, scoped to the active project.
+// Layout unchanged:
 //   Row 1 — search + filter pills + meta count
 //   Row 2 — 3-column breakdown grid (Category | Subcategory | Type donut)
 //   Row 3 — technology inventory table
 export default function AiEcosystemInventory() {
+  const { current } = useProject()
+  const projectId = current?.id
   const { loading, error, data } = useAsync<AiInventoryData>(
-    () => client.aiInventory.overview(),
-    [],
+    () => fetchInventory(projectId),
+    [projectId],
   )
   const [search, setSearch] = useState('')
   const [detectedOnly, setDetectedOnly] = useState(true)
@@ -44,7 +48,7 @@ export default function AiEcosystemInventory() {
   const header = (
     <div className="flex items-center gap-2">
       <h1 className="text-lg font-semibold tracking-tight">AI Inventory</h1>
-      <PreviewBadge />
+      {current ? <span className="text-xs text-muted-foreground">· {current.name}</span> : null}
     </div>
   )
 

@@ -78,6 +78,27 @@ tables:
     scope_column: account_id
     region_column: region
     capability: ai
+    # Amazon Bedrock is not available in every AWS region. With the connection's
+    # regions = ["*"], Steampipe would call ListCustomModels in regions where the
+    # Bedrock control plane does not exist, which AWS answers with a 404
+    # UnknownOperationException and fails the whole table. Restrict this table to
+    # the regions where the Bedrock control plane (ListCustomModels) is offered.
+    # Other tables are unaffected and still query all regions. Extend this list
+    # as AWS adds Bedrock regions.
+    regions:
+      - us-east-1
+      - us-east-2
+      - us-west-2
+      - ap-northeast-1
+      - ap-south-1
+      - ap-southeast-1
+      - ap-southeast-2
+      - ca-central-1
+      - eu-central-1
+      - eu-west-1
+      - eu-west-2
+      - eu-west-3
+      - sa-east-1
 
   - table: aws_sagemaker_model
     id_column: arn

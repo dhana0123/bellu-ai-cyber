@@ -15,6 +15,34 @@ import (
 // source so it can stamp emitted events.
 type Run struct {
 	RunID string
+	// Reporter optionally receives per-table progress signals as collection
+	// proceeds. It is nil-safe: a nil Reporter means "no progress reporting"
+	// and preserves the collector's behavior exactly. Reporters must be safe
+	// for concurrent use is NOT required — the collector calls them from a
+	// single goroutine in table order.
+	Reporter ProgressReporter
+}
+
+// ProgressReporter receives per-table progress signals from a Source during a
+// collection run. Implementations surface this as run-level progress (counts,
+// current table, per-table state). The collector only emits counts and states
+// it already computes; a reporter adds no new provider API calls.
+//
+// A nil ProgressReporter is never called — callers must guard with a nil check
+// (see report* helpers in the steampipe source), so every existing call site
+// that leaves Run.Reporter nil keeps working unchanged.
+type ProgressReporter interface {
+	// TablesPlanned reports the total number of tables that will be collected
+	// for this run, after any gating. Called once before the first table.
+	TablesPlanned(total int)
+	// TableStarted reports that collection of a table has begun. index is the
+	// zero-based position in the planned order.
+	TableStarted(table string, index int)
+	// TableDone reports that a table finished successfully with rows rows.
+	TableDone(table string, rows int)
+	// TableError reports that a table finished with an error. Collection
+	// continues with the next table (error isolation).
+	TableError(table string, err error)
 }
 
 // Source is a collector. Collect streams RawEvents on the returned channel and

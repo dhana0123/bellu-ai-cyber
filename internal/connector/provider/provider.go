@@ -45,6 +45,9 @@ type CloudProvider interface {
 // needs. It carries no credentials.
 type Target struct {
 	ConnectionID int64
+	// ProjectID is the project the connection belongs to. Discovered resources
+	// are tagged with it so inventory can be scoped per project.
+	ProjectID    int64
 	AccountID    string
 	RoleARN      string
 	ExternalID   string

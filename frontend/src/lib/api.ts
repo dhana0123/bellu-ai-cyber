@@ -12,6 +12,7 @@ import type {
   ConnectorStatusView,
   CreateConnectorInput,
   CreateUserInput,
+  DiscoverySession,
   EdgeDetail,
   EntityRow,
   Finding,
@@ -89,9 +90,11 @@ export const realApi = {
   // graph / evidence
   health: () => get<HealthResponse>('/api/health'),
   stats: () => get<Stats>('/api/stats'),
-  entities: (kind?: string, limit = 300) =>
+  entities: (kind?: string, limit = 300, projectId?: number) =>
     get<{ entities: EntityRow[] }>(
-      `/api/entities?limit=${limit}${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`,
+      `/api/entities?limit=${limit}` +
+        (kind ? `&kind=${encodeURIComponent(kind)}` : '') +
+        (projectId != null ? `&project_id=${projectId}` : ''),
     ),
   runs: (limit = 50) => get<{ runs: unknown[] }>(`/api/runs?limit=${limit}`),
   conflicts: (limit = 100) => get<{ conflicts: unknown[] }>(`/api/conflicts?limit=${limit}`),
@@ -152,7 +155,16 @@ export const realApi = {
   connectorSetup: (id: number | string) => post<{ setup: Setup }>(`/api/connectors/${id}/setup`),
   verifyConnector: (id: number | string, roleArn: string) =>
     post<{ verification: VerifyResult }>(`/api/connectors/${id}/verify`, { role_arn: roleArn }),
-  discoverConnector: (id: number | string) => post(`/api/connectors/${id}/discover`),
+  discoverConnector: (id: number | string) =>
+    post<{ session: DiscoverySession }>(`/api/connectors/${id}/discover`),
+  // Absolute URL for the SSE progress stream. EventSource cannot set an
+  // Authorization header, so the JWT travels in the access_token query param
+  // (the API's Authenticate middleware accepts it there for this endpoint).
+  discoverStreamUrl: (id: number | string) => {
+    const token = getToken()
+    const q = token ? `?access_token=${encodeURIComponent(token)}` : ''
+    return `${API_BASE}/api/connectors/${id}/discover/stream${q}`
+  },
   cancelConnector: (id: number | string) => post(`/api/connectors/${id}/cancel`),
   expandConnector: (id: number | string, memberAccountIds: string[]) =>
     post<{ connections: Connection[] }>(`/api/connectors/${id}/expand`, {

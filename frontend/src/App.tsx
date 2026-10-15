@@ -172,10 +172,7 @@ export default function App() {
         path="/sessions"
         element={
           <RequireAuth permission="runtime:read">
-            <ModulePlaceholder
-              title="Sessions"
-              blurb="Live and historical AI runtime sessions."
-            />
+            <ModulePlaceholder title="Sessions" blurb="Live and historical AI runtime sessions." />
           </RequireAuth>
         }
       />

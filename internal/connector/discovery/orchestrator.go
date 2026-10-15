@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,6 +10,10 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 	"github.com/bellu/bellu-ai-cyber/internal/source"
 )
+
+// ErrSessionRunning is returned by DiscoverAsync when a discovery session is
+// already running for the connection, so a caller can map it to a conflict.
+var ErrSessionRunning = errors.New("discovery: a session is already running for this connection")
 
 // SourceFactory builds the existing collection source from a config map. In
 // production this is the real steampipe.Factory; tests inject a fake.
@@ -19,7 +24,10 @@ type SourceFactory func(cfg map[string]any) (source.Source, error)
 // production this wraps the `bellu run` wiring; tests inject a fake. It must
 // honor context cancellation so Cancel stops collection promptly.
 type PipelineRunner interface {
-	Run(ctx context.Context, src source.Source, runID string) error
+	// Run drives the source through the pipeline under runID, reporting progress
+	// via reporter. projectID tags discovered resources with the connection's
+	// project for scoped inventory (0 means untagged / all-projects).
+	Run(ctx context.Context, src source.Source, runID string, projectID int64, reporter source.ProgressReporter) error
 }
 
 // CredentialSink receives the session-only credential environment and returns a
@@ -40,6 +48,7 @@ type Credentialer interface {
 type Orchestrator struct {
 	mu        sync.Mutex
 	latest    map[int64]*Session
+	hubs      map[int64]*progressHub
 	factory   SourceFactory
 	runner    PipelineRunner
 	creds     Credentialer
@@ -65,6 +74,7 @@ type Options struct {
 func New(opts Options) *Orchestrator {
 	o := &Orchestrator{
 		latest:    map[int64]*Session{},
+		hubs:      map[int64]*progressHub{},
 		factory:   opts.Factory,
 		runner:    opts.Runner,
 		creds:     opts.Creds,
@@ -97,14 +107,79 @@ func (o *Orchestrator) Verify(ctx context.Context, p provider.CloudProvider, t p
 // (success, failure, or cancellation) the session credentials are revoked. The
 // returned Session reflects the terminal state.
 func (o *Orchestrator) Discover(ctx context.Context, p provider.CloudProvider, t provider.Target) (*Session, error) {
+	sess, hub := o.newSession(t)
+	return o.runSession(ctx, sess, hub, p, t)
+}
+
+// DiscoverAsync starts a discovery session and returns the running Session
+// immediately, driving the run in the background. The run is rooted on a
+// detached, cancellable context (so it outlives the HTTP request that started
+// it) and honors Cancel. When the run reaches a terminal state, onDone is
+// invoked with the terminal session and run error so the caller can record the
+// outcome and transition connection status. onDone may be nil.
+//
+// ErrSessionRunning is returned (and no session is started) if a session is
+// already running for the connection.
+func (o *Orchestrator) DiscoverAsync(p provider.CloudProvider, t provider.Target, onDone func(*Session, error)) (*Session, error) {
+	o.mu.Lock()
+	if cur, ok := o.latest[t.ConnectionID]; ok && cur.Status == SessRunning {
+		o.mu.Unlock()
+		return nil, ErrSessionRunning
+	}
+	o.mu.Unlock()
+
+	sess, hub := o.newSession(t)
+	// Snapshot the running session to return to the caller. The live sess
+	// pointer is mutated by the background goroutine (finish/progress), so
+	// returning it directly would race the caller reading Status; return a copy.
+	o.mu.Lock()
+	snap := *sess
+	snap.cancel = nil
+	snap.Progress = snap.Progress.Clone()
+	o.mu.Unlock()
+
+	go func() {
+		s, err := o.runSession(context.Background(), sess, hub, p, t)
+		if onDone != nil {
+			onDone(s, err)
+		}
+	}()
+	return &snap, nil
+}
+
+// newSession builds a running Session + progress hub and registers both as the
+// latest for the connection. It is the shared setup for the sync and async
+// discovery entry points.
+func (o *Orchestrator) newSession(t provider.Target) (*Session, *progressHub) {
+	hub := newProgressHub()
 	sess := &Session{
 		ID:           o.newSessID(),
 		ConnectionID: t.ConnectionID,
 		RunID:        o.newRunID(),
 		Status:       SessRunning,
 		StartedAt:    o.now(),
+		Progress:     hub.prog,
 	}
 	o.setLatest(sess)
+	o.setHub(sess.ConnectionID, hub)
+	return sess, hub
+}
+
+// runSession executes the discovery pipeline for an already-created session and
+// returns its terminal state. It closes the progress hub on exit so subscribed
+// SSE streams terminate on every return path.
+func (o *Orchestrator) runSession(ctx context.Context, sess *Session, hub *progressHub, p provider.CloudProvider, t provider.Target) (*Session, error) {
+	defer func() {
+		// Freeze a stable, deep-copied final progress snapshot onto the session
+		// before closing the hub, so a completed session still carries its final
+		// tallies after the live hub is gone. Guarded by the orchestrator lock
+		// since the session is shared with status readers.
+		snap := hub.snapshot()
+		o.mu.Lock()
+		sess.Progress = snap
+		o.mu.Unlock()
+		o.closeHub(sess.ConnectionID)
+	}()
 
 	creds, err := o.creds.Get(ctx, t)
 	if err != nil {
@@ -139,7 +214,7 @@ func (o *Orchestrator) Discover(ctx context.Context, p provider.CloudProvider, t
 	o.mu.Unlock()
 	defer cancel()
 
-	runErr := o.runner.Run(runCtx, src, sess.RunID)
+	runErr := o.runner.Run(runCtx, src, sess.RunID, t.ProjectID, hub)
 
 	if runErr != nil {
 		if runCtx.Err() == context.Canceled {
@@ -175,10 +250,86 @@ func (o *Orchestrator) Latest(connID int64) (*Session, bool) {
 	return s, ok
 }
 
+// LatestView returns a race-free deep snapshot of the latest session for a
+// connection: a copy of the session value with a fresh progress snapshot (live
+// from the hub if the run is in flight, else the frozen final snapshot stored on
+// the session). All reads of the shared session happen under the orchestrator
+// lock. ok=false when no session exists. Callers must use this (not Latest) when
+// they will serialize or outlive the lock.
+func (o *Orchestrator) LatestView(connID int64) (*Session, bool) {
+	o.mu.Lock()
+	sess, ok := o.latest[connID]
+	if !ok {
+		o.mu.Unlock()
+		return nil, false
+	}
+	cp := *sess
+	hub := o.hubs[connID]
+	o.mu.Unlock()
+
+	if hub != nil {
+		cp.Progress = hub.snapshot()
+	} else {
+		cp.Progress = cp.Progress.Clone()
+	}
+	cp.cancel = nil
+	return &cp, true
+}
+
 func (o *Orchestrator) setLatest(s *Session) {
 	o.mu.Lock()
 	o.latest[s.ConnectionID] = s
 	o.mu.Unlock()
+}
+
+func (o *Orchestrator) setHub(connID int64, h *progressHub) {
+	o.mu.Lock()
+	o.hubs[connID] = h
+	o.mu.Unlock()
+}
+
+// closeHub closes and removes the hub for a connection so subscribed streams
+// terminate and the map does not leak hubs across runs.
+func (o *Orchestrator) closeHub(connID int64) {
+	o.mu.Lock()
+	h, ok := o.hubs[connID]
+	if ok {
+		delete(o.hubs, connID)
+	}
+	o.mu.Unlock()
+	if ok {
+		h.close()
+	}
+}
+
+// Subscribe registers a progress subscriber for the latest session of a
+// connection. It returns a channel that receives Progress snapshots (the first
+// is the current snapshot, delivered immediately), a cancel func to unsubscribe,
+// and ok=false when no live session exists for the connection. The channel is
+// closed when the session reaches a terminal state. Subscribing never affects
+// the running session.
+func (o *Orchestrator) Subscribe(connID int64) (<-chan *Progress, func(), bool) {
+	o.mu.Lock()
+	h, ok := o.hubs[connID]
+	o.mu.Unlock()
+	if !ok {
+		return nil, nil, false
+	}
+	ch, cancel := h.subscribe()
+	return ch, cancel, true
+}
+
+// ProgressSnapshot returns a deep copy of the current progress for a
+// connection's latest session, or nil when none exists. Used by the status
+// poll fallback.
+func (o *Orchestrator) ProgressSnapshot(connID int64) *Progress {
+	o.mu.Lock()
+	h, ok := o.hubs[connID]
+	o.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	return h.snapshot()
 }
 
 // finish records a terminal state (complete or failed), revokes the session
