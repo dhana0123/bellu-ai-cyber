@@ -35,14 +35,14 @@ func sidForCapability(cap string) string {
 // Terraform files, or manual steps). The permission policy never includes
 // AdministratorAccess and never uses a "*" action on "*" resource.
 func buildSetup(belluPrincipalARN string, in provider.SetupInput) (*provider.Setup, error) {
-	caps := in.Capabilities
-	if len(caps) == 0 {
-		caps = capability.DefaultSelection()
-	}
-
-	// Core first (if enabled), then the rest in catalog-stable order, so the
-	// policy is deterministic.
-	ordered := orderCapabilities(caps)
+	// Wiz-style model: the role grants a FIXED, broad read-only permission set
+	// at connect time — the union of ALL capabilities — plus AWS managed
+	// read-only policies (attached in the CloudFormation role resource). It does
+	// NOT vary by the selected capabilities. Which capabilities Bellu actually
+	// scans is gated internally (server-side), so editing capabilities never
+	// changes the role and never requires a CloudFormation stack update. The
+	// policy remains read-only: no write, no IAM-write, no AdministratorAccess.
+	ordered := orderCapabilities(capability.AllCapabilities())
 
 	var statements []map[string]any
 	for _, c := range ordered {

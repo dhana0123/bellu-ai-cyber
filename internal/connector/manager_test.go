@@ -145,6 +145,48 @@ func (r *memRepo) RecordSession(ctx context.Context, connID int64, sessionID, ru
 	})
 	return nil
 }
+func (r *memRepo) SaveSessionProgress(ctx context.Context, sessionID string, progressJSON []byte) error {
+	return nil
+}
+func (r *memRepo) LatestSession(ctx context.Context, connID int64) (*DiscoverySessionRow, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var latest *recordedSession
+	for i := range r.sessions {
+		if r.sessions[i].connID == connID {
+			latest = &r.sessions[i]
+		}
+	}
+	if latest == nil {
+		return nil, nil
+	}
+	return &DiscoverySessionRow{
+		ID: latest.sessionID, ConnectionID: latest.connID, RunID: latest.runID,
+		Status: latest.status, StartedAt: latest.started, EndedAt: latest.ended, Error: latest.errMsg,
+	}, nil
+}
+func (r *memRepo) ReconcileRunningSessions(ctx context.Context) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for i := range r.sessions {
+		if r.sessions[i].status == "running" {
+			r.sessions[i].status = "interrupted"
+			n++
+		}
+	}
+	return n, nil
+}
+func (r *memRepo) SetCapabilities(ctx context.Context, orgID, id int64, caps []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c, ok := r.conns[id]
+	if !ok || c.OrgID != orgID {
+		return ErrNotFound
+	}
+	c.Capabilities = caps
+	return nil
+}
 
 // waitForStatus polls the repo until the connection reaches want or the
 // deadline passes, returning the final status. Used by async-discovery tests.

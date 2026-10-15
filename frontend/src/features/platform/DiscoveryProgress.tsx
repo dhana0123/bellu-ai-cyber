@@ -4,7 +4,7 @@ import { client } from '@/lib/client'
 import { cn } from '@/lib/utils'
 import type { DiscoveryProgress as Progress, TableState } from '@/types/foundation'
 
-type Phase = 'connecting' | 'running' | 'complete' | 'failed' | 'cancelled'
+type Phase = 'connecting' | 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted'
 
 interface Props {
   connectionId: number | string
@@ -51,6 +51,7 @@ export function DiscoveryProgress({ connectionId, onDone }: Props) {
       if (s === 'complete') return 'complete'
       if (s === 'failed') return 'failed'
       if (s === 'cancelled') return 'cancelled'
+      if (s === 'interrupted') return 'interrupted'
       return null
     }
 
@@ -212,13 +213,18 @@ export function DiscoveryProgress({ connectionId, onDone }: Props) {
       )}
 
       {/* Terminal summary */}
-      {(phase === 'complete' || phase === 'failed' || phase === 'cancelled') && (
+      {(phase === 'complete' ||
+        phase === 'failed' ||
+        phase === 'cancelled' ||
+        phase === 'interrupted') && (
         <div
           className={cn(
             'rounded-md border px-3 py-2 text-sm',
             phase === 'complete'
               ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400'
-              : 'border-destructive/30 bg-destructive/5 text-destructive',
+              : phase === 'interrupted'
+                ? 'border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400'
+                : 'border-destructive/30 bg-destructive/5 text-destructive',
           )}
         >
           {phase === 'complete'
@@ -229,7 +235,9 @@ export function DiscoveryProgress({ connectionId, onDone }: Props) {
               }.`
             : phase === 'cancelled'
               ? 'Discovery was cancelled.'
-              : 'Discovery failed. Check the per-table errors above or retry.'}
+              : phase === 'interrupted'
+                ? `Scan was interrupted (service restart) after ${resources.toLocaleString()} resources. Run it again to finish.`
+                : 'Discovery failed. Check the per-table errors above or retry.'}
         </div>
       )}
     </div>
@@ -273,6 +281,7 @@ function TableIcon({ state }: { state: TableState }) {
 function PhaseDot({ phase }: { phase: Phase }) {
   if (phase === 'failed' || phase === 'cancelled')
     return <AlertTriangle className="h-4 w-4 text-destructive" />
+  if (phase === 'interrupted') return <AlertTriangle className="h-4 w-4 text-amber-500" />
   if (phase === 'complete') return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
   return <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
 }
@@ -289,5 +298,7 @@ function phaseTitle(phase: Phase): string {
       return 'Discovery failed'
     case 'cancelled':
       return 'Discovery cancelled'
+    case 'interrupted':
+      return 'Scan interrupted'
   }
 }

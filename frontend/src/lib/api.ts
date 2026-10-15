@@ -146,7 +146,10 @@ export const realApi = {
   // cloud connectors
   connectorCapabilities: () =>
     get<{ capabilities: CapabilityCard[] }>('/api/connectors/capabilities'),
-  connectors: () => get<{ connections: Connection[] }>('/api/connectors'),
+  connectors: (projectId?: number) =>
+    get<{ connections: Connection[] }>(
+      `/api/connectors${projectId != null ? `?project_id=${projectId}` : ''}`,
+    ),
   connector: (id: number | string) => get<{ connection: Connection }>(`/api/connectors/${id}`),
   connectorStatus: (id: number | string) =>
     get<{ status: ConnectorStatusView }>(`/api/connectors/${id}/status`),
@@ -155,6 +158,8 @@ export const realApi = {
   connectorSetup: (id: number | string) => post<{ setup: Setup }>(`/api/connectors/${id}/setup`),
   verifyConnector: (id: number | string, roleArn: string) =>
     post<{ verification: VerifyResult }>(`/api/connectors/${id}/verify`, { role_arn: roleArn }),
+  updateConnectorCapabilities: (id: number | string, capabilities: string[]) =>
+    patch<{ connection: Connection }>(`/api/connectors/${id}/capabilities`, { capabilities }),
   discoverConnector: (id: number | string) =>
     post<{ session: DiscoverySession }>(`/api/connectors/${id}/discover`),
   // Absolute URL for the SSE progress stream. EventSource cannot set an

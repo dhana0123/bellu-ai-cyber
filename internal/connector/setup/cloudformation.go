@@ -98,8 +98,20 @@ func renderCloudFormation(in Input) (*Artifact, error) {
 	}, nil
 }
 
-// roleResource builds an AWS::IAM::Role resource with the trust policy, the
-// least-privilege permission policy, and any extra inline policies.
+// ManagedReadOnlyPolicyArns are the AWS-managed, read-only policies attached to
+// the Bellu connector role so the role grants broad read visibility ONCE at
+// connect time. Which capabilities Bellu actually scans is gated internally
+// (server-side), so toggling capabilities never requires changing this role —
+// no CloudFormation stack update. These are read-only by construction and
+// contain no write, no IAM-write, and no AdministratorAccess.
+var ManagedReadOnlyPolicyArns = []string{
+	"arn:aws:iam::aws:policy/SecurityAudit",
+	"arn:aws:iam::aws:policy/job-function/ViewOnlyAccess",
+}
+
+// roleResource builds an AWS::IAM::Role resource with the trust policy, broad
+// read-only AWS managed policies, the inline permission policy, and any extra
+// inline policies.
 func roleResource(name string, trust, perm map[string]any, extra []map[string]any) map[string]any {
 	policies := []map[string]any{{
 		"PolicyName": "BelluConnectorPolicy",
@@ -109,11 +121,16 @@ func roleResource(name string, trust, perm map[string]any, extra []map[string]an
 		},
 	}}
 	policies = append(policies, extra...)
+	managed := make([]any, 0, len(ManagedReadOnlyPolicyArns))
+	for _, a := range ManagedReadOnlyPolicyArns {
+		managed = append(managed, a)
+	}
 	return map[string]any{
 		"Type": "AWS::IAM::Role",
 		"Properties": map[string]any{
 			"RoleName":                 name,
 			"AssumeRolePolicyDocument": trust,
+			"ManagedPolicyArns":        managed,
 			"Policies":                 policies,
 		},
 	}

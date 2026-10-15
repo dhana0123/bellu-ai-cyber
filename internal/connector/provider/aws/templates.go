@@ -100,3 +100,17 @@ func quickCreateURL(region, templateURL, externalID string) string {
 	}
 	return u
 }
+
+// quickUpdateURL builds a CloudFormation link for applying the regenerated
+// template to the EXISTING stack (an in-place update of the same stack name).
+// The console's "quick create" review page is keyed by stackName: when a stack
+// with that name already exists, submitting the pre-loaded template performs a
+// stack UPDATE (diff only — same role ARN and external id), not a create. This
+// is the fast, non-destructive reconnect used when capabilities change. It is
+// always customer-driven: the customer clicks it in their own account; Bellu
+// never calls UpdateStack and holds no IAM-write in the customer account.
+func quickUpdateURL(region, templateURL, externalID string) string {
+	// Same shape as create: the review page resolves create-vs-update by whether
+	// the stack name already exists in the account.
+	return quickCreateURL(region, templateURL, externalID)
+}

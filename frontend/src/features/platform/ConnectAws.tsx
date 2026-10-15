@@ -16,6 +16,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { DiscoveryProgress } from './DiscoveryProgress'
 import type {
   CapabilityCard,
@@ -129,6 +137,7 @@ export default function ConnectAwsPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const existingId = params.get('id')
+  const editMode = params.get('edit') === '1'
 
   const [pane, setPane] = useState<Pane>(PANE.CONNECTION)
   const [sub, setSub] = useState<Sub>(SUB.DEPLOY)
@@ -136,7 +145,7 @@ export default function ConnectAwsPage() {
   const [busy, setBusy] = useState(false)
 
   const [caps, setCaps] = useState<CapabilityCard[]>([])
-  const [, setProjects] = useState<ProjectRow[]>([])
+  const [projects, setProjects] = useState<ProjectRow[]>([])
   const [form, setForm] = useState<WizardForm>({
     project_id: '',
     scope: 'organization',
@@ -172,12 +181,31 @@ export default function ConnectAwsPage() {
           const { connection } = await client.connector(existingId)
           setConnection(connection)
           setRoleArn(connection.role_arn || '')
-          setPane(PANE.DETAILS)
-          if (connection.status === 'CONNECTED' || connection.status === 'COMPLETE')
-            setSub(SUB.CONNECTED)
-          else if (connection.status === 'VERIFYING' || connection.status === 'ERROR')
-            setSub(SUB.VERIFY)
-          else setSub(SUB.DEPLOY)
+          // Seed the form from the existing connection so edit mode shows the
+          // current scope/region/capabilities.
+          setForm((f) => ({
+            ...f,
+            project_id: String(connection.project_id),
+            scope: connection.scope === 'organization' ? 'organization' : 'account',
+            deployment_method:
+              (connection.deployment_method as WizardForm['deployment_method']) || 'cloudformation',
+            account_id: connection.account_id || '',
+            region: connection.region || f.region,
+            capabilities: connection.capabilities?.length ? connection.capabilities : ['core'],
+          }))
+          if (editMode) {
+            // Edit mode: let the user change capabilities on the Connection pane,
+            // then "Save & update stack" regenerates the template and routes to
+            // the Deploy (update) step.
+            setPane(PANE.CONNECTION)
+          } else {
+            setPane(PANE.DETAILS)
+            if (connection.status === 'CONNECTED' || connection.status === 'COMPLETE')
+              setSub(SUB.CONNECTED)
+            else if (connection.status === 'VERIFYING' || connection.status === 'ERROR')
+              setSub(SUB.VERIFY)
+            else setSub(SUB.DEPLOY)
+          }
           try {
             const s = await client.connectorSetup(existingId)
             setSetup(s.setup)
@@ -200,6 +228,30 @@ export default function ConnectAwsPage() {
         capabilities: has ? f.capabilities.filter((c) => c !== name) : [...f.capabilities, name],
       }
     })
+  }
+
+  // saveEdit (edit mode) persists the changed capabilities on the existing
+  // connection and regenerates the setup so the CloudFormation template reflects
+  // the new permission policy, then routes to the Deploy step worded as a stack
+  // UPDATE. The customer applies the in-place update in their own account.
+  // saveEdit (edit mode) only updates the internal scan gate — which
+  // capabilities Bellu scans. The IAM role already grants broad read-only (set
+  // once at connect time), so changing capabilities needs NO CloudFormation
+  // stack update and NO re-verify. It persists and returns to the connectors
+  // list immediately.
+  async function saveEdit(e?: FormEvent) {
+    e?.preventDefault()
+    if (!connection) return
+    setBusy(true)
+    setError(null)
+    try {
+      await client.updateConnectorCapabilities(connection.id, form.capabilities)
+      navigate('/connectors')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function createAndSetup(e?: FormEvent) {
@@ -310,7 +362,7 @@ export default function ConnectAwsPage() {
           </button>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Connect to Amazon Web Services (AWS)
+              {editMode ? 'Edit AWS connector' : 'Connect to Amazon Web Services (AWS)'}
             </h1>
             <p className="text-sm text-muted-foreground">
               Connect your AWS to gain visibility into your subscriptions security.
@@ -357,7 +409,7 @@ export default function ConnectAwsPage() {
           )}
 
           {pane === PANE.CONNECTION && (
-            <form onSubmit={createAndSetup} className="space-y-7">
+            <form onSubmit={editMode ? saveEdit : createAndSetup} className="space-y-7">
               <a
                 className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
                 href="#"
@@ -368,6 +420,34 @@ export default function ConnectAwsPage() {
 
               <section className="space-y-5">
                 <h2 className="text-lg font-semibold">Choose Your Setup</h2>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Project</div>
+                  <p className="text-xs text-muted-foreground">
+                    The project this connector and its discovered resources belong to.
+                  </p>
+                  <Select
+                    value={form.project_id}
+                    onValueChange={(v) => setForm((f) => ({ ...f, project_id: v }))}
+                  >
+                    <SelectTrigger className="w-72">
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {projects.length === 0 && (
+                    <p className="text-xs text-destructive">
+                      No projects yet — create one (Platform → Projects) first.
+                    </p>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Connector Scope</div>
                   <p className="text-xs text-muted-foreground">
@@ -435,14 +515,15 @@ export default function ConnectAwsPage() {
                     return (
                       <label
                         key={cap.name}
+                        htmlFor={`cap-${cap.name}`}
                         className={'flex gap-3 ' + (mandatory ? 'opacity-90' : 'cursor-pointer')}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
+                          id={`cap-${cap.name}`}
                           checked={checked}
                           disabled={mandatory}
-                          onChange={() => toggleCap(cap.name)}
-                          className="mt-1 h-4 w-4 accent-[hsl(var(--primary))]"
+                          onCheckedChange={() => toggleCap(cap.name)}
+                          className="mt-1"
                         />
                         <div>
                           <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -461,7 +542,7 @@ export default function ConnectAwsPage() {
               <div className="flex justify-end border-t border-border pt-4">
                 <Button type="submit" disabled={busy}>
                   {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Generate Setup
+                  {editMode ? 'Save capabilities' : 'Generate Setup'}
                 </Button>
               </div>
             </form>
@@ -470,7 +551,12 @@ export default function ConnectAwsPage() {
           {pane === PANE.DETAILS && (
             <div className="space-y-5">
               {sub === SUB.DEPLOY && setup && (
-                <DeployStep setup={setup} onNext={() => setSub(SUB.VERIFY)} onDownload={download} />
+                <DeployStep
+                  setup={setup}
+                  onNext={() => setSub(SUB.VERIFY)}
+                  onDownload={download}
+                  isUpdate={editMode}
+                />
               )}
 
               {sub === SUB.VERIFY && (
@@ -637,18 +723,27 @@ function DeployStep({
   setup,
   onNext,
   onDownload,
+  isUpdate = false,
 }: {
   setup: Setup
   onNext: () => void
   onDownload: (name: string, content: string) => void
+  isUpdate?: boolean
 }) {
   const method = setup.deployment_method
+  // In edit/update mode prefer the stack-update URL (applies the regenerated
+  // template to the EXISTING stack in place — same role/external id).
+  const cfnUrl = isUpdate ? setup.update_url || setup.launch_url : setup.launch_url
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Deployment Instructions</CardTitle>
+        <CardTitle className="text-base">
+          {isUpdate ? 'Update your CloudFormation stack' : 'Deployment Instructions'}
+        </CardTitle>
         <CardDescription>
-          Deploy the Bellu role in your AWS account, then continue to verify. External ID:{' '}
+          {isUpdate
+            ? 'Capabilities changed, so the IAM policy did too. Apply the updated template to your existing stack (in place — same role & External ID), then re-verify. External ID: '
+            : 'Deploy the Bellu role in your AWS account, then continue to verify. External ID: '}
           <span className="font-mono">{setup.external_id}</span>
         </CardDescription>
       </CardHeader>
@@ -674,16 +769,19 @@ function DeployStep({
                 : 'Bellu will create the required IAM role and permissions in your AWS account.'}
             </p>
             <div className="flex flex-wrap gap-2">
-              {setup.launch_url ? (
-                <a href={setup.launch_url} target="_blank" rel="noreferrer">
+              {cfnUrl ? (
+                <a href={cfnUrl} target="_blank" rel="noreferrer">
                   <Button size="sm">
-                    <ExternalLink className="h-3.5 w-3.5" /> Launch CloudFormation
+                    <ExternalLink className="h-3.5 w-3.5" />{' '}
+                    {isUpdate ? 'Update stack in CloudFormation' : 'Launch CloudFormation'}
                   </Button>
                 </a>
               ) : (
                 <span className="text-xs text-muted-foreground">
-                  One-click launch isn't configured on this server. Download the template and upload
-                  it under CloudFormation → Create stack.
+                  One-click launch isn't configured on this server. Download the template and{' '}
+                  {isUpdate
+                    ? 'apply it to your existing stack under CloudFormation → Update.'
+                    : 'upload it under CloudFormation → Create stack.'}
                 </span>
               )}
               {setup.template && <CopyButton text={setup.template} label="Copy template" />}

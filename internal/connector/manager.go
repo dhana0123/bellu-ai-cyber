@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,11 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/connector/discovery"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 )
+
+// progressPersistInterval throttles how often live discovery progress is
+// written to Postgres during a run, so a fast scan does not hammer the DB. The
+// final snapshot is always written regardless of this interval.
+const progressPersistInterval = time.Second
 
 // ExternalIDFunc generates a per-connection external id. It is injectable so
 // tests are deterministic; production uses the AWS adapter's crypto/rand
@@ -32,6 +38,10 @@ type connRepo interface {
 	Delete(ctx context.Context, orgID, id int64) error
 	SaveVerification(ctx context.Context, connID int64, res *provider.VerifyResult) error
 	RecordSession(ctx context.Context, connID int64, sessionID, runID, status string, started time.Time, ended *time.Time, errMsg string) error
+	SaveSessionProgress(ctx context.Context, sessionID string, progressJSON []byte) error
+	LatestSession(ctx context.Context, connID int64) (*DiscoverySessionRow, error)
+	ReconcileRunningSessions(ctx context.Context) (int, error)
+	SetCapabilities(ctx context.Context, orgID, id int64, caps []string) error
 }
 
 // Manager owns Connection lifecycle and the state machine. It is provider-
@@ -487,7 +497,93 @@ func (m *Manager) runDiscovery(ctx context.Context, c *Connection, start Event) 
 		m.transitionByID(ctx, c.OrgID, c.ID, EventDiscoverFailed)
 		return nil, serr
 	}
+
+	// Durability: record the running session row immediately (so progress
+	// UPDATEs have a row to hit) and persist progress snapshots throughout the
+	// run. This is what lets the UI rehydrate live progress after a browser
+	// reload or a bellu-api restart.
+	bg := context.Background()
+	m.recordSession(bg, connID, sess)
+	m.persistProgress(connID, sess.ID)
+
 	return sess, nil
+}
+
+// persistProgress subscribes to the live progress of a running session and
+// writes throttled snapshots to Postgres, plus a final snapshot when the run
+// ends. It runs in its own goroutine for the life of the session. Writes are
+// coalesced to at most one per progressPersistInterval so a fast run does not
+// hammer the database; the final snapshot is always written.
+func (m *Manager) persistProgress(connID int64, sessionID string) {
+	ch, cancel, ok := m.disc.Subscribe(connID)
+	if !ok {
+		return
+	}
+	go func() {
+		defer cancel()
+		bg := context.Background()
+		var last *discovery.Progress
+		var lastWrite time.Time
+		for prog := range ch {
+			last = prog
+			if m.now().Sub(lastWrite) < progressPersistInterval {
+				continue
+			}
+			lastWrite = m.now()
+			if data, err := json.Marshal(prog); err == nil {
+				_ = m.repo.SaveSessionProgress(bg, sessionID, data)
+			}
+		}
+		// Channel closed: the session reached a terminal state. Persist the
+		// final snapshot so the completed counts survive.
+		if last != nil {
+			if data, err := json.Marshal(last); err == nil {
+				_ = m.repo.SaveSessionProgress(bg, sessionID, data)
+			}
+		}
+	}()
+}
+
+// UpdateCapabilities replaces the enabled capability set on an existing
+// connection. It validates each capability, requires that "core" stays enabled
+// (it is always-on), and refuses to change capabilities while a scan is running
+// (the running scan already captured its capability set). The new set takes
+// effect on the next discovery run, since discovery reads the persisted set.
+func (m *Manager) UpdateCapabilities(ctx context.Context, orgID, id int64, caps []string) (*Connection, error) {
+	c, err := m.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	if c.Status == StatusDiscoveryRunning {
+		return nil, fmt.Errorf("%w: cannot change capabilities while a scan is running", ErrConflict)
+	}
+	// Normalize: validate each, dedupe, and ensure core is present.
+	seen := map[string]bool{}
+	out := make([]string, 0, len(caps)+1)
+	for _, cap := range caps {
+		if !capability.Known(cap) {
+			return nil, fmt.Errorf("%w: capability %q", ErrInvalidValue, cap)
+		}
+		if !seen[cap] {
+			seen[cap] = true
+			out = append(out, cap)
+		}
+	}
+	if !seen[string(capability.Core)] {
+		out = append([]string{string(capability.Core)}, out...)
+	}
+	if err := m.repo.SetCapabilities(ctx, orgID, id, out); err != nil {
+		return nil, err
+	}
+	c.Capabilities = out
+	return c, nil
+}
+
+// ReconcileInterrupted marks any session still 'running' (orphaned by a prior
+// crash/restart) as interrupted. Call once at service startup. Returns the
+// number of sessions reconciled.
+func (m *Manager) ReconcileInterrupted(ctx context.Context) (int, error) {
+	return m.repo.ReconcileRunningSessions(ctx)
 }
 
 // transitionByID loads the connection by id and applies an event. It is used by
@@ -543,13 +639,46 @@ func (m *Manager) Status(ctx context.Context, orgID, id int64) (*StatusView, err
 		return nil, err
 	}
 	v := &StatusView{ConnectionID: c.ID, Status: c.Status}
-	// LatestView returns a race-free deep copy of the latest session with a
-	// fresh progress snapshot (live while running, frozen once terminal), so the
-	// status poll can serialize it without racing the collector goroutine.
+	// Prefer the live in-memory session (this process is running the scan).
+	// LatestView returns a race-free deep copy with a fresh progress snapshot.
 	if sess, ok := m.disc.LatestView(c.ID); ok {
 		v.LatestSession = sess
+		return v, nil
+	}
+	// No live session in this process: rehydrate the last session from Postgres
+	// so the UI still shows progress after a browser reload or an API restart.
+	if row, err := m.repo.LatestSession(ctx, c.ID); err == nil && row != nil {
+		v.LatestSession = sessionFromRow(row)
 	}
 	return v, nil
+}
+
+// sessionFromRow converts a persisted session row into a discovery.Session for
+// the status view, decoding the stored progress JSON. A row still marked
+// 'running' here means the owning process is gone (restart/crash) — but startup
+// reconciliation already flips those to 'interrupted', so a 'running' row seen
+// post-restart is defensively surfaced as interrupted too.
+func sessionFromRow(row *DiscoverySessionRow) *discovery.Session {
+	status := discovery.SessionStatus(row.Status)
+	if status == discovery.SessRunning {
+		status = discovery.SessInterrupted
+	}
+	s := &discovery.Session{
+		ID:           row.ID,
+		ConnectionID: row.ConnectionID,
+		RunID:        row.RunID,
+		Status:       status,
+		StartedAt:    row.StartedAt,
+		EndedAt:      row.EndedAt,
+		Error:        row.Error,
+	}
+	if len(row.Progress) > 0 {
+		var p discovery.Progress
+		if err := json.Unmarshal(row.Progress, &p); err == nil {
+			s.Progress = &p
+		}
+	}
+	return s
 }
 
 // resolveProvider returns the registered provider or ErrUnsupportedProvider.

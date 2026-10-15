@@ -40,6 +40,15 @@ export interface InventoryAsset {
   /** Icon hint for the usage column: workspace vs agent vs system. */
   usage_icon: 'workspace' | 'agent' | 'system'
   status: ReviewStatus
+  /** Canonical entity kind (e.g. Identity, DataStore) for icon + detail view.
+   *  Optional so the demo mock (which has no kind) still type-checks. */
+  kind?: string
+  /** Cloud provider, e.g. aws. */
+  provider?: string
+  /** Canonical id of the underlying resource. */
+  canonical_id?: string
+  /** Raw discovered attributes, shown in the detail sheet. */
+  attributes?: Record<string, unknown>
 }
 
 export interface AiInventoryData {

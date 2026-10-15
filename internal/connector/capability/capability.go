@@ -175,6 +175,17 @@ func DefaultSelection() []string {
 	return []string{string(Core), string(EKS), string(Workload), string(AI)}
 }
 
+// AllCapabilities returns every defined capability name in stable catalog order
+// (core first). Used to grant the role the full read-only permission union at
+// connect time, so capability selection is a scan-time gate, not a role change.
+func AllCapabilities() []string {
+	out := make([]string, 0, len(cardOrder))
+	for _, name := range cardOrder {
+		out = append(out, string(name))
+	}
+	return out
+}
+
 // Known reports whether name is a defined capability.
 func Known(name string) bool {
 	_, ok := Catalog[Capability(name)]

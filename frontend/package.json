@@ -37,6 +37,7 @@
     "react-router-dom": "^7.18.4",
     "reactflow": "^11.11.4",
     "recharts": "^2.15.4",
+    "simple-icons": "^16.35.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0"
   },

@@ -132,6 +132,10 @@ export function toInventoryData(entities: EntityRow[]): AiInventoryData {
     usage: e.provider ? e.provider.toUpperCase() : '—',
     usage_icon: 'system',
     status: e.stale ? 'flagged' : 'unreviewed',
+    kind: e.kind,
+    provider: e.provider,
+    canonical_id: e.canonical_id,
+    attributes: e.attributes,
   }))
 
   return {

@@ -353,6 +353,7 @@ export interface Setup {
   template?: string
   template_format?: string
   launch_url?: string
+  update_url?: string
   template_url?: string
   files?: SetupFile[]
 }
@@ -382,7 +383,7 @@ export interface DiscoverySession {
   id: string
   connection_id: number
   run_id: string
-  status: 'running' | 'complete' | 'failed' | 'cancelled'
+  status: 'running' | 'complete' | 'failed' | 'cancelled' | 'interrupted'
   started_at: string
   ended_at?: string
   error?: string

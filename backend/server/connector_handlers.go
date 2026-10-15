@@ -29,6 +29,7 @@ func (s *Server) registerConnectorRoutes(g *gin.RouterGroup) {
 	conns.POST("/:id/expand", s.auth.RequirePermission(auth.PermIntegrations), s.handleExpandOrganization)
 	conns.POST("/:id/discover", s.auth.RequirePermission(auth.PermIntegrations), s.handleDiscover)
 	conns.POST("/:id/cancel", s.auth.RequirePermission(auth.PermIntegrations), s.handleCancelDiscovery)
+	conns.PATCH("/:id/capabilities", s.auth.RequirePermission(auth.PermIntegrations), s.handleUpdateCapabilities)
 	conns.DELETE("/:id", s.auth.RequirePermission(auth.PermIntegrations), s.handleDeleteConnection)
 
 	// Reads.
@@ -148,12 +149,31 @@ func (s *Server) handleListConnections(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// Filter to projects the principal can access.
+	// Optional project scoping: ?project_id=<id> returns only that project's
+	// connections (the caller must be authorized for it). Without it, return all
+	// connections across the projects the principal can access.
+	var projectFilter int64
+	if pid := c.Query("project_id"); pid != "" {
+		v, perr := strconv.ParseInt(pid, 10, 64)
+		if perr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project_id"})
+			return
+		}
+		if !p.CanAccessProject(v) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		projectFilter = v
+	}
 	out := make([]connector.Connection, 0, len(all))
 	for _, conn := range all {
-		if p.CanAccessProject(conn.ProjectID) {
-			out = append(out, conn)
+		if !p.CanAccessProject(conn.ProjectID) {
+			continue
 		}
+		if projectFilter != 0 && conn.ProjectID != projectFilter {
+			continue
+		}
+		out = append(out, conn)
 	}
 	c.JSON(http.StatusOK, gin.H{"connections": out})
 }
@@ -320,6 +340,28 @@ func (s *Server) finalProgress(c *gin.Context, orgID, id int64) *discovery.Progr
 		return nil
 	}
 	return view.LatestSession.Progress
+}
+
+// handleUpdateCapabilities replaces a connection's enabled capability set. The
+// new selection takes effect on the next scan. Blocked while a scan is running.
+func (s *Server) handleUpdateCapabilities(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	var body struct {
+		Capabilities []string `json:"capabilities"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	updated, err := s.connector.UpdateCapabilities(c.Request.Context(), conn.OrgID, conn.ID, body.Capabilities)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"connection": updated})
 }
 
 func (s *Server) handleCancelDiscovery(c *gin.Context) {

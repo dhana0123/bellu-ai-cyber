@@ -121,6 +121,7 @@ func (a *Adapter) CreateSetup(ctx context.Context, in provider.SetupInput) (*pro
 		} else {
 			s.TemplateURL = u
 			s.LaunchURL = quickCreateURL(in.Region, u, in.ExternalID)
+			s.UpdateURL = quickUpdateURL(in.Region, u, in.ExternalID)
 		}
 	}
 	return s, nil

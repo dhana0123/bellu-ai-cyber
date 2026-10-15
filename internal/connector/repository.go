@@ -315,13 +315,13 @@ func (r *Repository) RecordSession(ctx context.Context, connID int64, sessionID,
 func (r *Repository) LatestSession(ctx context.Context, connID int64) (*DiscoverySessionRow, error) {
 	var s DiscoverySessionRow
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, connection_id, run_id, status, started_at, ended_at, error
+		`SELECT id, connection_id, run_id, status, started_at, ended_at, error, progress
 		   FROM connector_discovery_sessions
 		  WHERE connection_id = $1
 		  ORDER BY started_at DESC
 		  LIMIT 1`,
 		connID,
-	).Scan(&s.ID, &s.ConnectionID, &s.RunID, &s.Status, &s.StartedAt, &s.EndedAt, &s.Error)
+	).Scan(&s.ID, &s.ConnectionID, &s.RunID, &s.Status, &s.StartedAt, &s.EndedAt, &s.Error, &s.Progress)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -340,6 +340,105 @@ type DiscoverySessionRow struct {
 	StartedAt    time.Time  `json:"started_at"`
 	EndedAt      *time.Time `json:"ended_at,omitempty"`
 	Error        string     `json:"error,omitempty"`
+	// Progress is the raw JSON progress snapshot (discovery.Progress shape), or
+	// nil when none has been recorded. Kept as raw JSON so the repository stays
+	// decoupled from the discovery package.
+	Progress []byte `json:"-"`
+}
+
+// SetCapabilities replaces a connection's enabled capability set, scoped to the
+// org (tenant). It updates both the connector_connections.capabilities array
+// and the connector_capabilities rows in one transaction, mirroring Insert's
+// dual-write. Capabilities not in the new set are removed; present ones are
+// upserted enabled. A missing connection returns ErrNotFound.
+func (r *Repository) SetCapabilities(ctx context.Context, orgID, id int64, caps []string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("connector: begin set capabilities: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE connector_connections SET capabilities = $3 WHERE id = $1 AND org_id = $2`,
+		id, orgID, caps)
+	if err != nil {
+		return fmt.Errorf("connector: update capabilities: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	// Reconcile the connector_capabilities rows: delete those no longer present,
+	// then upsert the current set as enabled.
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM connector_capabilities WHERE connection_id = $1 AND NOT (capability = ANY($2))`,
+		id, caps); err != nil {
+		return fmt.Errorf("connector: prune capabilities: %w", err)
+	}
+	for _, cap := range caps {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO connector_capabilities (connection_id, capability, enabled)
+			 VALUES ($1,$2,true)
+			 ON CONFLICT (connection_id, capability) DO UPDATE SET enabled = true`,
+			id, cap); err != nil {
+			return fmt.Errorf("connector: upsert capability %q: %w", cap, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("connector: commit set capabilities: %w", err)
+	}
+	return nil
+}
+
+// SaveSessionProgress persists the latest progress snapshot (raw JSON) for a
+// session. It is a lightweight UPDATE issued periodically during a run so the
+// UI can rehydrate live progress after a reload or an API restart. A missing
+// session row is a no-op (the row is created by RecordSession at run start).
+func (r *Repository) SaveSessionProgress(ctx context.Context, sessionID string, progressJSON []byte) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE connector_discovery_sessions SET progress = $2 WHERE id = $1`,
+		sessionID, progressJSON)
+	if err != nil {
+		return fmt.Errorf("connector: save session progress: %w", err)
+	}
+	return nil
+}
+
+// ReconcileRunningSessions marks any session still in 'running' as 'interrupted'.
+// It is called at API startup: a running session with no owning in-process hub
+// was orphaned by a crash/restart (collection cannot resume mid-flight), so it
+// is moved to a terminal state and the UI shows it as interrupted rather than
+// hanging forever. Returns the number of sessions reconciled.
+func (r *Repository) ReconcileRunningSessions(ctx context.Context) (int, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("connector: begin reconcile: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE connector_discovery_sessions
+		    SET status = 'interrupted',
+		        ended_at = COALESCE(ended_at, now()),
+		        error = CASE WHEN error = '' THEN 'interrupted by service restart' ELSE error END
+		  WHERE status = 'running'`)
+	if err != nil {
+		return 0, fmt.Errorf("connector: reconcile running sessions: %w", err)
+	}
+
+	// Also move any connection stuck in DISCOVERY_RUNNING back to ERROR so it is
+	// not wedged (the state machine permits a retry from ERROR). Without this,
+	// the connection status would stay DISCOVERY_RUNNING forever after a crash.
+	if _, err := tx.Exec(ctx,
+		`UPDATE connector_connections SET status = 'ERROR' WHERE status = 'DISCOVERY_RUNNING'`); err != nil {
+		return 0, fmt.Errorf("connector: reconcile running connections: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("connector: commit reconcile: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 // isUniqueViolation reports whether err is a Postgres unique_violation (23505).

@@ -161,10 +161,13 @@ func TestBuildSetupPolicy(t *testing.T) {
 		t.Errorf("trust policy ExternalId = %q, want %q", gotExt, in.ExternalID)
 	}
 
-	// Permission policy must not contain AdministratorAccess or "*" action on "*".
+	// Wiz model: the role is granted the FIXED broad read-only union of ALL
+	// capabilities regardless of which are selected (selection is a scan-time
+	// gate, not a role change). The catalog defines 5 capabilities, so the
+	// policy always has 5 statements even though only {core, eks} were passed.
 	stmts := setup.PermissionPolicy["Statement"].([]map[string]any)
-	if len(stmts) != 2 {
-		t.Fatalf("expected 2 statements (core, eks), got %d", len(stmts))
+	if len(stmts) != 5 {
+		t.Fatalf("expected 5 statements (fixed read-only union of all capabilities), got %d", len(stmts))
 	}
 	for _, s := range stmts {
 		actions, _ := s["Action"].([]string)

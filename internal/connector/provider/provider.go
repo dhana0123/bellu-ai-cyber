@@ -119,6 +119,11 @@ type Setup struct {
 	Template       string `json:"template,omitempty"`
 	TemplateFormat string `json:"template_format,omitempty"`
 	LaunchURL      string `json:"launch_url,omitempty"`
+	// UpdateURL is the console link that opens the EXISTING stack's update page
+	// pre-loaded with the regenerated template, so editing capabilities applies
+	// an in-place stack update (same stack/role/external id, only the policy
+	// changes). Customer-driven: Bellu never updates the stack itself.
+	UpdateURL string `json:"update_url,omitempty"`
 	// TemplateURL is the (short-lived, presigned) S3 URL of the template.
 	TemplateURL string      `json:"template_url,omitempty"`
 	Files       []SetupFile `json:"files,omitempty"`

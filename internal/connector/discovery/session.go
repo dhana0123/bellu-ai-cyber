@@ -14,10 +14,11 @@ import (
 type SessionStatus string
 
 const (
-	SessRunning   SessionStatus = "running"
-	SessComplete  SessionStatus = "complete"
-	SessFailed    SessionStatus = "failed"
-	SessCancelled SessionStatus = "cancelled"
+	SessRunning     SessionStatus = "running"
+	SessComplete    SessionStatus = "complete"
+	SessFailed      SessionStatus = "failed"
+	SessCancelled   SessionStatus = "cancelled"
+	SessInterrupted SessionStatus = "interrupted"
 )
 
 // Session tracks a single discovery execution for a connection.

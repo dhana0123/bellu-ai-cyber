@@ -91,6 +91,15 @@ func run() error {
 	// per-connection assumed-role credentials it mints are never persisted.
 	connMgr := buildConnector(st, gw, cfg)
 
+	// Durability: any discovery session left 'running' by a prior crash/restart
+	// cannot resume mid-flight, so mark it interrupted on startup. The UI shows
+	// it as interrupted (not stuck) and offers a re-run.
+	if n, err := connMgr.ReconcileInterrupted(ctx); err != nil {
+		log.Printf("warning: reconcile interrupted sessions: %v", err)
+	} else if n > 0 {
+		log.Printf("reconciled %d interrupted discovery session(s) from a prior restart", n)
+	}
+
 	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, Connector: connMgr, AllowOrigin: allowOrigin})
 
 	httpSrv := &http.Server{
