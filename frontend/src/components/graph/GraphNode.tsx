@@ -85,9 +85,11 @@ export default function GraphNode({ data }: NodeProps<GraphNodeData>) {
           width: ICON,
           height: ICON,
           border: `2px solid ${style.color}`,
-          boxShadow: data.highlight
-            ? `0 0 0 4px ${style.color}33, 0 0 24px ${style.color}66`
-            : `0 0 0 5px ${style.color}14, 0 0 18px ${style.color}22`,
+          // When highlighted the keyframe animation drives box-shadow + transform,
+          // so we don't set an inline box-shadow (it would override the animation).
+          ...(data.highlight
+            ? {}
+            : { boxShadow: `0 0 0 5px ${style.color}14, 0 0 18px ${style.color}22` }),
           // CSS var feeds the keyframe glow color (see graph-node-pulse).
           ['--pulse-color' as string]: style.color,
         }}

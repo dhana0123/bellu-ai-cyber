@@ -15,6 +15,7 @@ import {
   BreakdownByType,
 } from './components/BreakdownCards'
 import { InventoryTable } from './components/InventoryTable'
+import type { InventoryFilters, FilterOption } from './components/SearchFilterBar'
 import {
   DEFAULT_INV_LAYOUT,
   GRID_COLS,
@@ -43,6 +44,11 @@ export default function AiEcosystemInventory() {
   )
   const [search, setSearch] = useState('')
   const [detectedOnly, setDetectedOnly] = useState(true)
+  const [filters, setFilters] = useState<InventoryFilters>({
+    category: [],
+    type: [],
+    status: [],
+  })
   const { layout, onLayoutChange, resetLayout } = useInventoryLayout()
 
   const header = (
@@ -52,16 +58,54 @@ export default function AiEcosystemInventory() {
     </div>
   )
 
+  const allAssets = data?.assets ?? []
+
+  // Build filter dropdown options (value + label + count) from the full asset
+  // population so counts reflect what's available, not what's currently shown.
+  const options = useMemo(() => {
+    const tally = (
+      pick: (a: (typeof allAssets)[number]) => string,
+      labelFor: (v: string) => string,
+    ) => {
+      const m = new Map<string, number>()
+      for (const a of allAssets) {
+        const v = pick(a)
+        if (!v) continue
+        m.set(v, (m.get(v) ?? 0) + 1)
+      }
+      return [...m.entries()]
+        .map(([value, count]): FilterOption => ({ value, label: labelFor(value), count }))
+        .sort((x, y) => y.count - x.count)
+    }
+    const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+    return {
+      // "Category" is the high-level domain group (AI, SaaS, Kubernetes, …).
+      category: tally(
+        (a) => a.group ?? '',
+        (v) => v,
+      ),
+      type: tally(
+        (a) => a.type,
+        (v) => v,
+      ),
+      status: tally((a) => a.status, title),
+    }
+  }, [allAssets])
+
   const assets = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return data?.assets ?? []
-    return (data?.assets ?? []).filter(
-      (a) =>
-        a.name.toLowerCase().includes(q) ||
-        a.subtitle.toLowerCase().includes(q) ||
-        a.type.toLowerCase().includes(q),
-    )
-  }, [data, search])
+    return allAssets.filter((a) => {
+      if (detectedOnly && !a.canonical_id) return false
+      if (filters.category.length && !filters.category.includes(a.group ?? '')) return false
+      if (filters.type.length && !filters.type.includes(a.type)) return false
+      if (filters.status.length && !filters.status.includes(a.status)) return false
+      if (q) {
+        const hay = `${a.name} ${a.subtitle} ${a.type}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [allAssets, search, detectedOnly, filters])
 
   if (loading) {
     return (
@@ -91,6 +135,10 @@ export default function AiEcosystemInventory() {
           onSearch={setSearch}
           detectedOnly={detectedOnly}
           onToggleDetected={setDetectedOnly}
+          filters={filters}
+          onFiltersChange={setFilters}
+          options={options}
+          shown={assets.length}
           total={data.total}
         />
 

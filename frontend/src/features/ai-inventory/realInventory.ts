@@ -67,6 +67,44 @@ function categoryFor(kind: string): AssetCategory {
   return KIND_CATEGORY[kind] ?? 'tool'
 }
 
+// High-level domain group per entity kind, used by the inventory Category
+// filter (AI, SaaS, Kubernetes, Data, Identity, Compute, Cloud, Code,
+// Security). Kubernetes membership also considers the provider below.
+const KIND_GROUP: Record<string, string> = {
+  AIAgent: 'AI',
+  AIModel: 'AI',
+  AIService: 'AI',
+  MCPServer: 'AI',
+  Prompt: 'AI',
+  Cluster: 'Kubernetes',
+  Workload: 'Kubernetes',
+  ContainerImage: 'Kubernetes',
+  DataStore: 'Data',
+  Identity: 'Identity',
+  Compute: 'Compute',
+  CloudAccount: 'Cloud',
+  NetworkEndpoint: 'Cloud',
+  Repository: 'Code',
+  Package: 'Code',
+  Vulnerability: 'Security',
+  ExternalService: 'SaaS',
+}
+
+// groupFor classifies an entity into a high-level domain group. Provider is a
+// strong signal for Kubernetes/SaaS so e.g. a k8s-sourced resource lands in
+// "Kubernetes" even when its kind is generic.
+function groupFor(kind: string, provider?: string): string {
+  const p = (provider ?? '').toLowerCase()
+  if (p === 'k8s' || p === 'kubernetes') return 'Kubernetes'
+  const g = KIND_GROUP[kind]
+  if (g) return g
+  // Cloud-provider resources default to "Cloud"; everything else to "SaaS".
+  if (p === 'aws' || p === 'azure' || p === 'gcp' || p === 'google' || p === 'googlecloud') {
+    return 'Cloud'
+  }
+  return 'SaaS'
+}
+
 // countByKind returns [kind, count] pairs sorted by count descending.
 function countByKind(entities: EntityRow[]): Array<[string, number]> {
   const m = new Map<string, number>()
@@ -133,6 +171,7 @@ export function toInventoryData(entities: EntityRow[]): AiInventoryData {
     usage_icon: 'system',
     status: e.stale ? 'flagged' : 'unreviewed',
     kind: e.kind,
+    group: groupFor(e.kind, e.provider),
     provider: e.provider,
     canonical_id: e.canonical_id,
     attributes: e.attributes,

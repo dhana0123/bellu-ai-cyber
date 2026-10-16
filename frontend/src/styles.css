@@ -129,27 +129,33 @@
 }
 
 /* Pulsing glow for the focused node in the inventory connections graph. The
-   glow color comes from --pulse-color set inline per node (its kind accent). */
+   glow color comes from --pulse-color set inline per node (its kind accent).
+   The node grows + glows, then shrinks back, on a loop. */
 @keyframes graph-node-pulse {
   0% {
+    transform: scale(1);
     box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 55%, transparent),
-      0 0 16px color-mix(in srgb, var(--pulse-color, #3b82f6) 45%, transparent);
+      0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 70%, transparent),
+      0 0 10px 2px color-mix(in srgb, var(--pulse-color, #3b82f6) 40%, transparent);
   }
-  70% {
+  50% {
+    transform: scale(1.14);
     box-shadow:
-      0 0 0 12px color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
-      0 0 26px color-mix(in srgb, var(--pulse-color, #3b82f6) 55%, transparent);
+      0 0 0 10px color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
+      0 0 28px 8px color-mix(in srgb, var(--pulse-color, #3b82f6) 75%, transparent);
   }
   100% {
+    transform: scale(1);
     box-shadow:
       0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
-      0 0 16px color-mix(in srgb, var(--pulse-color, #3b82f6) 45%, transparent);
+      0 0 10px 2px color-mix(in srgb, var(--pulse-color, #3b82f6) 40%, transparent);
   }
 }
 
 .graph-node-pulse {
-  animation: graph-node-pulse 1.8s ease-out infinite;
+  animation: graph-node-pulse 1.6s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform, box-shadow;
 }
 
 @media (prefers-reduced-motion: reduce) {

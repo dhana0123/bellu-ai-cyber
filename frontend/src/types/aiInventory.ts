@@ -43,6 +43,9 @@ export interface InventoryAsset {
   /** Canonical entity kind (e.g. Identity, DataStore) for icon + detail view.
    *  Optional so the demo mock (which has no kind) still type-checks. */
   kind?: string
+  /** High-level domain group used by the Category filter (AI, SaaS,
+   *  Kubernetes, Data, Identity, Compute, Cloud, Code, Security). */
+  group?: string
   /** Cloud provider, e.g. aws. */
   provider?: string
   /** Canonical id of the underlying resource. */
