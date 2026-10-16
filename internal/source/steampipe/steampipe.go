@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -222,6 +223,15 @@ func (s *Source) Collect(ctx context.Context, run source.Run) (<-chan rawevent.R
 			n, err := s.collectTable(tctx, q, run, collector, spec, events)
 			cancel()
 			if err != nil {
+				if isUnsupportedServiceErr(err) {
+					// The service/operation does not exist in a probed region
+					// (e.g. Bedrock's 404 UnknownOperationException in regions
+					// where Bedrock is not offered). This is benign — not a
+					// permission or data problem — so treat it as an empty
+					// result instead of an error. Nothing is surfaced to the UI.
+					reportTableDone(run.Reporter, spec.Table, n)
+					continue
+				}
 				// Error isolation: record and continue with the next table.
 				reportTableError(run.Reporter, spec.Table, err)
 				errs <- fmt.Errorf("steampipe: table %s: %w", spec.Table, err)
@@ -342,6 +352,33 @@ func reportTableError(r source.ProgressReporter, table string, err error) {
 	if r != nil {
 		r.TableError(table, err)
 	}
+}
+
+// isUnsupportedServiceErr reports whether err indicates the AWS service or
+// operation simply does not exist in a region that was probed — a benign
+// condition, not a permission or data error. The Steampipe AWS plugin fans
+// regional calls across regions; for services not offered everywhere (e.g.
+// Amazon Bedrock), unsupported regions answer with a 404
+// UnknownOperationException. We treat these as "no data here" rather than
+// failing or warning, so clients never see a spurious error. Matching on the
+// error text is deliberate: it is region-list independent and never goes stale
+// as AWS adds/removes regions.
+func isUnsupportedServiceErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "unknownoperationexception"):
+		return true
+	case strings.Contains(msg, "statuscode: 404") && strings.Contains(msg, "operation error"):
+		return true
+	case strings.Contains(msg, "could not connect to the endpoint url"):
+		return true
+	case strings.Contains(msg, "no such host"):
+		return true
+	}
+	return false
 }
 
 func colString(obj map[string]any, col string) string {

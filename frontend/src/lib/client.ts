@@ -20,6 +20,7 @@ import { dashboardMock } from '@/mocks/dashboard'
 import { issuesMock } from '@/mocks/issues'
 import { vulnerabilitiesMock } from '@/mocks/vulnerabilities'
 import { aiInventoryMock } from '@/mocks/aiInventory'
+import { repositoriesMock } from '@/mocks/repositories'
 
 export const client = {
   // --- Foundation (REAL backend) ---
@@ -37,6 +38,7 @@ export const client = {
   issues: issuesMock,
   vulnerabilities: vulnerabilitiesMock,
   aiInventory: aiInventoryMock,
+  repositories: repositoriesMock,
 } as const
 
 export type Client = typeof client

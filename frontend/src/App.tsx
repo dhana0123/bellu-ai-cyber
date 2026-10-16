@@ -30,6 +30,7 @@ import ProjectsPage from '@/features/platform/Projects'
 import RolesPage from '@/features/platform/Roles'
 import ConnectorsPage from '@/features/platform/Connectors'
 import ConnectAwsPage from '@/features/platform/ConnectAws'
+import RepositoriesPage from '@/features/platform/Repositories'
 
 // RequireAuth gates a route: redirects to /login when unauthenticated and shows
 // a 403 notice (inside the shell) when the user lacks the required permission.
@@ -148,11 +149,7 @@ export default function App() {
         path="/repositories"
         element={
           <RequireAuth permission="graph:read">
-            <ModulePlaceholder
-              title="Repositories"
-              blurb="Source code repositories feeding your AI supply chain."
-              preview={false}
-            />
+            <RepositoriesPage />
           </RequireAuth>
         }
       />

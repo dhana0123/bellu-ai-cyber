@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -329,6 +330,7 @@ func (r connectorPipelineRunner) Run(ctx context.Context, src source.Source, run
 	sink := store.NewSink(r.store, runID)
 
 	collected := 0
+	tableWarnings := 0
 	events, errs := src.Collect(ctx, source.Run{RunID: runID, Reporter: reporter})
 	var runErr error
 drain:
@@ -360,26 +362,44 @@ drain:
 				errs = nil
 				continue
 			}
-			if err != nil {
-				// Per-table errors are isolated (reported via progress); keep
-				// the first as the run error but continue draining.
-				if runErr == nil {
-					runErr = err
-				}
+			if err == nil {
+				continue
 			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				// A cancellation/timeout of the whole run is fatal.
+				runErr = err
+				continue
+			}
+			// Per-table errors (e.g. a service unavailable in a region, like
+			// Bedrock's 404, or an AccessDenied on one table) are NON-FATAL
+			// warnings: the collector already isolated them and moved to the next
+			// table, so we just count + log and keep processing everything else.
+			// One bad table must never fail the whole discovery.
+			tableWarnings++
+			log.Printf("discovery %s: table error (continuing): %v", runID, err)
 		}
 	}
 	_ = sink.Flush(ctx)
 	_ = r.store.FinishRun(context.Background(), runID, sink.Status(), sink.Written())
 
+	// Only a hard run-level failure (cancel/timeout) aborts. Per-table warnings
+	// do NOT fail the run — we still normalize and persist what WAS collected.
 	if runErr != nil {
 		return runErr
 	}
+	if tableWarnings > 0 {
+		log.Printf("discovery %s: completed with %d table warning(s) — persisting collected data anyway",
+			runID, tableWarnings)
+	}
 
-	// 2) Normalize -> resolve -> derive-agents -> persist, scoped to THIS run's
-	// raw events (not the whole DB), so each discovery only reprocesses its own
-	// output.
-	raw, err := r.store.LoadRawEvents(ctx, runID)
+	// 2) Normalize -> resolve -> derive-agents -> persist.
+	// We re-normalize ALL raw events, not just this run's. Raw events are
+	// content-addressed and de-duplicated on insert (ON CONFLICT DO NOTHING),
+	// so a re-scan of an unchanged account inserts few/no new rows — loading
+	// only this run's events would then re-normalize almost nothing and never
+	// refresh entities/edges. Loading everything rebuilds the full graph each
+	// run; PersistNormalized upserts, so this is idempotent.
+	raw, err := r.store.LoadRawEvents(ctx, "")
 	if err != nil {
 		return fmt.Errorf("load raw events: %w", err)
 	}

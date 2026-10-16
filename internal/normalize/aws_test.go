@@ -50,7 +50,7 @@ func TestAWSKindMapping(t *testing.T) {
 		key  string
 		want model.Kind
 	}{
-		{"111122223333", model.KindCloudAccount},
+		{"aws-account:111122223333", model.KindCloudAccount},
 		{"arn:aws:iam::111122223333:role/agent-exec", model.KindIdentity},
 		{"arn:aws:s3:::bellu-training-data", model.KindDataStore},
 		{"arn:aws:lambda:us-east-1:111122223333:function:agent", model.KindCompute},
@@ -126,9 +126,10 @@ func TestAWSExposedToEdge(t *testing.T) {
 
 func TestAWSContainsEdges(t *testing.T) {
 	res := normalizeAWS(t)
-	// Account CONTAINS the S3 bucket.
-	if !hasEdge(res, model.RelContains, "111122223333", "arn:aws:s3:::bellu-training-data") {
-		t.Fatal("expected account CONTAINS bucket")
+	// Account (keyed by its id, derived from resource ARNs) CONTAINS the S3
+	// bucket. This resolves regardless of the empty scope column.
+	if !hasEdge(res, model.RelContains, "aws-account:111122223333", "arn:aws:s3:::bellu-training-data") {
+		t.Fatalf("expected account CONTAINS bucket; edges=%v", edgeSummaries(res))
 	}
 }
 

@@ -127,3 +127,33 @@
     background: transparent;
   }
 }
+
+/* Pulsing glow for the focused node in the inventory connections graph. The
+   glow color comes from --pulse-color set inline per node (its kind accent). */
+@keyframes graph-node-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 55%, transparent),
+      0 0 16px color-mix(in srgb, var(--pulse-color, #3b82f6) 45%, transparent);
+  }
+  70% {
+    box-shadow:
+      0 0 0 12px color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
+      0 0 26px color-mix(in srgb, var(--pulse-color, #3b82f6) 55%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
+      0 0 16px color-mix(in srgb, var(--pulse-color, #3b82f6) 45%, transparent);
+  }
+}
+
+.graph-node-pulse {
+  animation: graph-node-pulse 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-node-pulse {
+    animation: none;
+  }
+}

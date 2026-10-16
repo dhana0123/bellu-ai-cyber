@@ -20,6 +20,8 @@ import {
 export interface GraphNodeData {
   kind: string
   label: string
+  /** When true, the node is rendered with a pulsing glow (the focused item). */
+  highlight?: boolean
 }
 
 interface KindStyle {
@@ -75,12 +77,19 @@ export default function GraphNode({ data }: NodeProps<GraphNodeData>) {
       <Handle type="target" position={Position.Left} style={dotStyle(style.color, 'left')} />
 
       <div
-        className="flex items-center justify-center rounded-full bg-card"
+        className={
+          'flex items-center justify-center rounded-full bg-card' +
+          (data.highlight ? ' graph-node-pulse' : '')
+        }
         style={{
           width: ICON,
           height: ICON,
           border: `2px solid ${style.color}`,
-          boxShadow: `0 0 0 5px ${style.color}14, 0 0 18px ${style.color}22`,
+          boxShadow: data.highlight
+            ? `0 0 0 4px ${style.color}33, 0 0 24px ${style.color}66`
+            : `0 0 0 5px ${style.color}14, 0 0 18px ${style.color}22`,
+          // CSS var feeds the keyframe glow color (see graph-node-pulse).
+          ['--pulse-color' as string]: style.color,
         }}
       >
         <Icon style={{ width: 20, height: 20, color: style.color }} />

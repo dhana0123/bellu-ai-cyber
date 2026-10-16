@@ -55,7 +55,7 @@ export const navTree: NavNode[] = [
     label: 'Discovery',
     icon: Radar,
     children: [
-      { to: '/inventory', label: 'AI Inventory', icon: Boxes, permission: 'graph:read' },
+      { to: '/inventory', label: 'Inventory', icon: Boxes, permission: 'graph:read' },
       { to: '/repositories', label: 'Repositories', icon: GitBranch, permission: 'graph:read' },
       { to: '/ai-agents', label: 'AI Agents', icon: Bot, permission: 'graph:read' },
     ],

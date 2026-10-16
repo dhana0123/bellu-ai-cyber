@@ -14,11 +14,14 @@ import (
 // AWS maps Steampipe AWS RawEvents to canonical entities and edges.
 //
 // Kinds:  CloudAccount, Identity, DataStore (S3), Compute (EC2/Lambda),
-//         Cluster (EKS), Workload (ECS task def), ContainerImage (ECR digest),
-//         AIService (Bedrock/SageMaker).
+//
+//	Cluster (EKS), Workload (ECS task def), ContainerImage (ECR digest),
+//	AIService (Bedrock/SageMaker).
+//
 // Edges:  CONTAINS (account -> resources), RUNS_IMAGE (ECS/Lambda -> image),
-//         USES (Lambda/ECS/EC2 -> role), EXPOSED_TO (SG open to 0.0.0.0/0),
-//         CAN_READ/CAN_WRITE/CAN_ADMIN (role -> S3, via IAM evaluator).
+//
+//	USES (Lambda/ECS/EC2 -> role), EXPOSED_TO (SG open to 0.0.0.0/0),
+//	CAN_READ/CAN_WRITE/CAN_ADMIN (role -> S3, via IAM evaluator).
 type AWS struct{}
 
 // Sources implements Normalizer.
@@ -39,14 +42,33 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 	}
 	var identities []idPolicy
 
+	// Track every account id seen (from resource ARNs) and whether a real
+	// CloudAccount node was emitted for it, so we can synthesize any missing
+	// account node at the end — guaranteeing every resource's CONTAINS edge has
+	// an account to resolve to.
+	accountSeen := map[string]bool{} // account id -> seen on any resource
+	accountNode := map[string]bool{} // account id -> a CloudAccount node exists
+	var firstAcctEvidence *rawevent.RawEvent
+
 	for _, e := range events {
 		if e.Provider != "aws" {
 			continue
 		}
 		attrs := payloadMap(e)
+		if acct := childAccountID(e, attrs); acct != "" {
+			accountSeen[acct] = true
+			if firstAcctEvidence == nil {
+				ev := e
+				firstAcctEvidence = &ev
+			}
+		}
 		switch e.ResourceType {
 		case "aws_account":
-			res.Entities = append(res.Entities, awsAccount(e, attrs))
+			ent := awsAccount(e, attrs)
+			res.Entities = append(res.Entities, ent)
+			if id := firstNonEmpty(stringAttr(attrs, "account_id"), accountIDFromARN(stringAttr(attrs, "arn"))); id != "" {
+				accountNode[id] = true
+			}
 		case "aws_iam_role", "aws_iam_user":
 			ent := awsIdentity(e, attrs)
 			res.Entities = append(res.Entities, ent)
@@ -141,23 +163,118 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 		}
 	}
 
+	// Determine the run's dominant account id (every discovery runs against one
+	// account). Resources whose ARN has no account segment — notably S3 buckets
+	// (arn:aws:s3:::bucket) — can't self-identify, so their CONTAINS edge was
+	// left with an empty source. Repair those from the dominant account so every
+	// resource links to its account.
+	defaultAcct := ""
+	for acct := range accountSeen {
+		if defaultAcct == "" || acct < defaultAcct {
+			defaultAcct = acct
+		}
+	}
+	if defaultAcct != "" {
+		accountSeen[defaultAcct] = true
+		for i := range res.Edges {
+			if res.Edges[i].Relation == model.RelContains && res.Edges[i].SrcKey == "" {
+				res.Edges[i].SrcKey = accountKey(defaultAcct)
+			}
+		}
+	}
+
+	// Synthesize a CloudAccount node for any account id seen on resources but
+	// without its own aws_account row (or whose row had no usable id). Without
+	// this, the CONTAINS edges from that account would be dropped by the
+	// resolver and the graph would show resources with no account connection.
+	for acct := range accountSeen {
+		if accountNode[acct] {
+			continue
+		}
+		ent := model.Entity{
+			Kind: model.KindCloudAccount, Key: accountKey(acct), Provider: "aws",
+			Name: acct, Attributes: map[string]any{"account_id": acct, "synthesized": true},
+		}
+		if firstAcctEvidence != nil {
+			ent.Evidence = EvidenceFrom(*firstAcctEvidence)
+		}
+		res.Entities = append(res.Entities, ent)
+		accountNode[acct] = true
+	}
+
 	return res, nil
 }
 
 // ---- entity builders ----
 
 func awsAccount(e rawevent.RawEvent, attrs map[string]any) model.Entity {
-	return model.Entity{
-		Kind: model.KindCloudAccount, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "title"), e.ResourceID),
-		Attributes: attrs, Evidence: EvidenceFrom(e),
+	// Key the account by its stable 12-digit id so every resource can link to
+	// it (resources carry the account id in their ARN). Fall back to a derived
+	// id or the raw resource id when the account id isn't directly present.
+	id := firstNonEmpty(
+		stringAttr(attrs, "account_id"),
+		accountIDFromARN(stringAttr(attrs, "arn")),
+		accountIDFromARN(e.ResourceID),
+	)
+	key := e.ResourceID
+	name := firstNonEmpty(stringAttr(attrs, "title"), e.ResourceID)
+	if id != "" {
+		key = accountKey(id)
+		name = id
 	}
+	return model.Entity{
+		Kind: model.KindCloudAccount, Key: key, Provider: "aws",
+		Name: name, Attributes: attrs, Evidence: EvidenceFrom(e),
+	}
+}
+
+// accountKey is the stable canonical key for an AWS account node, derived from
+// the 12-digit account id so every resource's CONTAINS edge resolves to it.
+func accountKey(accountID string) string {
+	return "aws-account:" + accountID
+}
+
+// accountIDFromARN extracts the 12-digit account id from an AWS ARN
+// ("arn:aws:<service>:<region>:<account-id>:<resource>"). Returns "" when the
+// input is not a parseable ARN with an account segment.
+func accountIDFromARN(arn string) string {
+	if !strings.HasPrefix(arn, "arn:") {
+		return ""
+	}
+	parts := strings.Split(arn, ":")
+	if len(parts) < 6 {
+		return ""
+	}
+	acct := parts[4]
+	if len(acct) == 12 && isAllDigits(acct) {
+		return acct
+	}
+	return ""
+}
+
+func isAllDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// childAccountID derives the account id that owns a resource event, trying the
+// account_id attr first, then the resource ARN, then any arn attr.
+func childAccountID(e rawevent.RawEvent, attrs map[string]any) string {
+	return firstNonEmpty(
+		stringAttr(attrs, "account_id"),
+		accountIDFromARN(e.ResourceID),
+		accountIDFromARN(stringAttr(attrs, "arn")),
+	)
 }
 
 func awsIdentity(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 	return model.Entity{
 		Kind: model.KindIdentity, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "name"), stringAttr(attrs, "title"), e.ResourceID),
+		Name:       firstNonEmpty(stringAttr(attrs, "name"), stringAttr(attrs, "title"), e.ResourceID),
 		Attributes: attrs, Evidence: EvidenceFrom(e),
 	}
 }
@@ -165,7 +282,7 @@ func awsIdentity(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 func awsDataStore(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 	return model.Entity{
 		Kind: model.KindDataStore, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "name"), e.ResourceID),
+		Name:       firstNonEmpty(stringAttr(attrs, "name"), e.ResourceID),
 		Attributes: attrs, Evidence: EvidenceFrom(e),
 	}
 }
@@ -175,7 +292,7 @@ func awsCompute(e rawevent.RawEvent, attrs map[string]any, subtype string) model
 	a["compute_subtype"] = subtype
 	return model.Entity{
 		Kind: model.KindCompute, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "name"), stringAttr(attrs, "title"), e.ResourceID),
+		Name:       firstNonEmpty(stringAttr(attrs, "name"), stringAttr(attrs, "title"), e.ResourceID),
 		Attributes: a, Evidence: EvidenceFrom(e),
 	}
 }
@@ -183,7 +300,7 @@ func awsCompute(e rawevent.RawEvent, attrs map[string]any, subtype string) model
 func awsCluster(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 	return model.Entity{
 		Kind: model.KindCluster, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "name"), e.ResourceID),
+		Name:       firstNonEmpty(stringAttr(attrs, "name"), e.ResourceID),
 		Attributes: attrs, Evidence: EvidenceFrom(e),
 	}
 }
@@ -191,7 +308,7 @@ func awsCluster(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 func awsWorkload(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 	return model.Entity{
 		Kind: model.KindWorkload, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "family"), e.ResourceID),
+		Name:       firstNonEmpty(stringAttr(attrs, "family"), e.ResourceID),
 		Attributes: attrs, Evidence: EvidenceFrom(e),
 	}
 }
@@ -199,7 +316,7 @@ func awsWorkload(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 func awsImage(e rawevent.RawEvent, attrs map[string]any, digest string) model.Entity {
 	return model.Entity{
 		Kind: model.KindContainerImage, Key: digest, Provider: "image",
-		Name: firstNonEmpty(stringAttr(attrs, "repository_name"), digest),
+		Name:       firstNonEmpty(stringAttr(attrs, "repository_name"), digest),
 		Attributes: attrs, Evidence: EvidenceFrom(e),
 	}
 }
@@ -207,19 +324,28 @@ func awsImage(e rawevent.RawEvent, attrs map[string]any, digest string) model.En
 func awsAIService(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 	return model.Entity{
 		Kind: model.KindAIService, Key: e.ResourceID, Provider: "aws",
-		Name: firstNonEmpty(stringAttr(attrs, "name"), stringAttr(attrs, "model_name"), e.ResourceID),
+		Name:       firstNonEmpty(stringAttr(attrs, "name"), stringAttr(attrs, "model_name"), e.ResourceID),
 		Attributes: attrs, Evidence: EvidenceFrom(e),
 	}
 }
 
 // ---- edge builders ----
 
-// containsEdge links the account (keyed by account_id = scope) to a child
-// resource. If the aws_account row wasn't collected, the edge is dropped by the
-// resolver, which is acceptable.
+// containsEdge links the owning account to a child resource. The account is
+// derived from the resource's ARN (every AWS ARN embeds the account id), so the
+// edge resolves even when the aws_account row carried no usable id and
+// regardless of whether the collector populated the scope column.
 func containsEdge(e rawevent.RawEvent, childKey string) model.Edge {
+	// Source the edge from the owning account, derived from the resource ARN.
+	// When the ARN has no account segment (e.g. S3 bucket ARNs), leave the
+	// source empty; a post-pass in Normalize fills it from the run's dominant
+	// account so the edge still resolves.
+	src := ""
+	if acct := childAccountID(e, payloadMap(e)); acct != "" {
+		src = accountKey(acct)
+	}
 	return model.Edge{
-		Relation: model.RelContains, SrcKey: e.Scope, DstKey: childKey,
+		Relation: model.RelContains, SrcKey: src, DstKey: childKey,
 		Confidence: 1.0, Evidence: EvidenceFrom(e),
 	}
 }
@@ -267,9 +393,9 @@ func exposedToEdges(e rawevent.RawEvent, attrs map[string]any) []model.Edge {
 		return nil
 	}
 	return []model.Edge{{
-		Relation: model.RelExposedTo,
-		SrcKey:   e.ResourceID, // security group id
-		DstKey:   "0.0.0.0/0",
+		Relation:   model.RelExposedTo,
+		SrcKey:     e.ResourceID, // security group id
+		DstKey:     "0.0.0.0/0",
 		Attributes: map[string]any{"source": "security_group_ingress"},
 		Confidence: 1.0,
 		Evidence:   EvidenceFrom(e),

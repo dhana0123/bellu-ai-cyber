@@ -47,7 +47,7 @@ export default function AiEcosystemInventory() {
 
   const header = (
     <div className="flex items-center gap-2">
-      <h1 className="text-lg font-semibold tracking-tight">AI Inventory</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Inventory</h1>
       {current ? <span className="text-xs text-muted-foreground">· {current.name}</span> : null}
     </div>
   )
