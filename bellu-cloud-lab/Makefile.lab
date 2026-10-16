@@ -14,6 +14,13 @@ TERRAFORM  ?= terraform
 # Scenarios run end-to-end by integration-test-cloud (Phase 1 set).
 LAB_SCENARIOS ?= aws/public-ec2 aws/iam-to-s3
 
+# The lab reads its OWN dedicated credentials from bellu-cloud-lab/.env (a
+# separate, isolated test account — never the main stack's deploy/.env). When
+# present, every lab target below is prefixed with it so the test-account
+# AWS_* and BELLU_* vars are exported into terraform + the runner.
+LAB_ENV ?= $(LAB_ROOT)/.env
+LAB_ENV_PREFIX := $(if $(wildcard $(LAB_ENV)),set -a && . ./$(LAB_ENV) && set +a &&,)
+
 # Build both binaries the runner needs: the lab command and the bellu pipeline.
 lab-build:
 	$(GO) build -o $(LAB_BIN) ./$(LAB_ROOT)/cmd/lab
@@ -22,26 +29,26 @@ lab-build:
 # Provision a scenario only — no assertions, no destroy (Requirement 11.2).
 lab-up: lab-build
 	@test -n "$(SCENARIO)" || { echo "usage: make lab-up SCENARIO=<provider>/<name>"; exit 2; }
-	$(LAB_BIN) --mode up --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
+	$(LAB_ENV_PREFIX) $(LAB_BIN) --mode up --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
 		--terraform $(TERRAFORM) --bellu $(BELLU_BIN)
 
 # Full cycle: apply -> bellu run -> compare -> destroy (Requirement 11.3).
 lab-test: lab-build
 	@test -n "$(SCENARIO)" || { echo "usage: make lab-test SCENARIO=<provider>/<name>"; exit 2; }
-	$(LAB_BIN) --mode test --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
+	$(LAB_ENV_PREFIX) $(LAB_BIN) --mode test --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
 		--terraform $(TERRAFORM) --bellu $(BELLU_BIN)
 
 # Destroy a scenario's resources (Requirement 11.4).
 lab-down: lab-build
 	@test -n "$(SCENARIO)" || { echo "usage: make lab-down SCENARIO=<provider>/<name>"; exit 2; }
-	$(LAB_BIN) --mode down --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
+	$(LAB_ENV_PREFIX) $(LAB_BIN) --mode down --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
 		--terraform $(TERRAFORM) --bellu $(BELLU_BIN)
 
 # Run the Test_Runner across the selected scenario set (Requirement 11.5).
 integration-test-cloud: lab-build
 	@set -e; for s in $(LAB_SCENARIOS); do \
 		echo "=== $$s ==="; \
-		$(LAB_BIN) --mode test --scenario $$s --lab-root $(LAB_ROOT) \
+		$(LAB_ENV_PREFIX) $(LAB_BIN) --mode test --scenario $$s --lab-root $(LAB_ROOT) \
 			--terraform $(TERRAFORM) --bellu $(BELLU_BIN); \
 	done
 
@@ -49,6 +56,6 @@ integration-test-cloud: lab-build
 destroy-all: lab-build
 	@set -e; for s in $(LAB_SCENARIOS); do \
 		echo "=== destroy $$s ==="; \
-		$(LAB_BIN) --mode down --scenario $$s --lab-root $(LAB_ROOT) \
+		$(LAB_ENV_PREFIX) $(LAB_BIN) --mode down --scenario $$s --lab-root $(LAB_ROOT) \
 			--terraform $(TERRAFORM) --bellu $(BELLU_BIN) || true; \
 	done
