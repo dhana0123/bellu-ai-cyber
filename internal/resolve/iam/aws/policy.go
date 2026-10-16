@@ -36,6 +36,9 @@ type Statement struct {
 	Action    stringOrSlice `json:"Action"`
 	NotAction stringOrSlice `json:"NotAction"`
 	Resource  stringOrSlice `json:"Resource"`
+	// Principal is populated for trust policies (assume_role_policy_std); it is
+	// ignored by resource-access evaluation. See trust.go.
+	Principal principalValue `json:"Principal"`
 }
 
 // ParsePolicy parses a policy document from JSON bytes. Steampipe exposes
@@ -58,14 +61,32 @@ func ParsePolicy(raw json.RawMessage) (*PolicyDocument, error) {
 }
 
 // EvaluateS3 returns the access level an identity's policy grants on a given
-// S3 bucket ARN, plus the concrete allowed actions matched. Explicit Deny
-// overrides Allow. NotAction is treated conservatively (ignored for granting).
+// S3 bucket ARN, plus the concrete allowed actions matched. It is a thin shim
+// over the generalized Evaluate using the "s3" catalog, preserving the exact
+// S3 behavior (and all existing S3 tests).
 func EvaluateS3(doc *PolicyDocument, bucketARN string) (Access, []string) {
+	return Evaluate(doc, bucketARN, Catalogs["s3"])
+}
+
+// Evaluate returns the access level an identity's policy grants on a target
+// resource ARN, plus the concrete allowed actions matched, for the resource
+// kind described by cat. It is resource-kind-agnostic: the matching and
+// classification logic is identical for every kind; only the ActionCatalog
+// data differs.
+//
+// Rules (same as the historical S3 evaluator):
+//   - A statement grants only when its Resource matches one of the target's
+//     resource forms (resourceMatchesAny / wildcard matching).
+//   - NotAction statements (no Action) are treated conservatively: ignored for
+//     granting.
+//   - Wildcard actions are expanded via the catalog's Representative list.
+//   - Explicit Deny overrides Allow (R5.5).
+//   - Classification follows admin > write > read precedence (R5.2).
+func Evaluate(doc *PolicyDocument, targetARN string, cat ActionCatalog) (Access, []string) {
 	if doc == nil {
 		return AccessNone, nil
 	}
-	// Resources covered by this bucket: the bucket and its objects.
-	targets := []string{bucketARN, bucketARN + "/*"}
+	targets := cat.ResourceForms(targetARN)
 
 	allowed := map[string]bool{}
 	denied := map[string]bool{}
@@ -80,16 +101,16 @@ func EvaluateS3(doc *PolicyDocument, bucketARN string) (Access, []string) {
 			continue
 		}
 		for _, act := range st.Action {
-			if !isS3Action(act) {
+			if !cat.matchesAction(act) {
 				continue
 			}
 			switch strings.ToLower(st.Effect) {
 			case "allow":
-				for _, concrete := range expandS3Action(act) {
+				for _, concrete := range cat.expandAction(act) {
 					allowed[concrete] = true
 				}
 			case "deny":
-				for _, concrete := range expandS3Action(act) {
+				for _, concrete := range cat.expandAction(act) {
 					denied[concrete] = true
 				}
 			}
@@ -108,73 +129,7 @@ func EvaluateS3(doc *PolicyDocument, bucketARN string) (Access, []string) {
 	for a := range allowed {
 		actions = append(actions, a)
 	}
-	return classify(allowed), actions
-}
-
-// classify maps a set of allowed S3 actions to an access level.
-func classify(allowed map[string]bool) Access {
-	// Admin: full control / policy / ACL management.
-	for a := range allowed {
-		la := strings.ToLower(a)
-		if la == "s3:*" || strings.Contains(la, "putbucketpolicy") ||
-			strings.Contains(la, "putbucketacl") || strings.Contains(la, "deletebucket") ||
-			la == "s3:putaccountpublicaccessblock" {
-			return AccessAdmin
-		}
-	}
-	// Write: any mutating object/bucket action.
-	for a := range allowed {
-		if isWriteAction(a) {
-			return AccessWrite
-		}
-	}
-	// Otherwise read.
-	return AccessRead
-}
-
-func isWriteAction(a string) bool {
-	la := strings.ToLower(a)
-	for _, w := range []string{"put", "delete", "create", "write", "restore", "replicate"} {
-		if strings.Contains(la, w) {
-			return true
-		}
-	}
-	return false
-}
-
-// expandS3Action expands a wildcard like "s3:*" or "s3:Get*" into the set of
-// representative actions we track. For non-wildcard actions it returns the
-// action itself.
-func expandS3Action(act string) []string {
-	if !strings.Contains(act, "*") {
-		return []string{act}
-	}
-	// Representative S3 action catalog used for classification.
-	catalog := []string{
-		"s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket", "s3:GetBucketLocation",
-		"s3:PutObject", "s3:DeleteObject", "s3:RestoreObject",
-		"s3:PutBucketPolicy", "s3:PutBucketAcl", "s3:DeleteBucket",
-	}
-	if act == "s3:*" {
-		return append(catalog, "s3:*")
-	}
-	// Prefix wildcard, e.g. s3:Get*
-	prefix := strings.TrimSuffix(act, "*")
-	var out []string
-	for _, c := range catalog {
-		if strings.HasPrefix(strings.ToLower(c), strings.ToLower(prefix)) {
-			out = append(out, c)
-		}
-	}
-	if len(out) == 0 {
-		out = []string{act}
-	}
-	return out
-}
-
-func isS3Action(act string) bool {
-	la := strings.ToLower(act)
-	return la == "*" || strings.HasPrefix(la, "s3:")
+	return cat.classify(allowed), actions
 }
 
 // resourceMatchesAny reports whether any policy resource pattern matches any

@@ -50,6 +50,15 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 	accountNode := map[string]bool{} // account id -> a CloudAccount node exists
 	var firstAcctEvidence *rawevent.RawEvent
 
+	// Pre-scan instance-profile -> role mappings (R3.3-R3.4) so the ec2 branch
+	// can resolve an instance profile ARN to the roles it actually contains,
+	// regardless of event order.
+	ipMapper := iam.NewInstanceProfileMapper(instanceProfileRoles(events))
+
+	// Track whether any wildcard CAN_ASSUME grant was emitted so we emit the
+	// synthetic "any identity" principal exactly once (R4.4).
+	anyIdentityNeeded := false
+
 	for _, e := range events {
 		if e.Provider != "aws" {
 			continue
@@ -79,8 +88,44 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 				policies: extractPolicies(attrs),
 				ev:       e,
 			})
+			// Trust analysis (R4): parse the role's assume_role_policy_std and
+			// emit CAN_ASSUME edges (principal -> role). Users have no trust
+			// policy; the branch is simply a no-op for them.
+			if e.ResourceType == "aws_iam_role" {
+				for _, g := range analyzeTrust(attrs) {
+					if g.PrincipalKey == iam.AnyIdentityKey {
+						anyIdentityNeeded = true
+					}
+					res.Edges = append(res.Edges, canAssumeEdge(e, g, ent.Key))
+				}
+			}
 		case "aws_s3_bucket":
-			ent := awsDataStore(e, attrs)
+			ent := awsDataStoreSub(e, attrs, "s3_bucket")
+			res.Entities = append(res.Entities, ent)
+			buckets = append(buckets, ent)
+			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
+		case "aws_rds_db_instance":
+			ent := awsDataStoreSub(e, attrs, "rds_instance")
+			res.Entities = append(res.Entities, ent)
+			buckets = append(buckets, ent)
+			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
+		case "aws_rds_db_cluster":
+			ent := awsDataStoreSub(e, attrs, "rds_cluster")
+			res.Entities = append(res.Entities, ent)
+			buckets = append(buckets, ent)
+			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
+		case "aws_dynamodb_table":
+			ent := awsDataStoreSub(e, attrs, "dynamodb_table")
+			res.Entities = append(res.Entities, ent)
+			buckets = append(buckets, ent)
+			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
+		case "aws_efs_file_system":
+			ent := awsDataStoreSub(e, attrs, "efs_file_system")
+			res.Entities = append(res.Entities, ent)
+			buckets = append(buckets, ent)
+			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
+		case "aws_elasticache_cluster":
+			ent := awsDataStoreSub(e, attrs, "elasticache_cluster")
 			res.Entities = append(res.Entities, ent)
 			buckets = append(buckets, ent)
 			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
@@ -88,8 +133,15 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 			ent := awsCompute(e, attrs, "ec2")
 			res.Entities = append(res.Entities, ent)
 			res.Edges = append(res.Edges, containsEdge(e, ent.Key))
-			if role := instanceProfileRole(attrs); role != "" {
-				res.Edges = append(res.Edges, usesEdge(e, ent.Key, role))
+			if profileARN, ok := attrs["iam_instance_profile_arn"].(string); ok && profileARN != "" {
+				roles, conf, fallback := ipMapper.Resolve(profileARN)
+				for _, role := range roles {
+					var at map[string]any
+					if fallback {
+						at = map[string]any{"method": "name_substitution"}
+					}
+					res.Edges = append(res.Edges, usesEdgeConf(e, ent.Key, role, conf, at))
+				}
 			}
 		case "aws_lambda_function":
 			ent := awsCompute(e, attrs, "lambda")
@@ -118,18 +170,22 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 			}
 		case "aws_vpc_security_group":
 			if sgOpenToWorld(attrs) {
-				// Represent the SG and the internet as NetworkEndpoints so the
-				// EXPOSED_TO edge resolves and is queryable in V1.
-				sg := model.Entity{
-					Kind: model.KindNetworkEndpoint, Key: e.ResourceID, Provider: "aws",
-					Name: e.ResourceID, Attributes: attrs, Evidence: EvidenceFrom(e),
-				}
+				// SG-node reconciliation (TASK 10): the SG is now owned by the
+				// AWSNetwork normalizer as a KindNetwork node (network_subtype
+				// security_group) keyed by e.ResourceID, so MEMBER_OF edges can
+				// target it. We deliberately DO NOT emit the SG as a
+				// KindNetworkEndpoint here: two entities sharing a raw key with
+				// different kinds would collide in the resolver's keyIndex and
+				// produce competing nodes. Instead aws.go keeps only the
+				// internet NetworkEndpoint + the EXPOSED_TO edge; its SrcKey is
+				// the SG's e.ResourceID, which resolves to the AWSNetwork-owned
+				// SG Network node.
 				internet := model.Entity{
 					Kind: model.KindNetworkEndpoint, Key: "0.0.0.0/0", Provider: "network",
 					Name: "internet (0.0.0.0/0)", Attributes: map[string]any{"cidr": "0.0.0.0/0"},
 					Evidence: EvidenceFrom(e),
 				}
-				res.Entities = append(res.Entities, sg, internet)
+				res.Entities = append(res.Entities, internet)
 				res.Edges = append(res.Edges, exposedToEdges(e, attrs)...)
 			}
 		case "aws_bedrock_custom_model", "aws_sagemaker_model":
@@ -139,10 +195,19 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 		}
 	}
 
-	// Second pass: IAM permission edges (identity -> S3), approximate.
+	// Second pass: IAM permission edges (identity -> DataStore), approximate.
+	// Generalized beyond S3 (R5.1, R7): every discovered DataStore whose
+	// service has a Catalogs entry is evaluated with the generic Evaluate using
+	// that service's action catalog. Stores without a catalog produce no edge
+	// (R5.8).
 	for _, ip := range identities {
 		for _, b := range buckets {
-			bucketARN := b.Key
+			service := dataStoreService(b)
+			cat, ok := iam.Catalogs[service]
+			if !ok {
+				continue
+			}
+			storeARN := b.Key
 			var best iam.Access
 			var bestActions []string
 			for _, pol := range ip.policies {
@@ -150,7 +215,7 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 				if err != nil {
 					continue
 				}
-				acc, actions := iam.EvaluateS3(doc, bucketARN)
+				acc, actions := iam.Evaluate(doc, storeARN, cat)
 				best = maxAccess(best, acc)
 				if len(actions) > len(bestActions) {
 					bestActions = actions
@@ -159,7 +224,7 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 			if best == iam.AccessNone {
 				continue
 			}
-			res.Edges = append(res.Edges, accessEdge(ip.ev, ip.roleKey, bucketARN, best, bestActions))
+			res.Edges = append(res.Edges, accessEdge(ip.ev, ip.roleKey, storeARN, best, bestActions))
 		}
 	}
 
@@ -202,7 +267,47 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 		accountNode[acct] = true
 	}
 
+	// Emit the synthetic "any identity" principal once if any wildcard
+	// CAN_ASSUME grant was produced, so the edge resolves (analog to the
+	// synthetic internet NetworkEndpoint). R4.4.
+	if anyIdentityNeeded {
+		res.Entities = append(res.Entities, model.Entity{
+			Kind: model.KindIdentity, Key: iam.AnyIdentityKey, Provider: "aws",
+			Name:       "any identity (*)",
+			Attributes: map[string]any{"synthetic": true, "unscoped": true},
+		})
+	}
+
 	return res, nil
+}
+
+// analyzeTrust parses a role's assume_role_policy_std document and returns the
+// CAN_ASSUME grants it implies. An unparseable/absent trust policy yields no
+// grants, non-fatally (R4).
+func analyzeTrust(attrs map[string]any) []iam.AssumeGrant {
+	raw, ok := attrs["assume_role_policy_std"]
+	if !ok || raw == nil {
+		return nil
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	doc, err := iam.ParsePolicy(b)
+	if err != nil {
+		return nil
+	}
+	return iam.AnalyzeTrustPolicy("", doc)
+}
+
+// canAssumeEdge builds a CAN_ASSUME edge from a trust grant's principal to the
+// role. Named-principal grants carry confidence 1.0; account-root and wildcard
+// grants carry 0.7 with their provider-neutral trust attributes.
+func canAssumeEdge(e rawevent.RawEvent, g iam.AssumeGrant, roleKey string) model.Edge {
+	return model.Edge{
+		Relation: model.RelCanAssume, SrcKey: g.PrincipalKey, DstKey: roleKey,
+		Attributes: g.Attributes, Confidence: g.Confidence, Evidence: EvidenceFrom(e),
+	}
 }
 
 // ---- entity builders ----
@@ -287,6 +392,43 @@ func awsDataStore(e rawevent.RawEvent, attrs map[string]any) model.Entity {
 	}
 }
 
+// awsDataStoreSub builds a DataStore entity tagged with a datastore_subtype
+// attribute (parallel to compute_subtype on Compute), so the different AWS data
+// stores are distinguishable on one shared Kind (R7.1-R7.5).
+func awsDataStoreSub(e rawevent.RawEvent, attrs map[string]any, subtype string) model.Entity {
+	ent := awsDataStore(e, attrs)
+	if ent.Attributes == nil {
+		ent.Attributes = map[string]any{}
+	}
+	ent.Attributes["datastore_subtype"] = subtype
+	return ent
+}
+
+// dataStoreService derives the IAM/catalog service key for a DataStore from its
+// datastore_subtype (preferred) or its ARN service segment, so the generalized
+// IAM evaluator can look up the right ActionCatalog (R5.1, R7). Returns "" when
+// no catalog service applies.
+func dataStoreService(ent model.Entity) string {
+	sub, _ := ent.Attributes["datastore_subtype"].(string)
+	switch {
+	case strings.HasPrefix(sub, "s3"):
+		return "s3"
+	case strings.HasPrefix(sub, "rds"):
+		return "rds"
+	case strings.HasPrefix(sub, "dynamodb"):
+		return "dynamodb"
+	case strings.HasPrefix(sub, "efs"):
+		return "efs"
+	case strings.HasPrefix(sub, "elasticache"):
+		return "elasticache"
+	}
+	// Fall back to the ARN service segment (arn:aws:<service>:...).
+	if parts := strings.SplitN(ent.Key, ":", 6); len(parts) >= 3 {
+		return parts[2]
+	}
+	return ""
+}
+
 func awsCompute(e rawevent.RawEvent, attrs map[string]any, subtype string) model.Entity {
 	a := attrs
 	a["compute_subtype"] = subtype
@@ -354,6 +496,17 @@ func usesEdge(e rawevent.RawEvent, computeKey, roleKey string) model.Edge {
 	return model.Edge{
 		Relation: model.RelUses, SrcKey: computeKey, DstKey: roleKey,
 		Confidence: 1.0, Evidence: EvidenceFrom(e),
+	}
+}
+
+// usesEdgeConf is usesEdge with an explicit confidence and optional attributes,
+// used for instance-profile-derived USES edges whose confidence depends on
+// whether the role came from collected mapping data (1.0) or the
+// name-substitution fallback (0.7).
+func usesEdgeConf(e rawevent.RawEvent, computeKey, roleKey string, confidence float64, attrs map[string]any) model.Edge {
+	return model.Edge{
+		Relation: model.RelUses, SrcKey: computeKey, DstKey: roleKey,
+		Attributes: attrs, Confidence: confidence, Evidence: EvidenceFrom(e),
 	}
 }
 
@@ -449,13 +602,43 @@ func policyDocsFrom(v any) []json.RawMessage {
 	}
 }
 
-func instanceProfileRole(attrs map[string]any) string {
-	if iam, ok := attrs["iam_instance_profile_arn"].(string); ok && iam != "" {
-		// Instance profile ARN -> role name is approximate; return profile ARN
-		// so the edge still links. In practice the role share the name.
-		return strings.Replace(iam, ":instance-profile/", ":role/", 1)
+// instanceProfileRoles builds a map of instance-profile ARN -> contained role
+// ARNs from aws_iam_instance_profile events (R3.4). It reads the Steampipe
+// `roles` column (an array of role objects, each carrying an Arn), falling back
+// to a `role_arns` string array when present.
+func instanceProfileRoles(events []rawevent.RawEvent) map[string][]string {
+	out := map[string][]string{}
+	for _, e := range events {
+		if e.Provider != "aws" || e.ResourceType != "aws_iam_instance_profile" {
+			continue
+		}
+		attrs := payloadMap(e)
+		profileARN := firstNonEmpty(stringAttr(attrs, "arn"), e.ResourceID)
+		if profileARN == "" {
+			continue
+		}
+		var roleARNs []string
+		if roles, ok := attrs["roles"].([]any); ok {
+			for _, r := range roles {
+				rm, ok := r.(map[string]any)
+				if !ok {
+					continue
+				}
+				if arn := firstNonEmpty(stringAttr(rm, "Arn"), stringAttr(rm, "arn")); arn != "" {
+					roleARNs = append(roleARNs, arn)
+				}
+			}
+		}
+		for _, arn := range toStringSlice(attrs["role_arns"]) {
+			if arn != "" {
+				roleARNs = append(roleARNs, arn)
+			}
+		}
+		if len(roleARNs) > 0 {
+			out[iam.NormalizeProfileARN(profileARN)] = roleARNs
+		}
 	}
-	return ""
+	return out
 }
 
 func taskImageDigests(attrs map[string]any) []string {

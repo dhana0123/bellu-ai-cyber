@@ -126,7 +126,9 @@ func isReadAction(action string) bool {
 		return false
 	}
 	verb := action[i+1:]
-	for _, pfx := range []string{"Describe", "List", "Get", "GenerateCredentialReport", "GenerateServiceLastAccessedDetails"} {
+	// "GET" is the API Gateway read verb (apigateway:GET); it is read-only like
+	// the Describe/List/Get families.
+	for _, pfx := range []string{"Describe", "List", "Get", "GET", "GenerateCredentialReport", "GenerateServiceLastAccessedDetails"} {
 		if strings.HasPrefix(verb, pfx) {
 			return true
 		}

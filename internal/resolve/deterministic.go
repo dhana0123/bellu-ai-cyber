@@ -34,8 +34,31 @@ type Deterministic struct {
 	RepoImageMappings map[string]string
 
 	// Captured outputs for persistence/inspection.
-	Aliases   []Alias
-	Conflicts []Conflict
+	Aliases    []Alias
+	Conflicts  []Conflict
+	Unresolved []UnresolvedEdge
+	Dropped    []DroppedEntity
+}
+
+// UnresolvedEdge records one edge the resolver excluded because its source
+// key, destination key, or both did not match any known entity. Visibility,
+// not auto-repair: the edge is still dropped, but the drop is queryable.
+type UnresolvedEdge struct {
+	Relation      string
+	SrcKey        string
+	DstKey        string
+	UnmatchedSide string // "src" | "dst" | "both"
+	EvidenceID    string
+	RunID         string
+}
+
+// DroppedEntity records one entity a normalizer produced with an empty Key,
+// which cannot be indexed and is therefore excluded from resolution.
+type DroppedEntity struct {
+	Kind       string
+	Provider   string
+	EvidenceID string
+	RunID      string
 }
 
 // NewDeterministic returns a resolver with optional repo->image fallback
@@ -48,6 +71,8 @@ func NewDeterministic(mappings map[string]string) *Deterministic {
 func (d *Deterministic) Resolve(in normalize.Result) (normalize.Result, error) {
 	d.Aliases = nil
 	d.Conflicts = nil
+	d.Unresolved = nil
+	d.Dropped = nil
 
 	// keyIndex maps BOTH the raw key and the normalized key to the canonical id
 	// so edges referencing either form resolve.
@@ -63,6 +88,13 @@ func (d *Deterministic) Resolve(in normalize.Result) (normalize.Result, error) {
 	for i := range in.Entities {
 		ent := in.Entities[i]
 		if ent.Key == "" {
+			// Visibility (R1.4): an entity with no strong key cannot be
+			// indexed; record it before excluding it from resolution.
+			evID, runID := firstEvidence(ent.Evidence)
+			d.Dropped = append(d.Dropped, DroppedEntity{
+				Kind: string(ent.Kind), Provider: ent.Provider,
+				EvidenceID: evID, RunID: runID,
+			})
 			continue
 		}
 		normKey := NormalizeKey(ent.Kind, ent.Provider, ent.Key)
@@ -123,6 +155,22 @@ func (d *Deterministic) Resolve(in normalize.Result) (normalize.Result, error) {
 		srcID, okS := d.resolveEndpointIP(keyIndex, merged, ipOwner, edge.SrcKey)
 		dstID, okD := d.resolveEndpointIP(keyIndex, merged, ipOwner, edge.DstKey)
 		if !okS || !okD {
+			// Visibility (R1.1-R1.3): record the unresolved edge, then still
+			// exclude it from the resolved output. Side semantics: src fails
+			// (dst ok) -> "src"; dst fails (src ok) -> "dst"; both fail ->
+			// "both".
+			side := "both"
+			switch {
+			case !okS && okD:
+				side = "src"
+			case okS && !okD:
+				side = "dst"
+			}
+			evID, runID := firstEvidence(edge.Evidence)
+			d.Unresolved = append(d.Unresolved, UnresolvedEdge{
+				Relation: string(edge.Relation), SrcKey: edge.SrcKey, DstKey: edge.DstKey,
+				UnmatchedSide: side, EvidenceID: evID, RunID: runID,
+			})
 			continue
 		}
 		edge.SrcCanonicalID = srcID
@@ -212,6 +260,15 @@ func builtFromEdge(img *model.Entity, repoCID, imgCID, method string) model.Edge
 		Confidence:     0.7, // weakest link
 		Evidence:       img.Evidence,
 	}
+}
+
+// firstEvidence returns the raw-event id and run id of the first evidence
+// entry, or empty strings when there is none.
+func firstEvidence(ev []model.Evidence) (rawEventID, runID string) {
+	if len(ev) == 0 {
+		return "", ""
+	}
+	return ev[0].RawEventID, ev[0].RunID
 }
 
 func imageRepoLabel(ent *model.Entity) string {

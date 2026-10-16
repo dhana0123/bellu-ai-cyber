@@ -37,6 +37,8 @@ func NewProcessor(resolveMappingsPath, agentRulesPath string) *Processor {
 	r := normalize.NewRegistry()
 	r.Register(normalize.CycloneDX{})
 	r.Register(normalize.AWS{})
+	r.Register(normalize.AWSNetwork{})
+	r.Register(normalize.AWSEntryPoint{})
 	r.Register(normalize.Azure{})
 	r.Register(normalize.GCP{})
 	r.Register(normalize.K8s{})
@@ -56,9 +58,11 @@ func NewProcessor(resolveMappingsPath, agentRulesPath string) *Processor {
 type ProcessResult struct {
 	Entities  int
 	Edges     int
-	Aliases   int
-	Conflicts int
-	Agents    int
+	Aliases    int
+	Conflicts  int
+	Agents     int
+	Unresolved int
+	Dropped    int
 	// CanonicalIDs are the canonical ids of every entity persisted in this run,
 	// so callers can tag them (e.g. map to a project).
 	CanonicalIDs []string
@@ -104,6 +108,8 @@ func (p *Processor) Process(ctx context.Context, st *store.Store, events []rawev
 		Aliases:      len(p.resolver.Aliases),
 		Conflicts:    len(p.resolver.Conflicts),
 		Agents:       len(agentEnts),
+		Unresolved:   len(p.resolver.Unresolved),
+		Dropped:      len(p.resolver.Dropped),
 		CanonicalIDs: ids,
 	}
 	return out, nil
@@ -132,9 +138,23 @@ func (p *Processor) Sync(ctx context.Context, st *store.Store, w *graph.Writer) 
 	if err != nil {
 		return 0, 0, fmt.Errorf("sync entities: %w", err)
 	}
-	nr, err := w.SyncEdges(ctx, eds)
+	nr, gaps, err := w.SyncEdgesWithGaps(ctx, eds)
 	if err != nil {
 		return 0, 0, fmt.Errorf("sync edges: %w", err)
+	}
+	// Visibility (R2.3): persist any graph-write gaps. The graph package stays
+	// free of a Postgres dependency; the pipeline owns persistence.
+	if len(gaps) > 0 {
+		rows := make([]store.GraphWriteGapRow, 0, len(gaps))
+		for _, g := range gaps {
+			rows = append(rows, store.GraphWriteGapRow{
+				Relation: g.Relation, SyncRunID: g.SyncRunID,
+				BatchSize: g.BatchSize, Observed: g.Observed,
+			})
+		}
+		if err := st.SaveGraphWriteGaps(ctx, rows); err != nil {
+			return ne, nr, fmt.Errorf("persist graph write gaps: %w", err)
+		}
 	}
 	return ne, nr, nil
 }
@@ -151,7 +171,29 @@ func (p *Processor) persistResolution(ctx context.Context, st *store.Store) erro
 	for _, c := range p.resolver.Conflicts {
 		conflicts = append(conflicts, store.ConflictRow{Key: c.Key, Reason: c.Reason, Detail: c.Detail})
 	}
-	return st.SaveConflicts(ctx, conflicts)
+	if err := st.SaveConflicts(ctx, conflicts); err != nil {
+		return err
+	}
+
+	// Visibility records (R1.5, R1.6): persist unresolved edges and dropped
+	// entities so silent link loss becomes queryable.
+	unresolved := make([]store.UnresolvedEdgeRow, 0, len(p.resolver.Unresolved))
+	for _, u := range p.resolver.Unresolved {
+		unresolved = append(unresolved, store.UnresolvedEdgeRow{
+			Relation: u.Relation, SrcKey: u.SrcKey, DstKey: u.DstKey,
+			UnmatchedSide: u.UnmatchedSide, EvidenceID: u.EvidenceID, RunID: u.RunID,
+		})
+	}
+	if err := st.SaveUnresolvedEdges(ctx, unresolved); err != nil {
+		return err
+	}
+	dropped := make([]store.DroppedEntityRow, 0, len(p.resolver.Dropped))
+	for _, dd := range p.resolver.Dropped {
+		dropped = append(dropped, store.DroppedEntityRow{
+			Kind: dd.Kind, Provider: dd.Provider, EvidenceID: dd.EvidenceID, RunID: dd.RunID,
+		})
+	}
+	return st.SaveDroppedEntities(ctx, dropped)
 }
 
 var _ = model.Entity{}

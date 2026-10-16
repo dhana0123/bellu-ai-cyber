@@ -30,6 +30,14 @@ const (
 	KindAIService       Kind = "AIService"
 	KindNetworkEndpoint Kind = "NetworkEndpoint"
 	KindExternalService Kind = "ExternalService"
+	// KindNetwork is a cloud networking construct (VPC, subnet, route table,
+	// gateway, peering connection, network interface, security group, ...),
+	// distinguished by a provider-neutral network_subtype attribute. The
+	// subtype vocabulary is open-ended so GCP/Azure constructs are additive.
+	KindNetwork Kind = "Network"
+	// KindEntryPoint is a resource that accepts traffic from outside the
+	// account's network boundary (e.g. an API Gateway REST or HTTP API).
+	KindEntryPoint Kind = "EntryPoint"
 )
 
 // AllKinds is the vetted allow-list of node labels. The graph writer only ever
@@ -39,6 +47,7 @@ var AllKinds = []Kind{
 	KindWorkload, KindContainerImage, KindRepository, KindPackage,
 	KindVulnerability, KindAIAgent, KindAIModel, KindPrompt, KindMCPServer,
 	KindAIService, KindNetworkEndpoint, KindExternalService,
+	KindNetwork, KindEntryPoint,
 }
 
 // Relation is a canonical edge type.
@@ -61,6 +70,21 @@ const (
 	RelConnectsTo      Relation = "CONNECTS_TO"
 	RelResolvesTo      Relation = "RESOLVES_TO"
 	RelExposedTo       Relation = "EXPOSED_TO"
+	// RelCanAssume: one identity may assume another (e.g. sts:AssumeRole).
+	// Provider-neutral: GCP SA impersonation / Azure managed-identity trust
+	// emit the same relation.
+	RelCanAssume Relation = "CAN_ASSUME"
+	// RelRoutesTo: a route table entry directs traffic to a target gateway or
+	// peering/transit attachment.
+	RelRoutesTo Relation = "ROUTES_TO"
+	// RelPeersWith: two VPCs are connected by an active peering connection.
+	RelPeersWith Relation = "PEERS_WITH"
+	// RelMemberOf: a resource or network interface is a member of a security
+	// group.
+	RelMemberOf Relation = "MEMBER_OF"
+	// RelAttachedTo: a network interface is attached to a resource, or a subnet
+	// is associated with a route table.
+	RelAttachedTo Relation = "ATTACHED_TO"
 )
 
 // AllRelations is the vetted allow-list of relationship types.
@@ -68,7 +92,8 @@ var AllRelations = []Relation{
 	RelContains, RelRunsIn, RelRunsImage, RelBuiltFrom, RelDependsOn,
 	RelHasVuln, RelUses, RelAuthenticatesAs, RelCanRead, RelCanWrite,
 	RelCanAdmin, RelCalls, RelUsesModel, RelConnectsTo, RelResolvesTo,
-	RelExposedTo,
+	RelExposedTo, RelCanAssume, RelRoutesTo, RelPeersWith, RelMemberOf,
+	RelAttachedTo,
 }
 
 var (

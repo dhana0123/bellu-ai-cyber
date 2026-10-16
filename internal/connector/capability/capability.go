@@ -119,6 +119,8 @@ var Catalog = map[Capability]Definition{
 			"ecr:Describe*",
 			"ecr:List*",
 			"ecr:GetRepositoryPolicy",
+			// aws_api_gateway_rest_api / aws_api_gatewayv2_api: read via GET.
+			"apigateway:GET",
 		},
 	},
 	DSPM: {
@@ -132,6 +134,10 @@ var Catalog = map[Capability]Definition{
 			"rds:ListTagsForResource",
 			"dynamodb:ListTables",
 			"dynamodb:DescribeTable",
+			// aws_efs_file_system: DescribeFileSystems (+ policy/mount targets).
+			"elasticfilesystem:Describe*",
+			// aws_elasticache_cluster: DescribeCacheClusters (+ replication groups).
+			"elasticache:Describe*",
 		},
 	},
 	AI: {

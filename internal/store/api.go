@@ -10,6 +10,9 @@ type Stats struct {
 	Edges        int64            `json:"edges"`
 	Runs         int64            `json:"runs"`
 	Conflicts    int64            `json:"conflicts"`
+	UnresolvedEdges int64         `json:"unresolved_edges"`
+	DroppedEntities int64         `json:"dropped_entities"`
+	GraphWriteGaps  int64         `json:"graph_write_gaps"`
 	EntitiesByKind map[string]int64 `json:"entities_by_kind"`
 	EdgesByRelation map[string]int64 `json:"edges_by_relation"`
 }
@@ -36,6 +39,15 @@ func (s *Store) GetStats(ctx context.Context) (*Stats, error) {
 		return nil, err
 	}
 	if err := scalar(`SELECT count(*) FROM resolution_conflicts`, &st.Conflicts); err != nil {
+		return nil, err
+	}
+	if err := scalar(`SELECT count(*) FROM unresolved_edges`, &st.UnresolvedEdges); err != nil {
+		return nil, err
+	}
+	if err := scalar(`SELECT count(*) FROM dropped_entities`, &st.DroppedEntities); err != nil {
+		return nil, err
+	}
+	if err := scalar(`SELECT count(*) FROM graph_write_gaps`, &st.GraphWriteGaps); err != nil {
 		return nil, err
 	}
 

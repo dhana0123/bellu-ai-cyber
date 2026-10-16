@@ -31,6 +31,11 @@ tables:
     scope_column: account_id
     capability: core
 
+  - table: aws_iam_instance_profile
+    id_column: arn
+    scope_column: account_id
+    capability: core
+
   - table: aws_s3_bucket
     id_column: arn
     scope_column: account_id
@@ -45,6 +50,56 @@ tables:
 
   - table: aws_vpc_security_group
     id_column: group_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  # AWS network topology (R6.9). All read by ec2:Describe*, already in Core, so
+  # they reuse the core capability (no new IAM permission required).
+  - table: aws_vpc
+    id_column: vpc_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_subnet
+    id_column: subnet_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_route_table
+    id_column: route_table_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_internet_gateway
+    id_column: internet_gateway_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_nat_gateway
+    id_column: nat_gateway_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_peering_connection
+    id_column: id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_ec2_network_interface
+    id_column: network_interface_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_ec2_transit_gateway
+    id_column: transit_gateway_id
     scope_column: account_id
     region_column: region
     capability: core
@@ -69,6 +124,50 @@ tables:
 
   - table: aws_lambda_function
     id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  # Additional data stores (R7.7), DSPM-gated.
+  - table: aws_rds_db_instance
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_rds_db_cluster
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_dynamodb_table
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_efs_file_system
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_elasticache_cluster
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  # Internet entry points (R8.7), workload-gated (API Gateway GET).
+  - table: aws_api_gateway_rest_api
+    id_column: api_id
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  - table: aws_api_gatewayv2_api
+    id_column: api_id
     scope_column: account_id
     region_column: region
     capability: workload

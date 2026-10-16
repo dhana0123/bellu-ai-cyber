@@ -25,20 +25,25 @@ func TestCatalogCoversSteampipeAWSTables(t *testing.T) {
 		t.Fatalf("load steampipe aws catalog: %v", err)
 	}
 
-	// The capabilities a default connection enables. Discovery runs with these,
-	// so every queried table's service must be covered by their union.
-	granted := grantedServices(DefaultSelection())
-
-	// Map a Steampipe table name to the IAM service that authorizes it. The
-	// prefix after "aws_" is usually the IAM service, with a few known aliases.
+	// Gating is a scan-time concern: a table is collected only when the
+	// capability it declares is enabled. The guard therefore checks that each
+	// table's OWN declared capability grants a permission for that table's
+	// service. (Core/ungated tables are validated against the always-on Core
+	// bundle.) This keeps opt-in capabilities like DSPM meaningful instead of
+	// forcing their tables' services into the default set.
 	for _, tbl := range cat.Tables {
 		svc := iamServiceForTable(tbl.Table)
 		if svc == "" {
 			t.Errorf("table %q: could not derive an IAM service prefix", tbl.Table)
 			continue
 		}
+		cap := tbl.Capability
+		if cap == "" {
+			cap = string(Core)
+		}
+		granted := grantedServices([]string{string(Core), cap})
 		if !granted[svc] {
-			t.Errorf("table %q needs IAM service %q, but no enabled capability grants it — add a permission to the capability catalog (capability.go)", tbl.Table, svc)
+			t.Errorf("table %q (capability %q) needs IAM service %q, but that capability grants no permission for it — add a permission to the capability catalog (capability.go)", tbl.Table, cap, svc)
 		}
 	}
 }
@@ -78,6 +83,18 @@ func iamServiceForTable(table string) string {
 	case "aws_vpc_security_group":
 		// VPC security groups are authorized by ec2:DescribeSecurityGroups.
 		return "ec2"
+	case "aws_vpc", "aws_subnet", "aws_vpc_route_table", "aws_vpc_internet_gateway",
+		"aws_vpc_nat_gateway", "aws_vpc_peering_connection":
+		// VPC topology tables are authorized by ec2:Describe* (DescribeVpcs,
+		// DescribeSubnets, DescribeRouteTables, DescribeInternetGateways,
+		// DescribeNatGateways, DescribeVpcPeeringConnections).
+		return "ec2"
+	case "aws_efs_file_system":
+		// EFS is authorized by elasticfilesystem:Describe*.
+		return "elasticfilesystem"
+	case "aws_api_gateway_rest_api", "aws_api_gatewayv2_api":
+		// API Gateway is authorized by apigateway:GET.
+		return "apigateway"
 	}
 	// Default: first path segment is the IAM service (iam, s3, ec2, eks, ecs,
 	// ecr, lambda, bedrock, sagemaker, ...).

@@ -10,11 +10,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/bellu/bellu-ai-cyber/internal/model"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
+
+// WriteGap records one edge batch for which Memgraph created or matched fewer
+// relationships than were submitted — i.e. at least one endpoint node was
+// absent. Recorded for visibility (R2); never fatal.
+type WriteGap struct {
+	Relation  string
+	SyncRunID string
+	BatchSize int
+	Observed  int
+}
 
 // Writer syncs entities and edges into Memgraph.
 type Writer struct {
@@ -133,11 +144,26 @@ func (w *Writer) SyncEntities(ctx context.Context, entities []store.GraphEntity)
 
 // SyncEdges writes edges in batches grouped by relation type. Evidence ids and
 // sources are unioned with any existing values on the edge.
+//
+// SyncEdges preserves the original signature (count, error) for existing
+// callers and the intelcorrelate.GraphWriter interface; it delegates to
+// SyncEdgesWithGaps and discards the gap records.
 func (w *Writer) SyncEdges(ctx context.Context, edges []store.GraphEdge) (int, error) {
+	total, _, err := w.SyncEdgesWithGaps(ctx, edges)
+	return total, err
+}
+
+// SyncEdgesWithGaps writes edges in batches grouped by relation type and
+// detects graph-write gaps (R2): because each batch does MATCH...MATCH...MERGE,
+// a row whose endpoint node is absent produces no relationship. The Cypher
+// returns the number of relationships actually created or matched; when that is
+// less than the batch size, one WriteGap is recorded and the sync continues
+// (non-fatal). All gaps from this call share one sync-run identifier.
+func (w *Writer) SyncEdgesWithGaps(ctx context.Context, edges []store.GraphEdge) (int, []WriteGap, error) {
 	byRel := map[model.Relation][]store.GraphEdge{}
 	for _, e := range edges {
 		if !model.ValidRelation(e.Relation) {
-			return 0, fmt.Errorf("graph: refusing unknown relation %q", e.Relation)
+			return 0, nil, fmt.Errorf("graph: refusing unknown relation %q", e.Relation)
 		}
 		byRel[e.Relation] = append(byRel[e.Relation], e)
 	}
@@ -145,7 +171,9 @@ func (w *Writer) SyncEdges(ctx context.Context, edges []store.GraphEdge) (int, e
 	sess := w.session(ctx)
 	defer sess.Close(ctx)
 
+	syncRunID := uuid.NewString()
 	total := 0
+	var gaps []WriteGap
 	for rel, es := range byRel {
 		// Relation type is from the allow-list, safe to interpolate.
 		cypher := fmt.Sprintf(`
@@ -160,7 +188,8 @@ func (w *Writer) SyncEdges(ctx context.Context, edges []store.GraphEdge) (int, e
 			    r.sources = row.sources,
 			    r.last_seen = timestamp(),
 			    r.stale = false,
-			    r += row.props`, rel)
+			    r += row.props
+			RETURN count(r) AS written`, rel)
 
 		for _, chunk := range chunkEdges(es, batchSize) {
 			rows := make([]map[string]any, 0, len(chunk))
@@ -174,13 +203,37 @@ func (w *Writer) SyncEdges(ctx context.Context, edges []store.GraphEdge) (int, e
 					"props":        scalarProps(e.Attributes),
 				})
 			}
-			if _, err := sess.Run(ctx, cypher, map[string]any{"rows": rows}); err != nil {
-				return total, fmt.Errorf("graph: sync %s: %w", rel, err)
+			res, err := sess.Run(ctx, cypher, map[string]any{"rows": rows})
+			if err != nil {
+				return total, gaps, fmt.Errorf("graph: sync %s: %w", rel, err)
+			}
+			written := readWrittenCount(ctx, res)
+			if written < len(chunk) {
+				// R2.2: an endpoint node was absent for at least one row. Record
+				// the gap and keep going (R2.4, R2.5).
+				gaps = append(gaps, WriteGap{
+					Relation: string(rel), SyncRunID: syncRunID,
+					BatchSize: len(chunk), Observed: written,
+				})
 			}
 			total += len(chunk)
 		}
 	}
-	return total, nil
+	return total, gaps, nil
+}
+
+// readWrittenCount drains the single-row RETURN count(r) result. Any read error
+// or missing value is treated as 0 written, which only widens gap detection
+// (never masks a gap).
+func readWrittenCount(ctx context.Context, res neo4j.ResultWithContext) int {
+	if res.Next(ctx) {
+		if v, ok := res.Record().Get("written"); ok {
+			if n, ok := v.(int64); ok {
+				return int(n)
+			}
+		}
+	}
+	return 0
 }
 
 // MarkStale sets stale=true on the given canonical IDs. Nothing is deleted;

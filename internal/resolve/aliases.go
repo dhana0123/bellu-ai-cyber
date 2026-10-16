@@ -22,10 +22,66 @@ func NormalizeKey(kind model.Kind, provider, key string) string {
 	case model.KindRepository:
 		return NormalizeRepoURL(key)
 	}
+	if provider == "aws" && strings.HasPrefix(key, "arn:") {
+		return normalizeAWSARN(key)
+	}
 	if provider == "azure" {
 		return strings.ToLower(key)
 	}
 	return key
+}
+
+// normalizeAWSARN canonicalizes an AWS ARN so that representational variants of
+// the same resource collapse to one comparable key (R3), WITHOUT folding the
+// case-sensitive resource-name segment (R3.6):
+//
+//   - Partition (R3.2): aws / aws-cn / aws-us-gov all canonicalize to "aws",
+//     since account id + resource id are the discriminators, not the partition.
+//   - IAM path (R3.1): for iam role/ and user/ resources, path segments between
+//     the resource type and the bare name are stripped, so
+//     arn:aws:iam::111122223333:role/team/app-role and
+//     arn:aws:iam::111122223333:role/app-role compare equal.
+//
+// The resource-name segment is never lowercased or wildcard-matched (R3.6):
+// S3 bucket names and IAM role/user names are case-sensitive. The function is
+// idempotent by construction.
+//
+// ARN form: arn:<partition>:<service>:<region>:<account>:<resource>
+// where <resource> may itself contain ':' or '/'.
+func normalizeAWSARN(arn string) string {
+	parts := strings.SplitN(arn, ":", 6)
+	if len(parts) < 6 || parts[0] != "arn" {
+		// Not a well-formed ARN; leave untouched.
+		return arn
+	}
+	// parts: ["arn", partition, service, region, account, resource]
+	parts[1] = "aws" // partition canonicalization (R3.2)
+	service := parts[2]
+	resource := parts[5]
+
+	if service == "iam" {
+		resource = stripIAMPath(resource)
+	}
+	parts[5] = resource
+	return strings.Join(parts, ":")
+}
+
+// stripIAMPath removes the path from an IAM resource of the form
+// "role/<path.../>name" or "user/<path.../>name", returning "role/name" /
+// "user/name". Other IAM resource types are returned unchanged. The resource
+// name's case is preserved.
+func stripIAMPath(resource string) string {
+	for _, prefix := range []string{"role/", "user/"} {
+		if strings.HasPrefix(resource, prefix) {
+			rest := strings.TrimPrefix(resource, prefix)
+			// The bare name is the final path segment.
+			if i := strings.LastIndex(rest, "/"); i >= 0 {
+				rest = rest[i+1:]
+			}
+			return prefix + rest
+		}
+	}
+	return resource
 }
 
 // normalizeImageKey reduces any image reference to its bare sha256 digest when
