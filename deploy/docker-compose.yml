@@ -184,6 +184,11 @@ services:
       # Where the connector writes per-connection steampipe config (shared with
       # the steampipe container).
       BELLU_STEAMPIPE_CONFIG_DIR: /steampipe-config
+      # Scheduled re-discovery (refreshes inventory, attack paths and Inspector
+      # vulnerabilities). Off when empty; e.g. "6h" to re-scan idle connections
+      # every 6 hours (minimum 15m).
+      BELLU_DISCOVERY_INTERVAL: ${BELLU_DISCOVERY_INTERVAL:-}
+      BELLU_DISCOVERY_MAX_CONCURRENT: ${BELLU_DISCOVERY_MAX_CONCURRENT:-2}
     # Join the root group (gid 0) that owns the shared steampipe config dir, so
     # the connector (uid 10001) can write per-session <conn>.spc files there.
     group_add:

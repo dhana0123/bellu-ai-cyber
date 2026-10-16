@@ -116,6 +116,19 @@ tables:
     region_column: region
     capability: workload
 
+  # Amazon Inspector v2 findings: AWS's agentless scanner covers EC2 instances,
+  # ECR images and Lambda functions and reports CVEs per resource. This is the
+  # vulnerability source for cloud-only discovery (no SBOM required). Only
+  # ACTIVE findings are collected so remediated/suppressed ones don't linger.
+  # Inspector must be enabled in the account; if not, the table returns no rows
+  # (or a per-table warning) and discovery continues.
+  - table: aws_inspector2_finding
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: workload
+    where: "status = 'ACTIVE'"
+
   - table: aws_ecr_image
     id_column: image_digest
     scope_column: account_id

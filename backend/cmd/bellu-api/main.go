@@ -101,6 +101,10 @@ func run() error {
 		log.Printf("reconciled %d interrupted discovery session(s) from a prior restart", n)
 	}
 
+	// Scheduled re-discovery (opt-in): keeps the inventory, attack-path graph and
+	// Inspector vulnerability findings fresh without a manual "discover".
+	startDiscoveryScheduler(ctx, st, connMgr)
+
 	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, Connector: connMgr, AllowOrigin: allowOrigin})
 
 	httpSrv := &http.Server{
@@ -122,6 +126,41 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return httpSrv.Shutdown(shutdownCtx)
+}
+
+// startDiscoveryScheduler launches the background re-scan scheduler when
+// BELLU_DISCOVERY_INTERVAL is set to a Go duration (e.g. "6h", "24h"). It is
+// off by default: scanning customer accounts on a timer is a deliberate choice,
+// and each scan costs AWS API calls. Values below the scheduler minimum are
+// clamped up; "", "0" and "off" disable it. It stops with ctx on shutdown.
+func startDiscoveryScheduler(ctx context.Context, st *store.Store, mgr *connector.Manager) {
+	raw := strings.TrimSpace(os.Getenv("BELLU_DISCOVERY_INTERVAL"))
+	switch strings.ToLower(raw) {
+	case "", "0", "off", "false", "disabled":
+		log.Printf("discovery scheduler disabled (set BELLU_DISCOVERY_INTERVAL, e.g. 6h, to enable)")
+		return
+	}
+	interval, err := time.ParseDuration(raw)
+	if err != nil || interval <= 0 {
+		log.Printf("warning: invalid BELLU_DISCOVERY_INTERVAL %q (%v); discovery scheduler disabled", raw, err)
+		return
+	}
+
+	repo := connector.NewRepository(st)
+	sched, err := connector.NewScheduler(connector.SchedulerOptions{
+		Interval:   interval,
+		MaxPerTick: atoiOr(os.Getenv("BELLU_DISCOVERY_MAX_CONCURRENT"), 2),
+		Due:        repo.ListDueForDiscovery,
+		Run: func(ctx context.Context, orgID, id int64) error {
+			_, err := mgr.Discover(ctx, orgID, id)
+			return err
+		},
+	})
+	if err != nil {
+		log.Printf("warning: discovery scheduler not started: %v", err)
+		return
+	}
+	go sched.Run(ctx)
 }
 
 // buildConnector wires the cloud-connector manager with the AWS adapter

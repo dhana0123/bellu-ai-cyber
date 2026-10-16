@@ -166,6 +166,38 @@ func (r *Repository) ListByOrg(ctx context.Context, orgID int64) ([]Connection, 
 	return out, rows.Err()
 }
 
+// ListDueForDiscovery returns the connections a scheduled re-scan should start:
+// those that are idle (CONNECTED or COMPLETE, never mid-run or in ERROR) and
+// have no discovery session that started after startedBefore. A connection
+// never scanned has no session and is therefore always due. Oldest-scanned
+// first, so a long backlog is worked through fairly.
+func (r *Repository) ListDueForDiscovery(ctx context.Context, startedBefore time.Time) ([]ScheduleTarget, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT c.org_id, c.id
+		   FROM connector_connections c
+		  WHERE c.status IN ($1, $2)
+		    AND NOT EXISTS (
+		          SELECT 1 FROM connector_discovery_sessions s
+		           WHERE s.connection_id = c.id AND s.started_at > $3)
+		  ORDER BY (SELECT max(s.started_at) FROM connector_discovery_sessions s
+		             WHERE s.connection_id = c.id) ASC NULLS FIRST, c.id ASC`,
+		string(StatusConnected), string(StatusComplete), startedBefore)
+	if err != nil {
+		return nil, fmt.Errorf("connector: list due for discovery: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ScheduleTarget
+	for rows.Next() {
+		var t ScheduleTarget
+		if err := rows.Scan(&t.OrgID, &t.ID); err != nil {
+			return nil, fmt.Errorf("connector: scan due connection: %w", err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // UpdateStatus sets the status for a tenant-scoped connection.
 func (r *Repository) UpdateStatus(ctx context.Context, orgID, id int64, s Status) error {
 	ct, err := r.pool.Exec(ctx,

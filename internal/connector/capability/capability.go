@@ -121,6 +121,9 @@ var Catalog = map[Capability]Definition{
 			"ecr:GetRepositoryPolicy",
 			// aws_api_gateway_rest_api / aws_api_gatewayv2_api: read via GET.
 			"apigateway:GET",
+			// aws_inspector2_finding: Inspector v2 CVE findings for EC2, ECR
+			// images and Lambda (the cloud-native vulnerability source).
+			"inspector2:ListFindings",
 		},
 	},
 	DSPM: {

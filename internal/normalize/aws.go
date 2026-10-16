@@ -228,6 +228,12 @@ func (AWS) Normalize(events []rawevent.RawEvent) (Result, error) {
 		}
 	}
 
+	// Vulnerabilities from Amazon Inspector v2 findings: Vulnerability nodes and
+	// HAS_VULN edges from the affected EC2 / ECR image / Lambda asset.
+	vulnEnts, vulnEdges := inspectorVulns(events)
+	res.Entities = append(res.Entities, vulnEnts...)
+	res.Edges = append(res.Edges, vulnEdges...)
+
 	// Determine the run's dominant account id (every discovery runs against one
 	// account). Resources whose ARN has no account segment — notably S3 buckets
 	// (arn:aws:s3:::bucket) — can't self-identify, so their CONTAINS edge was
