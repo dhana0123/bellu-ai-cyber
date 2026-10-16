@@ -17,13 +17,21 @@
 package osv
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/bellu/bellu-ai-cyber/global-intel/parser"
 	"github.com/bellu/bellu-ai-cyber/global-intel/raw"
 )
+
+// zipMagic is the local-file-header signature every ZIP archive begins with
+// ("PK\x03\x04"). OSV publishes its per-ecosystem bulk export as an
+// "all.zip" archive of one JSON document per advisory, so the parser detects a
+// ZIP payload and decodes each contained entry.
+var zipMagic = []byte{'P', 'K', 0x03, 0x04}
 
 // source is the stable source key this parser handles.
 const source = "osv"
@@ -140,6 +148,12 @@ func (Parser) Source() string { return source }
 // The ref is accepted to satisfy the parser.Parser interface and is not used
 // to influence decoding, preserving purity.
 func (Parser) Parse(_ raw.RawRef, payload []byte) ([]parser.SourceRecord, error) {
+	// OSV's bulk export is an "all.zip" archive of one JSON document per
+	// advisory. Detect the ZIP magic and decode each contained entry.
+	if bytes.HasPrefix(payload, zipMagic) {
+		return parseZip(payload)
+	}
+
 	trimmed := bytes.TrimLeft(payload, " \t\r\n")
 	if len(trimmed) == 0 {
 		return nil, fmt.Errorf("osv: empty payload")
@@ -150,6 +164,42 @@ func (Parser) Parse(_ raw.RawRef, payload []byte) ([]parser.SourceRecord, error)
 		return parseArray(payload)
 	}
 	return parseSingle(payload)
+}
+
+// parseZip decodes an OSV bulk "all.zip" archive: it iterates every file entry,
+// decodes each as a single OSV JSON object, and accumulates the records in the
+// archive's file order so output is deterministic. Non-JSON or directory
+// entries are skipped; a malformed JSON entry fails the whole parse so a
+// corrupt archive is never silently partially ingested.
+func parseZip(payload []byte) ([]parser.SourceRecord, error) {
+	zr, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		return nil, fmt.Errorf("osv: open zip: %w", err)
+	}
+	out := make([]parser.SourceRecord, 0, len(zr.File))
+	for _, zf := range zr.File {
+		if zf.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := zf.Open()
+		if err != nil {
+			return nil, fmt.Errorf("osv: open zip entry %q: %w", zf.Name, err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("osv: read zip entry %q: %w", zf.Name, err)
+		}
+		if len(bytes.TrimLeft(data, " \t\r\n")) == 0 {
+			continue
+		}
+		recs, err := parseSingle(data)
+		if err != nil {
+			return nil, fmt.Errorf("osv: zip entry %q: %w", zf.Name, err)
+		}
+		out = append(out, recs...)
+	}
+	return out, nil
 }
 
 // parseSingle decodes a single OSV JSON object.

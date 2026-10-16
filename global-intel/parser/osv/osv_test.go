@@ -7,6 +7,8 @@
 package osv
 
 import (
+	"archive/zip"
+	"bytes"
 	"reflect"
 	"testing"
 
@@ -184,5 +186,43 @@ func TestParseDeterminism(t *testing.T) {
 				t.Errorf("non-deterministic parse: first=%+v second=%+v", first, second)
 			}
 		})
+	}
+}
+
+// TestParseZip verifies the parser decodes OSV's bulk "all.zip" format: a ZIP
+// archive of one JSON document per advisory. This mirrors the real upstream
+// payload the fetcher stores, which previously failed to parse because the
+// parser assumed raw JSON and choked on the ZIP magic bytes.
+func TestParseZip(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for i, name := range []string{"PYSEC-2024-48.json", "PYSEC-2024-49.json"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("zip create %q: %v", name, err)
+		}
+		// Reuse the golden single entry; the second gets a distinct id so both
+		// decode to separate records.
+		doc := goldenSingle
+		if i == 1 {
+			doc = `{"id":"PYSEC-2024-49","summary":"second"}`
+		}
+		if _, err := w.Write([]byte(doc)); err != nil {
+			t.Fatalf("zip write %q: %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip close: %v", err)
+	}
+
+	recs, err := New().Parse(raw.RawRef{}, buf.Bytes())
+	if err != nil {
+		t.Fatalf("Parse(zip) error: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("Parse(zip): got %d records, want 2", len(recs))
+	}
+	if recs[0].SourceKey() != "PYSEC-2024-48" || recs[1].SourceKey() != "PYSEC-2024-49" {
+		t.Fatalf("Parse(zip): unexpected ids %q, %q", recs[0].SourceKey(), recs[1].SourceKey())
 	}
 }

@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Responsive, WidthProvider } from 'react-grid-layout'
 import { RotateCcw } from 'lucide-react'
-import { client } from '@/lib/client'
 import { useAsync } from '@/useAsync'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
-import { PreviewBadge } from '@/components/common/PreviewBadge'
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
 import { NavBar } from './components/NavBar'
 import { HeaderActions } from './components/HeaderActions'
@@ -15,6 +13,7 @@ import { IssueSeverityCard } from './components/IssueSeverityCard'
 import { OpenResolvedTrendCard } from './components/OpenResolvedTrendCard'
 import { OpenIssuesTrendCard } from './components/OpenIssuesTrendCard'
 import { VulnerabilityGrid } from './components/VulnerabilityGrid'
+import { fetchIssues } from './realIssues'
 import {
   DEFAULT_ISSUES_LAYOUT,
   GRID_COLS,
@@ -35,7 +34,7 @@ const ResponsiveGridLayout = WidthProvider(Responsive)
 const RULE_CHIP = 'Externally validated Ne…'
 
 export default function Issues() {
-  const { loading, error, data } = useAsync<IssuesData>(() => client.issues.overview(), [])
+  const { loading, error, data } = useAsync<IssuesData>(() => fetchIssues(), [])
 
   // Draggable/resizable analytics row (same AWS-style grid as the Dashboard).
   const { layout, onLayoutChange, resetLayout } = useIssuesLayout()
@@ -97,10 +96,6 @@ export default function Issues() {
           <HeaderActions />
         </div>
       </div>
-      <div className="-mt-2 flex items-center gap-2">
-        <PreviewBadge />
-      </div>
-
       <OnboardingCarousel />
 
       <FilterPanel

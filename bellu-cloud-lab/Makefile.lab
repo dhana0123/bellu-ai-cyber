@@ -1,0 +1,54 @@
+# Bellu Cloud Lab make targets. Included from the repo Makefile. Follows the
+# repo's $(GO) / docker compose style. SCENARIO is <provider>/<name>, e.g.
+# SCENARIO=aws/public-ec2.
+#
+# Credentials come from the ambient environment (AWS_PROFILE / env / assumed
+# role); nothing here embeds secrets.
+
+.PHONY: lab-build lab-up lab-test lab-down integration-test-cloud destroy-all
+
+LAB_ROOT   ?= bellu-cloud-lab
+LAB_BIN    ?= bin/lab
+BELLU_BIN  ?= bin/bellu
+TERRAFORM  ?= terraform
+# Scenarios run end-to-end by integration-test-cloud (Phase 1 set).
+LAB_SCENARIOS ?= aws/public-ec2 aws/iam-to-s3
+
+# Build both binaries the runner needs: the lab command and the bellu pipeline.
+lab-build:
+	$(GO) build -o $(LAB_BIN) ./$(LAB_ROOT)/cmd/lab
+	$(GO) build -o $(BELLU_BIN) ./cmd/bellu
+
+# Provision a scenario only — no assertions, no destroy (Requirement 11.2).
+lab-up: lab-build
+	@test -n "$(SCENARIO)" || { echo "usage: make lab-up SCENARIO=<provider>/<name>"; exit 2; }
+	$(LAB_BIN) --mode up --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
+		--terraform $(TERRAFORM) --bellu $(BELLU_BIN)
+
+# Full cycle: apply -> bellu run -> compare -> destroy (Requirement 11.3).
+lab-test: lab-build
+	@test -n "$(SCENARIO)" || { echo "usage: make lab-test SCENARIO=<provider>/<name>"; exit 2; }
+	$(LAB_BIN) --mode test --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
+		--terraform $(TERRAFORM) --bellu $(BELLU_BIN)
+
+# Destroy a scenario's resources (Requirement 11.4).
+lab-down: lab-build
+	@test -n "$(SCENARIO)" || { echo "usage: make lab-down SCENARIO=<provider>/<name>"; exit 2; }
+	$(LAB_BIN) --mode down --scenario $(SCENARIO) --lab-root $(LAB_ROOT) \
+		--terraform $(TERRAFORM) --bellu $(BELLU_BIN)
+
+# Run the Test_Runner across the selected scenario set (Requirement 11.5).
+integration-test-cloud: lab-build
+	@set -e; for s in $(LAB_SCENARIOS); do \
+		echo "=== $$s ==="; \
+		$(LAB_BIN) --mode test --scenario $$s --lab-root $(LAB_ROOT) \
+			--terraform $(TERRAFORM) --bellu $(BELLU_BIN); \
+	done
+
+# Destroy everything the lab provisioned, across every scenario (Requirement 11.6).
+destroy-all: lab-build
+	@set -e; for s in $(LAB_SCENARIOS); do \
+		echo "=== destroy $$s ==="; \
+		$(LAB_BIN) --mode down --scenario $$s --lab-root $(LAB_ROOT) \
+			--terraform $(TERRAFORM) --bellu $(BELLU_BIN) || true; \
+	done

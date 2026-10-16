@@ -144,3 +144,8 @@ gi-shell:
 
 clean:
 	rm -rf bin out frontend/dist
+
+# --- Bellu Cloud Lab -------------------------------------------------------
+# Disposable Terraform-based integration-test lab. Targets: lab-up, lab-test,
+# lab-down (each SCENARIO=<provider>/<name>), integration-test-cloud, destroy-all.
+include bellu-cloud-lab/Makefile.lab

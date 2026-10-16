@@ -1,0 +1,12 @@
+# Contract for aws/iam-to-s3 (Requirement 5).
+name: aws/iam-to-s3
+
+expected_nodes:
+  - { kind: Identity, name: lab-reader }
+  - { kind: DataStore, name: bellu-lab-iam-to-s3 }
+
+expected_edges:
+  # Decision D3: a permission edge from the role to the bucket at confidence 0.7.
+  - { relation: CAN_READ, from: Identity, to: DataStore, min_confidence: 0.7 }
+
+expected_attack_paths: []

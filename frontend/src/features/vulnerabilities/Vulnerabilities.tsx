@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { client } from '@/lib/client'
 import { useAsync } from '@/useAsync'
 import { Spinner } from '@/components/ui/spinner'
-import { PreviewBadge } from '@/components/common/PreviewBadge'
 import { FilterBar } from './components/FilterBar'
 import { TopExploitableComponents, TopVulnerableResources } from './components/AnalyticsCards'
 import { FindingsTable } from './components/FindingsTable'
+import { fetchVulnerabilities } from './realVulnerabilities'
 import type { VulnerabilitiesData } from '@/types/vulnerabilities'
 
 // Vulnerabilities (Findings inventory). DEMO data via the mock client. Layout:
@@ -14,10 +13,7 @@ import type { VulnerabilitiesData } from '@/types/vulnerabilities'
 //   Row 3 — 1:1 analytics split (Top Components | Top Resources)
 //   Row 4 — findings inventory table
 export default function Vulnerabilities() {
-  const { loading, error, data } = useAsync<VulnerabilitiesData>(
-    () => client.vulnerabilities.overview(),
-    [],
-  )
+  const { loading, error, data } = useAsync<VulnerabilitiesData>(() => fetchVulnerabilities(), [])
   const [groupBy, setGroupBy] = useState('__none__')
 
   if (loading) {
@@ -27,7 +23,8 @@ export default function Vulnerabilities() {
       </div>
     )
   }
-  if (error) return <p className="text-sm text-destructive">Failed to load vulnerabilities: {error}</p>
+  if (error)
+    return <p className="text-sm text-destructive">Failed to load vulnerabilities: {error}</p>
   if (!data) return null
 
   return (
@@ -36,7 +33,6 @@ export default function Vulnerabilities() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Vulnerabilities</h1>
-          <PreviewBadge />
         </div>
         <span className="rounded-md bg-muted px-2.5 py-1 text-sm font-medium tabular-nums text-muted-foreground">
           {data.total.toLocaleString()} vulnerabilities

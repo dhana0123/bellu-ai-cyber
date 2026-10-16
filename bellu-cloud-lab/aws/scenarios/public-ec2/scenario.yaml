@@ -1,0 +1,19 @@
+# Contract for aws/public-ec2 (Requirement 4). Kinds/Relations are validated
+# against internal/model (AllKinds / AllRelations) before provisioning.
+name: aws/public-ec2
+
+expected_nodes:
+  - { kind: Compute, name: public-ec2 }
+  - { kind: Identity, name: public-ec2-role }
+  - { kind: DataStore, name: bellu-lab-public-ec2 }
+  - { kind: NetworkEndpoint, name: "0.0.0.0/0" }
+
+expected_edges:
+  # Decision D1: compute attaches to its instance-profile role via USES.
+  - { relation: USES, from: Compute, to: Identity }
+  # Decision D3: approximate IAM evaluator derives CAN_READ at confidence 0.7.
+  - { relation: CAN_READ, from: Identity, to: DataStore, min_confidence: 0.7 }
+  # Security group open to the world becomes an EXPOSED_TO edge to 0.0.0.0/0.
+  - { relation: EXPOSED_TO, from: NetworkEndpoint, to: "0.0.0.0/0" }
+
+expected_attack_paths: []

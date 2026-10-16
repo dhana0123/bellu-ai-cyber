@@ -1,0 +1,11 @@
+# Terraform local state, plans, and provider caches — never commit these.
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+
+# Credentials must never be committed (Requirement 12.1).
+*.tfvars.secret
+.env
