@@ -500,6 +500,13 @@ func (m *Manager) Discover(ctx context.Context, orgID, id int64) (*discovery.Ses
 	if err != nil {
 		return nil, err
 	}
+	// Git/CI connectors have no Steampipe tables: a "scan" refreshes the
+	// repository inventory from the provider rather than running cloud
+	// discovery. Route them to the git scan path so clicking Scan on a GitHub
+	// connection does not fail against the (cloud-only) Steampipe orchestrator.
+	if m.isGitConnector(c.Provider) {
+		return m.scanGit(ctx, c, EventDiscover)
+	}
 	return m.runDiscovery(ctx, c, EventDiscover)
 }
 
@@ -509,7 +516,86 @@ func (m *Manager) Retry(ctx context.Context, orgID, id int64) (*discovery.Sessio
 	if err != nil {
 		return nil, err
 	}
+	if m.isGitConnector(c.Provider) {
+		return m.scanGit(ctx, c, EventRetry)
+	}
 	return m.runDiscovery(ctx, c, EventRetry)
+}
+
+// isGitConnector reports whether a provider enumerates repositories (git/CI),
+// in which case "scan" means refreshing repositories, not cloud discovery.
+func (m *Manager) isGitConnector(providerName string) bool {
+	p, err := m.resolveProvider(providerName)
+	if err != nil {
+		return false
+	}
+	_, ok := p.(provider.RepoLister)
+	return ok
+}
+
+// scanGit performs a "scan" for a git/CI connector: it transitions the
+// connection to DISCOVERY_RUNNING, refreshes the repository inventory from the
+// provider, records a completed (or failed) session whose progress is expressed
+// per repository (so the progress sheet shows the repo list), and transitions
+// to the terminal state. It runs synchronously because repo enumeration is a
+// handful of API calls, not a long Steampipe crawl.
+func (m *Manager) scanGit(ctx context.Context, c *Connection, start Event) (*discovery.Session, error) {
+	if c.Status == StatusDiscoveryRunning {
+		return nil, ErrConflict
+	}
+	if err := m.transition(ctx, c, start); err != nil {
+		return nil, err
+	}
+
+	now := m.now()
+	sess := &discovery.Session{
+		ID:           fmt.Sprintf("gitscan-%d", now.UnixNano()),
+		ConnectionID: c.ID,
+		RunID:        fmt.Sprintf("run-%d", now.UnixNano()),
+		Status:       discovery.SessRunning,
+		StartedAt:    now,
+		Progress:     &discovery.Progress{Tables: []discovery.TableProgress{}},
+	}
+	m.recordSession(ctx, c.ID, sess)
+
+	view, rerr := m.RefreshRepositories(ctx, c.OrgID, c.ID)
+
+	end := m.now()
+	sess.EndedAt = &end
+	if rerr != nil {
+		sess.Status = discovery.SessFailed
+		sess.Error = rerr.Error()
+		m.recordSession(ctx, c.ID, sess)
+		m.transitionByID(ctx, c.OrgID, c.ID, EventDiscoverFailed)
+		return sess, rerr
+	}
+
+	// Express the result as per-repo progress so the progress UI (which renders
+	// a "tables" list) shows each repository as a completed row.
+	repos := view.Repos
+	tables := make([]discovery.TableProgress, 0, len(repos))
+	selected := 0
+	for _, r := range repos {
+		if r.Selected {
+			selected++
+		}
+		tables = append(tables, discovery.TableProgress{
+			Table: r.FullName, State: discovery.TableDone, Rows: 1,
+		})
+	}
+	sess.Status = discovery.SessComplete
+	sess.Progress = &discovery.Progress{
+		TablesTotal:        len(repos),
+		TablesDone:         len(repos),
+		ResourcesCollected: selected,
+		Tables:             tables,
+	}
+	m.recordSession(ctx, c.ID, sess)
+	if data, err := json.Marshal(sess.Progress); err == nil {
+		_ = m.repo.SaveSessionProgress(ctx, sess.ID, data)
+	}
+	m.transitionByID(ctx, c.OrgID, c.ID, EventDiscoverDone)
+	return sess, nil
 }
 
 // runDiscovery starts discovery asynchronously: it resolves the provider,

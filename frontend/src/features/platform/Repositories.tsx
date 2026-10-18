@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react'
-import { Responsive, WidthProvider } from 'react-grid-layout'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ChevronDown,
   Columns3,
@@ -7,25 +6,16 @@ import {
   Globe,
   Lock,
   Plus,
-  RotateCcw,
   Search,
 } from 'lucide-react'
 import { client } from '@/lib/client'
 import { useAsync } from '@/useAsync'
+import { useProject } from '@/project'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DashboardCard } from '@/features/dashboard/components/DashboardCard'
-import {
-  DEFAULT_FINDINGS_LAYOUT,
-  GRID_COLS,
-  ROW_HEIGHT,
-  useRepoFindingsLayout,
-} from './useRepoFindingsLayout'
-import '@/features/dashboard/grid.css'
-import GitRepoSelection from './GitRepoSelection'
 import {
   Table,
   TableBody,
@@ -34,66 +24,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type {
-  FindingCategory,
-  RepositoriesData,
-  Repository,
-  SeverityCounts,
-} from '@/types/repositories'
-
-// WidthProvider feeds a measured pixel width so the grid stays fluid.
-const ResponsiveGridLayout = WidthProvider(Responsive)
+import type { RepositoriesData, Repository, SeverityCounts } from '@/types/repositories'
 
 const GROUP_BY = ['None', 'Organization', 'Platform', 'Project', 'Service'] as const
 type GroupBy = (typeof GROUP_BY)[number]
 
 // Severity → dot/text color, matching the C/H/M/L chips in the design.
-const SEV = {
-  critical: { label: 'C', dot: 'bg-red-600', text: 'text-red-600' },
-  high: { label: 'H', dot: 'bg-orange-500', text: 'text-orange-500' },
-  medium: { label: 'M', dot: 'bg-amber-500', text: 'text-amber-500' },
-  low: { label: 'L', dot: 'bg-sky-500', text: 'text-sky-500' },
-} as const
-
-function fmt(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`
-  return String(n)
-}
-
-// A compact row of severity pills: C H M L with counts, zeros muted.
-function SeverityPills({ counts, size = 'sm' }: { counts: SeverityCounts; size?: 'sm' | 'md' }) {
-  const order: (keyof SeverityCounts)[] = ['critical', 'high', 'medium', 'low']
-  return (
-    <div className="flex items-center gap-2">
-      {order.map((k) => {
-        const n = counts[k]
-        const s = SEV[k]
-        const muted = n === 0
-        return (
-          <span
-            key={k}
-            className={cn(
-              'inline-flex items-center gap-1 tabular-nums',
-              size === 'md' ? 'text-sm' : 'text-xs',
-              muted ? 'text-muted-foreground/50' : 'text-foreground',
-            )}
-          >
-            <span className={cn('font-medium tabular-nums')}>{fmt(n)}</span>
-            <span
-              className={cn(
-                'flex h-4 w-4 items-center justify-center rounded-[3px] text-[9px] font-bold text-white',
-                muted ? 'bg-muted-foreground/30' : s.dot,
-              )}
-            >
-              {s.label}
-            </span>
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const h = Math.floor(diff / 3600_000)
@@ -116,18 +52,111 @@ function FilterPill({ label }: { label: string }) {
   )
 }
 
+const GIT_PROVIDERS = new Set(['github', 'gitlab', 'atlassian', 'bitbucket'])
+const ZERO: SeverityCounts = { critical: 0, high: 0, medium: 0, low: 0 }
+
+// mapConnectorRepo turns a real git-connector repository into a table row,
+// reusing the existing Repository shape so the table UI is unchanged. Fields we
+// have no real data for yet (issues/findings/policies/scan time) are zeroed —
+// these fill in once code scanning runs.
+// scanMeta carries the ids needed to toggle a repo's scan coverage against the
+// backend. Kept separate from the shared Repository type (which is demo-shaped)
+// and keyed by the row id.
+type ScanMeta = { connId: number; repoId: number }
+
+function mapConnectorRepo(
+  r: { id: number; full_name: string; url: string; private: boolean; selected: boolean },
+  platform: Repository['platform'],
+  connId: number,
+): { row: Repository; meta: ScanMeta } {
+  const [org, name] = r.full_name.includes('/')
+    ? [r.full_name.slice(0, r.full_name.indexOf('/')), r.full_name.slice(r.full_name.indexOf('/') + 1)]
+    : ['', r.full_name]
+  const id = `conn-${connId}-${r.id}`
+  return {
+    row: {
+      id,
+      name: name || r.full_name,
+      organization: org,
+      platform,
+      project: org,
+      visibility: r.private ? 'private' : 'public',
+      scanning_enabled: r.selected,
+      issues: { ...ZERO },
+      findings: { ...ZERO },
+      policies: 0,
+      project_count: 0,
+      last_scan: new Date().toISOString(),
+    },
+    meta: { connId, repoId: r.id },
+  }
+}
+
+function platformOf(provider: string): Repository['platform'] {
+  const p = provider.toLowerCase()
+  if (p === 'gitlab') return 'gitlab'
+  if (p === 'atlassian' || p === 'bitbucket') return 'bitbucket'
+  return 'github'
+}
+
 export default function Repositories() {
   const { loading, error, data } = useAsync<RepositoriesData>(
     () => client.repositories.overview(),
     [],
   )
+  const { current } = useProject()
+  const projectId = current?.id
   const [tab, setTab] = useState('organizational')
   const [groupBy, setGroupBy] = useState<GroupBy>('None')
   const [query, setQuery] = useState('')
-  const { layout, onLayoutChange, resetLayout } = useRepoFindingsLayout()
+
+  // Real connected git repositories (GitHub/GitLab/Bitbucket). When one or more
+  // git connectors exist, their repositories drive the table; otherwise the
+  // page falls back to the demo overview so the layout still renders.
+  const [connectorRepos, setConnectorRepos] = useState<Repository[]>([])
+  const [scanMeta, setScanMeta] = useState<Record<string, ScanMeta>>({})
+  const [hasGitConnector, setHasGitConnector] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { connections } = await client.connectors(projectId)
+        const git = (connections ?? []).filter((c) =>
+          GIT_PROVIDERS.has(c.provider.toLowerCase()),
+        )
+        if (cancelled) return
+        setHasGitConnector(git.length > 0)
+        const views = await Promise.all(
+          git.map(async (c) => {
+            try {
+              const v = await client.connectorRepositories(c.id)
+              return (v.repositories ?? []).map((r) =>
+                mapConnectorRepo(r, platformOf(c.provider), c.id),
+              )
+            } catch {
+              return []
+            }
+          }),
+        )
+        if (!cancelled) {
+          const flat = views.flat()
+          setConnectorRepos(flat.map((x) => x.row))
+          setScanMeta(Object.fromEntries(flat.map((x) => [x.row.id, x.meta])))
+        }
+      } catch {
+        /* no connectors / not authorized: keep demo data */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
 
   const repos = useMemo(() => {
-    const all = data?.repositories ?? []
+    // Prefer real connected repositories when a git connector is present.
+    const all = hasGitConnector ? connectorRepos : (data?.repositories ?? [])
     const q = query.trim().toLowerCase()
     if (!q) return all
     return all.filter(
@@ -136,13 +165,32 @@ export default function Repositories() {
         r.organization.toLowerCase().includes(q) ||
         r.project.toLowerCase().includes(q),
     )
-  }, [data, query])
+  }, [data, query, hasGitConnector, connectorRepos])
+
+  // toggleScan flips a repo's scan coverage against the backend and reflects the
+  // result in the row. No-op for demo rows (those have no scanMeta entry).
+  async function toggleScan(rowId: string, next: boolean) {
+    const meta = scanMeta[rowId]
+    if (!meta) return
+    setTogglingId(rowId)
+    // Optimistic update so the toggle feels instant.
+    setConnectorRepos((cur) =>
+      cur.map((r) => (r.id === rowId ? { ...r, scanning_enabled: next } : r)),
+    )
+    try {
+      await client.setConnectorRepositorySelection(meta.connId, [meta.repoId], next)
+    } catch {
+      // Revert on failure.
+      setConnectorRepos((cur) =>
+        cur.map((r) => (r.id === rowId ? { ...r, scanning_enabled: !next } : r)),
+      )
+    } finally {
+      setTogglingId(null)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Git connector repository access + scan-scope selection. */}
-      <GitRepoSelection />
-
       {/* Header */}
       <div className="flex items-start justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Code Repositories</h1>
@@ -210,53 +258,6 @@ export default function Repositories() {
         ))}
       </div>
 
-      {/* Findings summary cards: a draggable + resizable grid (same AWS-style
-          grid as the Dashboard). Drag a card by its header handle to move it;
-          drag the bottom-right corner to resize. */}
-      {!loading && !error && (data?.finding_categories?.length ?? 0) > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              Drag a card by its header to move it; drag the bottom-right corner to resize.
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetLayout}
-              disabled={JSON.stringify(layout) === JSON.stringify(DEFAULT_FINDINGS_LAYOUT)}
-            >
-              <RotateCcw className="h-4 w-4" /> Reset layout
-            </Button>
-          </div>
-          <ResponsiveGridLayout
-            className="layout"
-            layouts={{ lg: layout, md: layout, sm: layout }}
-            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: GRID_COLS, md: GRID_COLS, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={ROW_HEIGHT}
-            margin={[12, 12]}
-            containerPadding={[0, 0]}
-            isDraggable
-            isResizable
-            draggableHandle=".dash-drag-handle"
-            compactType="horizontal"
-            onLayoutChange={onLayoutChange}
-            onDragStop={onLayoutChange}
-            onResizeStop={onLayoutChange}
-            resizeHandles={['se']}
-            useCSSTransforms
-          >
-            {(data?.finding_categories ?? []).map((c) => (
-              <div key={c.id}>
-                <DashboardCard title={c.label}>
-                  <FindingCategoryCard cat={c} />
-                </DashboardCard>
-              </div>
-            ))}
-          </ResponsiveGridLayout>
-        </div>
-      )}
-
       {/* Repositories table (full width). */}
       <div>
         <div className="min-w-0 rounded-lg border bg-card">
@@ -276,7 +277,6 @@ export default function Repositories() {
                     <TableHead>Issues</TableHead>
                     <TableHead>Visibility</TableHead>
                     <TableHead>Last Scan</TableHead>
-                    <TableHead>Policies</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead className="w-8">
                       <Columns3 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -285,11 +285,17 @@ export default function Repositories() {
                 </TableHeader>
                 <TableBody>
                   {repos.map((r) => (
-                    <RepoRow key={r.id} r={r} />
+                    <RepoRow
+                      key={r.id}
+                      r={r}
+                      scannable={Boolean(scanMeta[r.id])}
+                      busy={togglingId === r.id}
+                      onToggleScan={(next) => void toggleScan(r.id, next)}
+                    />
                   ))}
                   {repos.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                         No repositories match the current filters.
                       </TableCell>
                     </TableRow>
@@ -304,13 +310,31 @@ export default function Repositories() {
   )
 }
 
-function ScanToggle({ on }: { on: boolean }) {
+// ScanToggle is a clickable on/off switch. When onToggle is provided and
+// enabled, clicking flips scan coverage; otherwise it is a read-only indicator
+// (used for demo rows that have no backend connection).
+function ScanToggle({
+  on,
+  disabled,
+  onToggle,
+}: {
+  on: boolean
+  disabled?: boolean
+  onToggle?: (next: boolean) => void
+}) {
+  const interactive = Boolean(onToggle) && !disabled
   return (
-    <span
+    <button
+      type="button"
+      disabled={!interactive}
+      onClick={() => onToggle?.(!on)}
       className={cn(
         'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors',
         on ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+        interactive ? 'cursor-pointer' : 'cursor-default',
+        disabled && 'opacity-50',
       )}
+      aria-pressed={on}
       aria-label={on ? 'Scanning enabled' : 'Scanning disabled'}
     >
       <span
@@ -319,11 +343,22 @@ function ScanToggle({ on }: { on: boolean }) {
           on ? 'translate-x-3.5' : 'translate-x-0.5',
         )}
       />
-    </span>
+    </button>
   )
 }
 
-function RepoRow({ r }: { r: Repository }) {
+function RepoRow({
+  r,
+  scannable,
+  busy,
+  onToggleScan,
+}: {
+  r: Repository
+  scannable: boolean
+  busy: boolean
+  onToggleScan: (next: boolean) => void
+}) {
+  const issueCount = r.issues.critical + r.issues.high + r.issues.medium + r.issues.low
   return (
     <TableRow className="hover:bg-accent/40">
       <TableCell>
@@ -334,13 +369,15 @@ function RepoRow({ r }: { r: Repository }) {
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ScanToggle on={r.scanning_enabled} />
-          All
+          <ScanToggle
+            on={r.scanning_enabled}
+            disabled={busy}
+            onToggle={scannable ? onToggleScan : undefined}
+          />
+          {r.scanning_enabled ? 'On' : 'Off'}
         </div>
       </TableCell>
-      <TableCell>
-        <SeverityPills counts={r.issues} />
-      </TableCell>
+      <TableCell className="text-sm tabular-nums text-muted-foreground">{issueCount}</TableCell>
       <TableCell>
         <span className="inline-flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
           {r.visibility === 'public' ? (
@@ -354,7 +391,6 @@ function RepoRow({ r }: { r: Repository }) {
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         {relativeTime(r.last_scan)}
       </TableCell>
-      <TableCell className="text-xs text-muted-foreground">{r.policies}</TableCell>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         {r.project_count} projects
       </TableCell>
@@ -363,14 +399,4 @@ function RepoRow({ r }: { r: Repository }) {
   )
 }
 
-function FindingCategoryCard({ cat }: { cat: FindingCategory }) {
-  const total = cat.counts.critical + cat.counts.high + cat.counts.medium + cat.counts.low
-  // Rendered inside a DashboardCard whose header already shows cat.label, so the
-  // body only shows the total + severity pills.
-  return (
-    <div className="flex h-full flex-col justify-center gap-2 bg-card p-4">
-      <div className="text-2xl font-semibold tabular-nums">{fmt(total)}</div>
-      <SeverityPills counts={cat.counts} />
-    </div>
-  )
-}
+
