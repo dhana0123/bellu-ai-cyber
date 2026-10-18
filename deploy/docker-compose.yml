@@ -158,7 +158,11 @@ services:
       BELLU_MEMGRAPH_USER: ${MEMGRAPH_USER:-bellu}
       BELLU_MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:-bellu}
       BELLU_API_ADDR: ":8080"
-      BELLU_API_CORS_ORIGIN: "*"
+      # The browser talks to the API through the frontend nginx on the same
+      # origin (dev.belluai.com), so CORS is not strictly needed, but set it to
+      # the real origin instead of "*" now that there is a stable hostname.
+      # Override in deploy/.env if you serve the UI from somewhere else.
+      BELLU_API_CORS_ORIGIN: ${BELLU_API_CORS_ORIGIN:-https://dev.belluai.com}
       # Auth / RBAC. Change these before any real deployment.
       BELLU_JWT_SECRET: ${BELLU_JWT_SECRET:-dev-insecure-change-me}
       BELLU_ADMIN_EMAIL: ${BELLU_ADMIN_EMAIL:-admin@bellu.local}
@@ -227,13 +231,24 @@ services:
     depends_on:
       - bellu-api
     ports:
-      # Dev: served on port 80 (open in the EC2 security group). The nginx in
-      # this container proxies /api to bellu-api internally, so only this port
-      # needs to be public.
+      # Served at dev.belluai.com. The nginx in this container proxies /api to
+      # bellu-api internally, so only these ports need to be public. 80 serves
+      # the ACME challenge + redirects to HTTPS (once a cert exists); 443 serves
+      # the app over TLS. Both must be open in the EC2 security group.
       - "80:80"
+      - "443:443"
+    volumes:
+      # TLS certificates issued by certbot on the host. Mounted read-only; the
+      # entrypoint serves HTTPS only when a cert for dev.belluai.com is present
+      # here, otherwise it falls back to HTTP so the stack still starts.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # ACME HTTP-01 challenge webroot, shared with the host certbot (webroot
+      # mode) so certs can be issued/renewed without stopping nginx.
+      - certbot_webroot:/var/www/certbot
 
 volumes:
   steampipe_config:
   steampipe_plugins:
   pgdata:
   memgraph_data:
+  certbot_webroot:

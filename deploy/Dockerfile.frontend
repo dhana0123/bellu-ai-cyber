@@ -12,5 +12,13 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+# Ship both config templates; the entrypoint picks HTTP-only or HTTPS at boot
+# depending on whether a TLS certificate is mounted. This keeps the image able
+# to start cleanly before a cert exists (so certbot can run) and after.
+COPY deploy/nginx.http.conf /etc/nginx/templates/nginx.http.conf
+COPY deploy/nginx.https.conf /etc/nginx/templates/nginx.https.conf
+COPY deploy/frontend-entrypoint.sh /docker-entrypoint-select.sh
+RUN chmod +x /docker-entrypoint-select.sh
+EXPOSE 80 443
+ENTRYPOINT ["/docker-entrypoint-select.sh"]
+CMD ["nginx", "-g", "daemon off;"]
