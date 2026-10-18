@@ -159,6 +159,11 @@ export const realApi = {
   connectorSetup: (id: number | string) => post<{ setup: Setup }>(`/api/connectors/${id}/setup`),
   verifyConnector: (id: number | string, roleArn: string) =>
     post<{ verification: VerifyResult }>(`/api/connectors/${id}/verify`, { role_arn: roleArn }),
+  // GitHub App install: ask the backend for a single-use, tenant-bound install
+  // URL for this connection, then send the browser to GitHub. GitHub redirects
+  // back to the callback, which completes the install server-side.
+  beginGitHubInstall: (id: number | string) =>
+    post<{ install_url: string }>(`/api/connectors/${id}/github/install`),
   updateConnectorCapabilities: (id: number | string, capabilities: string[]) =>
     patch<{ connection: Connection }>(`/api/connectors/${id}/capabilities`, { capabilities }),
   discoverConnector: (id: number | string) =>

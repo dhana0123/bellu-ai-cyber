@@ -574,7 +574,7 @@ func (s *Server) handleGitHubBeginInstall(c *gin.Context) {
 // the authorization.
 func (s *Server) handleGitHubCallback(c *gin.Context) {
 	if s.connector == nil {
-		s.redirectConnectors(c, "error", "connector_unavailable")
+		s.redirectConnectors(c, 0, "error", "connector_unavailable")
 		return
 	}
 	state := c.Query("state")
@@ -584,17 +584,18 @@ func (s *Server) handleGitHubCallback(c *gin.Context) {
 	// A cancelled install (user denied) or a missing installation id: nothing to
 	// complete. Redirect back with a cancelled reason.
 	if instStr == "" || (setupAction != "install" && setupAction != "update") {
-		s.redirectConnectors(c, "error", "install_cancelled")
+		s.redirectConnectors(c, 0, "error", "install_cancelled")
 		return
 	}
 
 	instID, err := strconv.ParseInt(instStr, 10, 64)
 	if err != nil || instID <= 0 {
-		s.redirectConnectors(c, "error", "invalid_installation_id")
+		s.redirectConnectors(c, 0, "error", "invalid_installation_id")
 		return
 	}
 
-	if _, err := s.connector.CompleteGitHubInstall(c.Request.Context(), state, instID); err != nil {
+	conn, err := s.connector.CompleteGitHubInstall(c.Request.Context(), state, instID)
+	if err != nil {
 		// Map the known failure modes to a stable, non-sensitive reason code.
 		reason := "install_failed"
 		switch {
@@ -605,19 +606,34 @@ func (s *Server) handleGitHubCallback(c *gin.Context) {
 		case errors.Is(err, connector.ErrNotFound):
 			reason = "not_found"
 		}
-		s.redirectConnectors(c, "error", reason)
+		s.redirectConnectors(c, 0, "error", reason)
 		return
 	}
-	s.redirectConnectors(c, "connected", "")
+	// Redirect to the specific connection's page so the UI shows the connected
+	// state (and the repository selection next step) in context.
+	var connID int64
+	if conn != nil {
+		connID = conn.ID
+	}
+	s.redirectConnectors(c, connID, "connected", "")
 }
 
-// redirectConnectors 302-redirects the browser back to the frontend connectors
-// page with a github status (and optional reason). The frontend base path is
-// configurable via BELLU_FRONTEND_BASE_URL; it defaults to a relative path so
-// the API and UI can share an origin behind a reverse proxy.
-func (s *Server) redirectConnectors(c *gin.Context, status, reason string) {
+// redirectConnectors 302-redirects the browser back to the frontend after a
+// GitHub install, with a github status (and optional reason). When connID is
+// non-zero it targets that connection's onboarding page so the UI shows the
+// outcome in context (connected state + repository selection); otherwise it
+// falls back to the connectors list. The frontend base path is configurable via
+// BELLU_FRONTEND_BASE_URL; it defaults to a relative path so the API and UI can
+// share an origin behind a reverse proxy.
+func (s *Server) redirectConnectors(c *gin.Context, connID int64, status, reason string) {
 	base := strings.TrimRight(os.Getenv("BELLU_FRONTEND_BASE_URL"), "/")
-	target := base + "/connectors?github=" + url.QueryEscape(status)
+	var target string
+	if connID > 0 {
+		target = fmt.Sprintf("%s/connectors/new/github?id=%d&github=%s",
+			base, connID, url.QueryEscape(status))
+	} else {
+		target = base + "/connectors?github=" + url.QueryEscape(status)
+	}
 	if reason != "" {
 		target += "&reason=" + url.QueryEscape(reason)
 	}

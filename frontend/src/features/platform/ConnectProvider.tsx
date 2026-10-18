@@ -68,6 +68,12 @@ export default function ConnectProviderPage() {
   const existingId = params.get('id')
 
   const meta = PROVIDER_META[provider]
+  const isGitHub = provider === 'github'
+
+  // GitHub returns here after the install, as ?github=connected or
+  // ?github=error&reason=<code>. Surface it so the user sees the outcome.
+  const githubReturn = params.get('github')
+  const githubReason = params.get('reason')
 
   const [caps, setCaps] = useState<CapabilityCard[]>([])
   const [projects, setProjects] = useState<ProjectRow[]>([])
@@ -164,6 +170,23 @@ export default function ConnectProviderPage() {
     }
   }
 
+  // installGitHubApp asks the backend for the single-use install URL for this
+  // connection, then redirects the browser to GitHub. On GitHub the user picks
+  // the org + repositories and approves; GitHub then redirects back to the
+  // callback, which completes the install and returns here as ?github=connected.
+  async function installGitHubApp() {
+    if (!connection) return
+    setBusy(true)
+    setError(null)
+    try {
+      const { install_url } = await client.beginGitHubInstall(connection.id)
+      window.location.assign(install_url)
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+
   async function discover() {
     if (!connection) return
     setBusy(true)
@@ -210,6 +233,23 @@ export default function ConnectProviderPage() {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {/* GitHub install return banner. On ?github=connected the install
+          completed; on ?github=error the reason code is mapped to a message. */}
+      {isGitHub && githubReturn === 'connected' && (
+        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm">
+          <p className="font-medium text-emerald-600">GitHub App installed</p>
+          <p className="text-xs text-muted-foreground">
+            Choose which repositories to scan on the Repositories page.
+          </p>
+        </div>
+      )}
+      {isGitHub && githubReturn === 'error' && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          <p className="font-medium text-destructive">GitHub install didn’t complete</p>
+          <p className="text-xs text-muted-foreground">{githubReasonText(githubReason)}</p>
+        </div>
+      )}
 
       {step === 'form' && (
         <Card>
@@ -280,7 +320,36 @@ export default function ConnectProviderPage() {
         </Card>
       )}
 
-      {step === 'setup' && setup && (
+      {/* GitHub uses the App install flow instead of the manual setup/verify
+          card: clicking the button redirects to GitHub to approve repos, and
+          GitHub redirects back to the callback which completes the install. */}
+      {step === 'setup' && isGitHub && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Install the Bellu GitHub App</CardTitle>
+            <CardDescription>
+              You’ll be taken to GitHub to pick the organization and repositories to
+              connect, then returned here. Bellu uses a short-lived installation token
+              per scan — no personal access token or long-lived credential is stored.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={installGitHubApp} disabled={busy}>
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ProviderIcon provider="github" className="h-4 w-4" />
+              )}
+              Install GitHub App
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/connectors')}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 'setup' && !isGitHub && setup && (
         <Card>
           <CardHeader>
             <CardTitle>Set up access</CardTitle>
@@ -358,4 +427,23 @@ export default function ConnectProviderPage() {
       )}
     </div>
   )
+}
+
+// githubReasonText maps the callback's stable reason codes to a human message.
+function githubReasonText(reason: string | null): string {
+  switch (reason) {
+    case 'install_cancelled':
+      return 'The install was cancelled on GitHub. You can start it again when ready.'
+    case 'invalid_state':
+      return 'The install link expired or was already used. Start the install again.'
+    case 'invalid_installation_id':
+    case 'invalid_request':
+      return 'GitHub returned an unexpected response. Please try the install again.'
+    case 'not_found':
+      return 'The connection could not be found. Create the connector again.'
+    case 'connector_unavailable':
+      return 'The connector service is temporarily unavailable. Try again shortly.'
+    default:
+      return 'Something went wrong completing the install. Please try again.'
+  }
 }
