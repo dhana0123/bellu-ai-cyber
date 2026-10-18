@@ -5,3 +5,8 @@ deploy/zeek/pcaps/
 *.local.yaml
 .env
 testdata/**/.*.offset
+
+# Secrets: real GitHub App private keys. The .placeholder is tracked; real
+# .pem files are not.
+deploy/secrets/*.pem
+*.pem

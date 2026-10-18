@@ -29,6 +29,10 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/connector/discovery"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 	connectoraws "github.com/bellu/bellu-ai-cyber/internal/connector/provider/aws"
+	connectorazure "github.com/bellu/bellu-ai-cyber/internal/connector/provider/azure"
+	connectorci "github.com/bellu/bellu-ai-cyber/internal/connector/provider/ci"
+	connectorcigithub "github.com/bellu/bellu-ai-cyber/internal/connector/provider/ci/github"
+	connectorgcp "github.com/bellu/bellu-ai-cyber/internal/connector/provider/gcp"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
 	"github.com/bellu/bellu-ai-cyber/internal/pipeline"
 	"github.com/bellu/bellu-ai-cyber/internal/redact"
@@ -267,6 +271,40 @@ func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *conne
 	})
 	reg.Register(awsAdapter)
 
+	// Additional cloud providers (Azure, GCP) share the CloudProvider interface
+	// and the Steampipe discovery path (azure.yaml / gcp.yaml catalogs). They
+	// register in the same registry with zero Manager changes. Steampipe
+	// connection params come from the same env as AWS.
+	spHost := getenv("BELLU_STEAMPIPE_HOST", "steampipe")
+	spPort := atoiOr(os.Getenv("BELLU_STEAMPIPE_PORT"), 9193)
+	spUser := getenv("BELLU_STEAMPIPE_USER", "steampipe")
+	spPass := os.Getenv("BELLU_STEAMPIPE_PASSWORD")
+	spDB := getenv("BELLU_STEAMPIPE_DB", "steampipe")
+	reg.Register(connectorazure.New(connectorazure.Options{
+		SteampipeHost: spHost, SteampipePort: spPort, SteampipeUser: spUser,
+		SteampipePassword: spPass, SteampipeDB: spDB, SteampipeConn: "azure",
+	}))
+	reg.Register(connectorgcp.New(connectorgcp.Options{
+		SteampipeHost: spHost, SteampipePort: spPort, SteampipeUser: spUser,
+		SteampipePassword: spPass, SteampipeDB: spDB, SteampipeConn: "gcp",
+	}))
+
+	// CI/VCS providers (GitHub, GitLab, Atlassian). GitHub uses a GitHub App
+	// (installation flow + short-lived installation tokens); GitLab/Atlassian
+	// use read-only tokens. They register in the same registry and surface in
+	// the same Settings page.
+	ghAPIBase := getenv("BELLU_GITHUB_API_BASE", "https://api.github.com")
+	ghClient, ghSlug := newGitHubAppClient(ghAPIBase)
+	if ghClient != nil {
+		// App config present: the adapter can list the installation's repos via
+		// the GitHub REST API, and the Manager can verify installations.
+		reg.Register(connectorci.NewGitHubApp(ghAPIBase, ghClient))
+	} else {
+		reg.Register(connectorci.NewGitHub(ghAPIBase))
+	}
+	reg.Register(connectorci.NewGitLab(os.Getenv("BELLU_GITLAB_API_BASE")))
+	reg.Register(connectorci.NewAtlassian(os.Getenv("BELLU_ATLASSIAN_API_BASE")))
+
 	repo := connector.NewRepository(st)
 
 	// Build the shared normalize->resolve->persist processor and a redactor so
@@ -289,12 +327,58 @@ func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *conne
 		Creds:   adapterCredentialer{adapter: awsAdapter},
 		Sink:    steampipeConfigSink(getenv("BELLU_STEAMPIPE_CONFIG_DIR", "")),
 	})
+	// The Manager's GitHubClient interface needs only VerifyInstallation, which
+	// the concrete client satisfies. Pass nil when App config is absent so
+	// BeginGitHubInstall still works in dev but CompleteGitHubInstall returns a
+	// clear "not configured" error.
+	var mgrGitHub connector.GitHubAppClient
+	if ghClient != nil {
+		mgrGitHub = ghClient
+	}
 	return connector.NewManager(connector.Options{
-		Repo:       repo,
-		Registry:   reg,
-		Discovery:  disc,
-		ExternalID: connectoraws.GenerateExternalID,
+		Repo:                repo,
+		Registry:            reg,
+		Discovery:           disc,
+		ExternalID:          connectoraws.GenerateExternalID,
+		GitHubClient:        mgrGitHub,
+		GitHubAppSlug:       ghSlug,
+		GitHubWebhookSecret: os.Getenv("BELLU_GITHUB_WEBHOOK_SECRET"),
 	})
+}
+
+// newGitHubAppClient builds the GitHub App client from the environment, and
+// returns it with the configured App slug. It returns (nil, slug) when App
+// config is incomplete so the rest of the connector stays dev-safe. The private
+// key is read from BELLU_GITHUB_APP_PRIVATE_KEY_PATH (a file) or, as a fallback,
+// inline PEM in BELLU_GITHUB_APP_PRIVATE_KEY_PEM. No secret is ever logged.
+func newGitHubAppClient(apiBase string) (*connectorcigithub.GitHubAppClient, string) {
+	slug := os.Getenv("BELLU_GITHUB_APP_SLUG")
+	appID := atoiOr(os.Getenv("BELLU_GITHUB_APP_ID"), 0)
+	if appID <= 0 {
+		log.Printf("notice: BELLU_GITHUB_APP_ID unset; GitHub App integration disabled")
+		return nil, slug
+	}
+	var pem []byte
+	if path := strings.TrimSpace(os.Getenv("BELLU_GITHUB_APP_PRIVATE_KEY_PATH")); path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("warning: GitHub App private key unreadable (%v); GitHub App disabled", err)
+			return nil, slug
+		}
+		pem = b
+	} else if inline := os.Getenv("BELLU_GITHUB_APP_PRIVATE_KEY_PEM"); inline != "" {
+		pem = []byte(inline)
+	} else {
+		log.Printf("notice: GitHub App private key unset; GitHub App integration disabled")
+		return nil, slug
+	}
+	client, err := connectorcigithub.New(int64(appID), pem, apiBase, nil)
+	if err != nil {
+		log.Printf("warning: GitHub App client init failed (%v); GitHub App disabled", err)
+		return nil, slug
+	}
+	log.Printf("GitHub App integration enabled (app id %d, slug %q)", appID, slug)
+	return client, slug
 }
 
 // newTemplateStore builds the S3-backed CloudFormation template store from the

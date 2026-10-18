@@ -25,6 +25,7 @@ import {
   useRepoFindingsLayout,
 } from './useRepoFindingsLayout'
 import '@/features/dashboard/grid.css'
+import GitRepoSelection from './GitRepoSelection'
 import {
   Table,
   TableBody,
@@ -139,6 +140,9 @@ export default function Repositories() {
 
   return (
     <div className="space-y-4">
+      {/* Git connector repository access + scan-scope selection. */}
+      <GitRepoSelection />
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Code Repositories</h1>

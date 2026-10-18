@@ -19,10 +19,20 @@ import (
 type memRepo struct {
 	mu       sync.Mutex
 	seq      int64
+	repoSeq  int64
 	conns    map[int64]*Connection
 	saved    map[int64]*provider.VerifyResult
 	verified map[int64]time.Time
 	sessions []recordedSession
+	repos    map[int64][]Repo            // connID -> repos
+	repoMode map[int64]RepoSelectionMode // connID -> mode
+
+	// GitHub App installation + single-use install state.
+	ghInstalls map[int64]*GitHubInstallation // github_installation_id -> installation
+	installSt  map[string]*InstallState      // state -> install state
+
+	// GitHub webhook delivery dedup (delivery_id -> record).
+	deliveries map[string]*WebhookDelivery
 }
 
 type recordedSession struct {
@@ -36,7 +46,183 @@ type recordedSession struct {
 }
 
 func newMemRepo() *memRepo {
-	return &memRepo{conns: map[int64]*Connection{}, saved: map[int64]*provider.VerifyResult{}, verified: map[int64]time.Time{}}
+	return &memRepo{
+		conns: map[int64]*Connection{}, saved: map[int64]*provider.VerifyResult{},
+		verified: map[int64]time.Time{}, repos: map[int64][]Repo{},
+		repoMode:   map[int64]RepoSelectionMode{},
+		ghInstalls: map[int64]*GitHubInstallation{},
+		installSt:  map[string]*InstallState{},
+		deliveries: map[string]*WebhookDelivery{},
+	}
+}
+
+func (r *memRepo) InsertWebhookDelivery(ctx context.Context, d WebhookDelivery) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.deliveries[d.DeliveryID]; ok {
+		return ErrDuplicateDelivery
+	}
+	if d.Status == "" {
+		d.Status = "received"
+	}
+	cp := d
+	r.deliveries[d.DeliveryID] = &cp
+	return nil
+}
+func (r *memRepo) MarkWebhookDelivery(ctx context.Context, deliveryID, status, sanitizedErr string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if d, ok := r.deliveries[deliveryID]; ok {
+		d.Status = status
+		d.Error = sanitizedErr
+	}
+	return nil
+}
+func (r *memRepo) SetGitHubInstallationStatus(ctx context.Context, ghInstID int64, status string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if inst, ok := r.ghInstalls[ghInstID]; ok {
+		inst.Status = status
+	}
+	return nil
+}
+func (r *memRepo) DeleteRepositoriesNotIn(ctx context.Context, connID int64, keepExternalIDs []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(keepExternalIDs) == 0 {
+		delete(r.repos, connID)
+		return nil
+	}
+	keep := make(map[string]bool, len(keepExternalIDs))
+	for _, id := range keepExternalIDs {
+		keep[id] = true
+	}
+	cur := r.repos[connID]
+	out := cur[:0]
+	for _, rp := range cur {
+		if keep[rp.ExternalID] {
+			out = append(out, rp)
+		}
+	}
+	r.repos[connID] = append([]Repo(nil), out...)
+	return nil
+}
+
+func (r *memRepo) UpsertGitHubInstallation(ctx context.Context, inst GitHubInstallation) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := inst
+	if existing, ok := r.ghInstalls[inst.GitHubInstallationID]; ok {
+		cp.ID = existing.ID
+	} else {
+		r.repoSeq++
+		cp.ID = r.repoSeq
+	}
+	r.ghInstalls[inst.GitHubInstallationID] = &cp
+	return nil
+}
+func (r *memRepo) GetGitHubInstallationByConnection(ctx context.Context, orgID, connID int64) (*GitHubInstallation, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, inst := range r.ghInstalls {
+		if inst.OrgID == orgID && inst.ConnectionID == connID {
+			cp := *inst
+			return &cp, true, nil
+		}
+	}
+	return nil, false, nil
+}
+func (r *memRepo) GetGitHubInstallationByInstallationID(ctx context.Context, ghInstID int64) (*GitHubInstallation, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if inst, ok := r.ghInstalls[ghInstID]; ok {
+		cp := *inst
+		return &cp, true, nil
+	}
+	return nil, false, nil
+}
+func (r *memRepo) SaveInstallState(ctx context.Context, st InstallState) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := st
+	r.installSt[st.State] = &cp
+	return nil
+}
+func (r *memRepo) ConsumeInstallState(ctx context.Context, state string, now time.Time) (InstallState, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, ok := r.installSt[state]
+	if !ok || st.Used || !st.ExpiresAt.After(now) {
+		return InstallState{}, ErrInvalidState
+	}
+	st.Used = true
+	return *st, nil
+}
+
+func (r *memRepo) SaveRepositories(ctx context.Context, connID int64, repos []Repo) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	existing := r.repos[connID]
+	byExt := map[string]int{}
+	for i, e := range existing {
+		byExt[e.ExternalID] = i
+	}
+	for _, rp := range repos {
+		if i, ok := byExt[rp.ExternalID]; ok {
+			rp.ID = existing[i].ID
+			rp.Selected = existing[i].Selected
+			existing[i] = rp
+			continue
+		}
+		r.repoSeq++
+		rp.ID = r.repoSeq
+		rp.ConnectionID = connID
+		rp.Selected = true
+		existing = append(existing, rp)
+	}
+	r.repos[connID] = existing
+	return nil
+}
+func (r *memRepo) ListRepositories(ctx context.Context, connID int64) ([]Repo, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Repo(nil), r.repos[connID]...), nil
+}
+func (r *memRepo) SetRepositorySelection(ctx context.Context, connID int64, repoIDs []int64, selected bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	want := map[int64]bool{}
+	for _, id := range repoIDs {
+		want[id] = true
+	}
+	for i := range r.repos[connID] {
+		if want[r.repos[connID][i].ID] {
+			r.repos[connID][i].Selected = selected
+		}
+	}
+	return nil
+}
+func (r *memRepo) SetAllRepositoriesSelected(ctx context.Context, connID int64, selected bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.repos[connID] {
+		r.repos[connID][i].Selected = selected
+	}
+	return nil
+}
+func (r *memRepo) GetRepoSelectionMode(ctx context.Context, connID int64) (RepoSelectionMode, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if m, ok := r.repoMode[connID]; ok {
+		return m, nil
+	}
+	return RepoModeAll, nil
+}
+func (r *memRepo) SetRepoSelectionMode(ctx context.Context, connID int64, mode RepoSelectionMode) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.repoMode[connID] = mode
+	return nil
 }
 
 func (r *memRepo) Insert(ctx context.Context, c *Connection) (int64, error) {

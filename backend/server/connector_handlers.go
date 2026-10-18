@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -31,6 +35,18 @@ func (s *Server) registerConnectorRoutes(g *gin.RouterGroup) {
 	conns.POST("/:id/cancel", s.auth.RequirePermission(auth.PermIntegrations), s.handleCancelDiscovery)
 	conns.PATCH("/:id/capabilities", s.auth.RequirePermission(auth.PermIntegrations), s.handleUpdateCapabilities)
 	conns.DELETE("/:id", s.auth.RequirePermission(auth.PermIntegrations), s.handleDeleteConnection)
+
+	// GitHub App install: begin (auth-gated, integrations:manage). The callback
+	// is registered separately on the public group (see registerConnectorPublicRoutes)
+	// because the browser redirect from GitHub may not carry the JWT; its
+	// security is the single-use, tenant-bound state, not auth.
+	conns.POST("/:id/github/install", s.auth.RequirePermission(auth.PermIntegrations), s.handleGitHubBeginInstall)
+
+	// Git connector repositories: list, refresh, selection, and mode.
+	conns.GET("/:id/repositories", s.auth.RequirePermission(auth.PermProjectsRead), s.handleListRepositories)
+	conns.POST("/:id/repositories/refresh", s.auth.RequirePermission(auth.PermIntegrations), s.handleRefreshRepositories)
+	conns.PATCH("/:id/repositories", s.auth.RequirePermission(auth.PermIntegrations), s.handleSetRepositorySelection)
+	conns.PATCH("/:id/repositories/mode", s.auth.RequirePermission(auth.PermIntegrations), s.handleSetRepoSelectionMode)
 
 	// Reads.
 	conns.GET("/capabilities", s.auth.RequirePermission(auth.PermProjectsRead), s.handleConnectorCapabilities)
@@ -401,6 +417,213 @@ func (s *Server) handleDeleteConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 
+func (s *Server) handleListRepositories(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	view, err := s.connector.Repositories(c.Request.Context(), conn.OrgID, conn.ID)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+func (s *Server) handleRefreshRepositories(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	view, err := s.connector.RefreshRepositories(c.Request.Context(), conn.OrgID, conn.ID)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+func (s *Server) handleSetRepositorySelection(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	var body struct {
+		RepositoryIDs []int64 `json:"repository_ids"`
+		Selected      bool    `json:"selected"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if err := s.connector.SetRepositorySelection(c.Request.Context(), conn.OrgID, conn.ID, body.RepositoryIDs, body.Selected); err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	view, err := s.connector.Repositories(c.Request.Context(), conn.OrgID, conn.ID)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+func (s *Server) handleSetRepoSelectionMode(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	var body struct {
+		Mode string `json:"mode"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if err := s.connector.SetRepoSelectionMode(c.Request.Context(), conn.OrgID, conn.ID, connector.RepoSelectionMode(body.Mode)); err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	view, err := s.connector.Repositories(c.Request.Context(), conn.OrgID, conn.ID)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+// registerConnectorPublicRoutes wires the connector endpoints that must NOT be
+// behind authentication because they are reached by a browser redirect that may
+// not carry the JWT. Currently just the GitHub install callback, whose security
+// is the single-use, tenant-bound install state (not auth). It is registered on
+// the public /api group alongside health and login.
+// maxWebhookBody bounds the webhook payload the server will read, so a hostile
+// sender cannot exhaust memory. GitHub payloads are well under this.
+const maxWebhookBody = 2 << 20 // 2 MiB
+
+// handleGitHubWebhook receives GitHub App webhooks. It is unauthenticated by
+// design: the HMAC signature over the raw body is the authentication. It reads
+// the RAW body first, verifies X-Hub-Signature-256 in constant time, then
+// dedupes + dispatches. Invalid signatures are rejected before any parsing.
+func (s *Server) handleGitHubWebhook(c *gin.Context) {
+	if s.connector == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "connector not available"})
+		return
+	}
+	// Read the exact raw bytes (bounded) before any binding — HMAC is over this.
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBody))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot read body"})
+		return
+	}
+	sig := c.GetHeader("X-Hub-Signature-256")
+	if !s.connector.VerifyGitHubWebhook(body, sig) {
+		// Reject before parsing. No detail leaked.
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid signature"})
+		return
+	}
+	deliveryID := c.GetHeader("X-GitHub-Delivery")
+	eventType := c.GetHeader("X-GitHub-Event")
+	if deliveryID == "" || eventType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing delivery id or event type"})
+		return
+	}
+	res, herr := s.connector.HandleGitHubWebhook(c.Request.Context(), deliveryID, eventType, body)
+	if herr != nil {
+		// Processing failed but the signature was valid; 202 so GitHub does not
+		// hammer retries on a persistent processing bug, and the delivery is
+		// recorded as failed for inspection.
+		c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": res.Status})
+}
+
+func (s *Server) registerConnectorPublicRoutes(g *gin.RouterGroup) {
+	g.GET("/connectors/github/callback", s.handleGitHubCallback)
+	// GitHub App webhook receiver. Unauthenticated by design: the HMAC
+	// signature over the raw body (verified in handleGitHubWebhook) is the
+	// authentication.
+	g.POST("/webhooks/github", s.handleGitHubWebhook)
+}
+
+// handleGitHubBeginInstall issues a single-use install state and returns the
+// GitHub App install URL for the connection. Tenant + user come from the
+// authenticated Principal; the connection is loaded through connectionForRequest
+// (IDOR guard). No secret is returned.
+func (s *Server) handleGitHubBeginInstall(c *gin.Context) {
+	conn, ok := s.connectionForRequest(c)
+	if !ok {
+		return
+	}
+	p, _ := auth.PrincipalFrom(c)
+	_, installURL, err := s.connector.BeginGitHubInstall(c.Request.Context(), p.User.OrgID, p.User.ID, conn.ID)
+	if err != nil {
+		c.JSON(connectorErrStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"install_url": installURL})
+}
+
+// handleGitHubCallback is GitHub's post-install redirect target. It reads
+// state + installation_id + setup_action from the query, completes the install
+// on "install"/"update" (deriving the tenant solely from the consumed state),
+// and 302-redirects back to the frontend connectors page. On cancellation /
+// missing installation_id, or any error, it redirects with an error reason
+// rather than returning JSON. No auth: the single-use, tenant-bound state is
+// the authorization.
+func (s *Server) handleGitHubCallback(c *gin.Context) {
+	if s.connector == nil {
+		s.redirectConnectors(c, "error", "connector_unavailable")
+		return
+	}
+	state := c.Query("state")
+	instStr := c.Query("installation_id")
+	setupAction := c.Query("setup_action")
+
+	// A cancelled install (user denied) or a missing installation id: nothing to
+	// complete. Redirect back with a cancelled reason.
+	if instStr == "" || (setupAction != "install" && setupAction != "update") {
+		s.redirectConnectors(c, "error", "install_cancelled")
+		return
+	}
+
+	instID, err := strconv.ParseInt(instStr, 10, 64)
+	if err != nil || instID <= 0 {
+		s.redirectConnectors(c, "error", "invalid_installation_id")
+		return
+	}
+
+	if _, err := s.connector.CompleteGitHubInstall(c.Request.Context(), state, instID); err != nil {
+		// Map the known failure modes to a stable, non-sensitive reason code.
+		reason := "install_failed"
+		switch {
+		case errors.Is(err, connector.ErrInvalidState):
+			reason = "invalid_state"
+		case errors.Is(err, connector.ErrInvalidValue):
+			reason = "invalid_request"
+		case errors.Is(err, connector.ErrNotFound):
+			reason = "not_found"
+		}
+		s.redirectConnectors(c, "error", reason)
+		return
+	}
+	s.redirectConnectors(c, "connected", "")
+}
+
+// redirectConnectors 302-redirects the browser back to the frontend connectors
+// page with a github status (and optional reason). The frontend base path is
+// configurable via BELLU_FRONTEND_BASE_URL; it defaults to a relative path so
+// the API and UI can share an origin behind a reverse proxy.
+func (s *Server) redirectConnectors(c *gin.Context, status, reason string) {
+	base := strings.TrimRight(os.Getenv("BELLU_FRONTEND_BASE_URL"), "/")
+	target := base + "/connectors?github=" + url.QueryEscape(status)
+	if reason != "" {
+		target += "&reason=" + url.QueryEscape(reason)
+	}
+	c.Redirect(http.StatusFound, target)
+}
+
 // connectorErrStatus maps connector sentinel errors to HTTP status codes.
 func connectorErrStatus(err error) int {
 	switch {
@@ -410,7 +633,8 @@ func connectorErrStatus(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, connector.ErrInvalidTransition):
 		return http.StatusConflict
-	case errors.Is(err, connector.ErrUnsupportedProvider), errors.Is(err, connector.ErrInvalidValue):
+	case errors.Is(err, connector.ErrUnsupportedProvider), errors.Is(err, connector.ErrInvalidValue),
+		errors.Is(err, connector.ErrInvalidState):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

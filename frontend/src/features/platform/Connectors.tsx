@@ -29,33 +29,63 @@ function statusVariant(
   }
 }
 
-// The cloud providers Bellu can connect, each shown as a card. Only AWS is wired
-// end-to-end today; the others are shown as "coming soon".
+// The providers Bellu can connect, each shown as a card. Cloud providers scan
+// an account/subscription/project; CI/VCS providers connect source platforms
+// (GitHub reuses the code-security GitHub App).
+type ConnectorCategory = 'cloud' | 'ci'
+
 interface ProviderCard {
   id: string
   name: string
   description: string
+  category: ConnectorCategory
   available: boolean
 }
 
 const PROVIDERS: ProviderCard[] = [
+  // Cloud.
   {
     id: 'aws',
     name: 'Amazon Web Services',
     description: 'Scan an AWS account or organization for cloud security posture.',
+    category: 'cloud',
     available: true,
   },
   {
     id: 'gcp',
     name: 'Google Cloud',
     description: 'Connect a Google Cloud project to map its security posture.',
-    available: false,
+    category: 'cloud',
+    available: true,
   },
   {
     id: 'azure',
     name: 'Microsoft Azure',
     description: 'Connect an Azure subscription for cloud visibility.',
-    available: false,
+    category: 'cloud',
+    available: true,
+  },
+  // CI / VCS.
+  {
+    id: 'github',
+    name: 'GitHub',
+    description: 'Connect repositories via the Bellu GitHub App for code security.',
+    category: 'ci',
+    available: true,
+  },
+  {
+    id: 'gitlab',
+    name: 'GitLab',
+    description: 'Connect GitLab projects with a read-only access token.',
+    category: 'ci',
+    available: true,
+  },
+  {
+    id: 'atlassian',
+    name: 'Atlassian / Bitbucket',
+    description: 'Connect Bitbucket repositories with a read-only app password.',
+    category: 'ci',
+    available: true,
   },
 ]
 
@@ -107,16 +137,67 @@ export default function ConnectorsPage() {
 
   function connect(p: ProviderCard) {
     if (!p.available || !canManage) return
-    navigate('/connectors/new/aws')
+    navigate(`/connectors/new/${p.id}`)
+  }
+
+  // Group the "Add a connector" cards by category for the two sections.
+  const cloudProviders = PROVIDERS.filter((p) => p.category === 'cloud')
+  const ciProviders = PROVIDERS.filter((p) => p.category === 'ci')
+
+  function providerGrid(items: ProviderCard[]) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((p) => {
+          const clickable = p.available && canManage
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => connect(p)}
+              disabled={!clickable}
+              className={cn(
+                'group flex flex-col gap-3 rounded-lg border p-5 text-left transition-colors',
+                clickable
+                  ? 'cursor-pointer bg-card hover:border-primary/50 hover:bg-accent'
+                  : 'cursor-default bg-muted/30 opacity-80',
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <ProviderIcon provider={p.id} className="h-9 w-9" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold">{p.name}</div>
+                </div>
+                {p.available ? (
+                  canManage ? (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  ) : null
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">
+                    Soon
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">{p.description}</p>
+              {p.available && canManage && (
+                <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-primary">
+                  <Plus className="h-3.5 w-3.5" /> Connect
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cloud Connectors</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Connectors</h1>
           <p className="text-sm text-muted-foreground">
-            Connect a cloud account so Bellu can collect and map its security posture.
+            Connect a cloud account or source platform so Bellu can collect and map its security
+            posture.
             {current ? (
               <>
                 {' '}
@@ -132,50 +213,15 @@ export default function ConnectorsPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Provider cards: pick a cloud to connect. */}
+      {/* Provider cards grouped by category: cloud accounts and CI/VCS. */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Add a connector</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {PROVIDERS.map((p) => {
-            const clickable = p.available && canManage
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => connect(p)}
-                disabled={!clickable}
-                className={cn(
-                  'group flex flex-col gap-3 rounded-lg border p-5 text-left transition-colors',
-                  clickable
-                    ? 'cursor-pointer bg-card hover:border-primary/50 hover:bg-accent'
-                    : 'cursor-default bg-muted/30 opacity-80',
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <ProviderIcon provider={p.id} className="h-9 w-9" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{p.name}</div>
-                  </div>
-                  {p.available ? (
-                    canManage ? (
-                      <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                    ) : null
-                  ) : (
-                    <Badge variant="secondary" className="text-[10px]">
-                      Soon
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">{p.description}</p>
-                {p.available && canManage && (
-                  <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-primary">
-                    <Plus className="h-3.5 w-3.5" /> Connect
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
+        <h2 className="text-sm font-medium text-muted-foreground">Cloud</h2>
+        {providerGrid(cloudProviders)}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">CI / Source control</h2>
+        {providerGrid(ciProviders)}
       </section>
 
       {/* Connected accounts for this project. */}
@@ -232,13 +278,13 @@ export default function ConnectorsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => navigate(`/connectors/new/aws?id=${c.id}&edit=1`)}
+                        onClick={() => navigate(`/connectors/new/${c.provider}?id=${c.id}&edit=1`)}
                       >
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
                     )}
                     <Link
-                      to={`/connectors/new/aws?id=${c.id}`}
+                      to={`/connectors/new/${c.provider}?id=${c.id}`}
                       className="text-xs text-primary hover:underline"
                     >
                       Open

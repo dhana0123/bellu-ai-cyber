@@ -25,6 +25,9 @@ import azureLogo from '@/assets/providers/azure.svg'
 import gcpLogo from '@/assets/providers/gcp.svg'
 import k8sLogo from '@/assets/providers/k8s.svg'
 import dockerLogo from '@/assets/providers/docker.svg'
+import githubLogo from '@/assets/providers/github.svg'
+import gitlabLogo from '@/assets/providers/gitlab.svg'
+import bitbucketLogo from '@/assets/providers/bitbucket.svg'
 
 // Distinct icon + color per asset category for the table's leading icon slot.
 const CATEGORY_META: Record<AssetCategory, { icon: typeof Bot; color: string; bg: string }> = {
@@ -101,11 +104,16 @@ const PROVIDER_LOGO: Record<string, string> = {
   kubernetes: k8sLogo,
   image: dockerLogo,
   docker: dockerLogo,
+  // CI / VCS brand marks.
+  github: githubLogo,
+  gitlab: gitlabLogo,
+  atlassian: bitbucketLogo,
+  bitbucket: bitbucketLogo,
 }
 
 // ProviderIcon renders the provider's official brand logo for a resource.
-// Unknown / non-cloud providers (network, repo, …) fall back to a neutral cloud
-// glyph so the slot is never empty.
+// Cloud and CI/VCS providers use bundled brand SVGs; unknown providers fall
+// back to a neutral cloud glyph so the slot is never empty.
 export function ProviderIcon({ provider, className }: { provider?: string; className?: string }) {
   const cls = className ?? 'h-4 w-4'
   const key = (provider ?? '').toLowerCase()

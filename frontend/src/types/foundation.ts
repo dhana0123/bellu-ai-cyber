@@ -417,6 +417,26 @@ export interface ConnectorStatusView {
   latest_session?: DiscoverySession
 }
 
+// A repository a git connector can access, and whether it is selected for
+// collection.
+export interface ConnectorRepository {
+  id: number
+  connection_id: number
+  external_id: string
+  full_name: string
+  url: string
+  default_branch: string
+  private: boolean
+  selected: boolean
+}
+
+export type RepoSelectionMode = 'all' | 'selected'
+
+export interface ConnectorRepositoriesView {
+  mode: RepoSelectionMode
+  repositories: ConnectorRepository[]
+}
+
 export interface CreateConnectorInput {
   project_id: number
   provider: string

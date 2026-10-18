@@ -66,6 +66,10 @@ func (s *Server) Handler() http.Handler {
 		// Public.
 		api.GET("/health", s.handleHealth)
 		api.POST("/auth/login", s.handleLogin)
+		// GitHub App install callback: reached by a browser redirect from GitHub
+		// that may not carry the JWT, so it is intentionally unauthenticated. Its
+		// security is the single-use, tenant-bound install state.
+		s.registerConnectorPublicRoutes(api)
 
 		// Authenticated.
 		authed := api.Group("")

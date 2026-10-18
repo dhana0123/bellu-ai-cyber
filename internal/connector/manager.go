@@ -42,6 +42,35 @@ type connRepo interface {
 	LatestSession(ctx context.Context, connID int64) (*DiscoverySessionRow, error)
 	ReconcileRunningSessions(ctx context.Context) (int, error)
 	SetCapabilities(ctx context.Context, orgID, id int64, caps []string) error
+
+	// Git connector repository management.
+	SaveRepositories(ctx context.Context, connID int64, repos []Repo) error
+	ListRepositories(ctx context.Context, connID int64) ([]Repo, error)
+	SetRepositorySelection(ctx context.Context, connID int64, repoIDs []int64, selected bool) error
+	SetAllRepositoriesSelected(ctx context.Context, connID int64, selected bool) error
+	GetRepoSelectionMode(ctx context.Context, connID int64) (RepoSelectionMode, error)
+	SetRepoSelectionMode(ctx context.Context, connID int64, mode RepoSelectionMode) error
+
+	// GitHub App installation + single-use install-state management.
+	UpsertGitHubInstallation(ctx context.Context, inst GitHubInstallation) error
+	GetGitHubInstallationByConnection(ctx context.Context, orgID, connID int64) (*GitHubInstallation, bool, error)
+	GetGitHubInstallationByInstallationID(ctx context.Context, ghInstID int64) (*GitHubInstallation, bool, error)
+	SaveInstallState(ctx context.Context, st InstallState) error
+	ConsumeInstallState(ctx context.Context, state string, now time.Time) (InstallState, error)
+
+	// GitHub webhook delivery dedup + lifecycle.
+	InsertWebhookDelivery(ctx context.Context, d WebhookDelivery) error
+	MarkWebhookDelivery(ctx context.Context, deliveryID, status, sanitizedErr string) error
+	SetGitHubInstallationStatus(ctx context.Context, ghInstID int64, status string) error
+	DeleteRepositoriesNotIn(ctx context.Context, connID int64, keepExternalIDs []string) error
+}
+
+// GitHubAppClient is the slice of the GitHub App API client the Manager needs
+// to verify an installation during the install callback. *github.GitHubAppClient
+// satisfies it; tests inject a fake. Declaring it here keeps the manager
+// package free of an import on the ci/github package (and testable).
+type GitHubAppClient interface {
+	VerifyInstallation(ctx context.Context, installationID int64) (login string, accountID int64, accountType string, perms map[string]string, err error)
 }
 
 // Manager owns Connection lifecycle and the state machine. It is provider-
@@ -54,6 +83,17 @@ type Manager struct {
 	disc       *discovery.Orchestrator
 	externalID ExternalIDFunc
 	now        func() time.Time
+	// githubClient verifies GitHub App installations during the install
+	// callback. Nil when no GitHub App config is present (dev-safe):
+	// BeginGitHubInstall still works, but CompleteGitHubInstall returns a clear
+	// error.
+	githubClient GitHubAppClient
+	// githubAppSlug is the GitHub App's URL slug used to build the install URL.
+	githubAppSlug string
+	// githubWebhookSecret authenticates inbound GitHub webhooks (HMAC-SHA256).
+	// Empty when no webhook secret is configured; the webhook handler then
+	// rejects all deliveries (fail-safe).
+	githubWebhookSecret []byte
 }
 
 // Options configures a Manager.
@@ -63,16 +103,28 @@ type Options struct {
 	Discovery  *discovery.Orchestrator
 	ExternalID ExternalIDFunc
 	Now        func() time.Time
+	// GitHubClient verifies GitHub App installations. Optional: nil in dev
+	// builds without GitHub App config.
+	GitHubClient GitHubAppClient
+	// GitHubAppSlug is the GitHub App's URL slug (BELLU_GITHUB_APP_SLUG). Used
+	// to build https://github.com/apps/<slug>/installations/new.
+	GitHubAppSlug string
+	// GitHubWebhookSecret authenticates inbound GitHub webhooks. Optional: when
+	// empty, the webhook handler rejects all deliveries.
+	GitHubWebhookSecret string
 }
 
 // NewManager builds a Manager.
 func NewManager(opts Options) *Manager {
 	m := &Manager{
-		repo:       opts.Repo,
-		registry:   opts.Registry,
-		disc:       opts.Discovery,
-		externalID: opts.ExternalID,
-		now:        opts.Now,
+		repo:          opts.Repo,
+		registry:      opts.Registry,
+		disc:          opts.Discovery,
+		externalID:    opts.ExternalID,
+		now:           opts.Now,
+		githubClient:        opts.GitHubClient,
+		githubAppSlug:       opts.GitHubAppSlug,
+		githubWebhookSecret: []byte(opts.GitHubWebhookSecret),
 	}
 	if m.now == nil {
 		m.now = time.Now
@@ -110,12 +162,19 @@ type CreateInput struct {
 // Create validates the provider, generates an external id, defaults the
 // capability set to core, and persists a PENDING connection.
 func (m *Manager) Create(ctx context.Context, in CreateInput) (*Connection, error) {
-	if _, err := m.resolveProvider(in.Provider); err != nil {
+	p, err := m.resolveProvider(in.Provider)
+	if err != nil {
 		return nil, err
 	}
+	// Git/CI providers (those that enumerate repositories) have no cloud
+	// capabilities. Their "scope" is which repositories to scan, chosen on the
+	// Repositories page — not the AWS capability catalog (core/eks/dspm/…). So
+	// an empty capability set stays empty for them, and the cloud defaults are
+	// skipped.
+	_, isGit := p.(provider.RepoLister)
 
 	caps := in.Capabilities
-	if len(caps) == 0 {
+	if len(caps) == 0 && !isGit {
 		caps = capability.DefaultSelection()
 	}
 	for _, c := range caps {
@@ -140,7 +199,12 @@ func (m *Manager) Create(ctx context.Context, in CreateInput) (*Connection, erro
 	}
 	method := in.DeploymentMethod
 	if method == "" {
-		method = DeploymentCloudFormation
+		// Git/CI connectors have no cloud role to deploy; default to manual.
+		if isGit {
+			method = DeploymentManual
+		} else {
+			method = DeploymentCloudFormation
+		}
 	}
 	if !method.Valid() {
 		return nil, fmt.Errorf("%w: deployment_method %q", ErrInvalidValue, method)
@@ -157,7 +221,10 @@ func (m *Manager) Create(ctx context.Context, in CreateInput) (*Connection, erro
 	case ScopeAccount:
 		// Organization-only inputs never apply to an account connection.
 		mgmt, ou = "", ""
-		if accountID != "" && !accountIDRe.MatchString(accountID) {
+		// The 12-digit account-id rule is AWS-specific. Git/CI connectors use
+		// account_id for the org/group/workspace login (free-form text), so the
+		// AWS validation is skipped for them.
+		if !isGit && accountID != "" && !accountIDRe.MatchString(accountID) {
 			return nil, fmt.Errorf("%w: account_id must be a 12-digit AWS account id", ErrInvalidValue)
 		}
 	case ScopeOrganization:
@@ -584,6 +651,116 @@ func (m *Manager) UpdateCapabilities(ctx context.Context, orgID, id int64, caps 
 // number of sessions reconciled.
 func (m *Manager) ReconcileInterrupted(ctx context.Context) (int, error) {
 	return m.repo.ReconcileRunningSessions(ctx)
+}
+
+// RepositoriesView is a git connection's repositories plus its selection mode.
+type RepositoriesView struct {
+	Mode  RepoSelectionMode `json:"mode"`
+	Repos []Repo            `json:"repositories"`
+}
+
+// RefreshRepositories asks the connection's provider to enumerate the repos it
+// can access and upserts them (new repos default to selected = collect-all).
+// It is a no-op returning the stored list for providers that are not git/CI
+// (do not implement provider.RepoLister). Returns the current view.
+func (m *Manager) RefreshRepositories(ctx context.Context, orgID, id int64) (*RepositoriesView, error) {
+	c, err := m.repo.Get(ctx, orgID, id)
+	if err != nil {
+		return nil, err
+	}
+	p, err := m.resolveProvider(c.Provider)
+	if err != nil {
+		return nil, err
+	}
+	if lister, ok := p.(provider.RepoLister); ok {
+		tgt := m.targetFor(c)
+		// For a GitHub connection, the installation id lives in the stored
+		// installation record (bound to this tenant+connection). Pass it to the
+		// adapter so it can mint an installation token and enumerate repos. The
+		// id is never taken from a client-supplied value.
+		if inst, ok, ierr := m.repo.GetGitHubInstallationByConnection(ctx, orgID, id); ierr == nil && ok && inst != nil {
+			tgt.InstallationID = inst.GitHubInstallationID
+		}
+		repos, lerr := lister.ListRepositories(ctx, tgt)
+		if lerr != nil {
+			return nil, lerr
+		}
+		mapped := make([]Repo, 0, len(repos))
+		for _, r := range repos {
+			mapped = append(mapped, Repo{
+				ExternalID: r.ExternalID, FullName: r.FullName, URL: r.URL,
+				DefaultBranch: r.DefaultBranch, Private: r.Private,
+			})
+		}
+		if err := m.repo.SaveRepositories(ctx, id, mapped); err != nil {
+			return nil, err
+		}
+	}
+	return m.Repositories(ctx, orgID, id)
+}
+
+// Repositories returns the stored repositories and selection mode for a git
+// connection. Non-git connections return an empty list with mode "all".
+func (m *Manager) Repositories(ctx context.Context, orgID, id int64) (*RepositoriesView, error) {
+	if _, err := m.repo.Get(ctx, orgID, id); err != nil {
+		return nil, err
+	}
+	mode, err := m.repo.GetRepoSelectionMode(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	repos, err := m.repo.ListRepositories(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &RepositoriesView{Mode: mode, Repos: repos}, nil
+}
+
+// SetRepositorySelection toggles collection for specific repos of a git
+// connection. selected=true adds them to the collected set. Every requested
+// repo id is validated against the connection's actual accessible set (the
+// repos stored from the installation), so a caller cannot select a repository
+// outside the installation's access (IDOR / out-of-scope guard).
+func (m *Manager) SetRepositorySelection(ctx context.Context, orgID, id int64, repoIDs []int64, selected bool) error {
+	if _, err := m.repo.Get(ctx, orgID, id); err != nil {
+		return err
+	}
+	if len(repoIDs) == 0 {
+		return nil
+	}
+	known, err := m.repo.ListRepositories(ctx, id)
+	if err != nil {
+		return err
+	}
+	valid := make(map[int64]bool, len(known))
+	for _, r := range known {
+		valid[r.ID] = true
+	}
+	for _, rid := range repoIDs {
+		if !valid[rid] {
+			return fmt.Errorf("%w: repository %d is not in this connection's accessible set", ErrInvalidValue, rid)
+		}
+	}
+	return m.repo.SetRepositorySelection(ctx, id, repoIDs, selected)
+}
+
+// SetRepoSelectionMode switches a git connection between collecting all repos
+// and only the selected ones. Switching to "all" also marks every repo
+// selected so the stored set matches the mode.
+func (m *Manager) SetRepoSelectionMode(ctx context.Context, orgID, id int64, mode RepoSelectionMode) error {
+	if !mode.Valid() {
+		return fmt.Errorf("%w: repo selection mode %q", ErrInvalidValue, mode)
+	}
+	if _, err := m.repo.Get(ctx, orgID, id); err != nil {
+		return err
+	}
+	if err := m.repo.SetRepoSelectionMode(ctx, id, mode); err != nil {
+		return err
+	}
+	if mode == RepoModeAll {
+		return m.repo.SetAllRepositoriesSelected(ctx, id, true)
+	}
+	return nil
 }
 
 // transitionByID loads the connection by id and applies an event. It is used by

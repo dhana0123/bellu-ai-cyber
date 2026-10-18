@@ -53,6 +53,11 @@ type Target struct {
 	ExternalID   string
 	Region       string
 	Capabilities []string
+	// InstallationID is the git provider's installation identifier (GitHub App
+	// installation id) for a git/CI connection. Zero for cloud connections. The
+	// manager populates it from the stored installation record so the provider
+	// never trusts a client-supplied value.
+	InstallationID int64
 }
 
 // Credentials are short-lived credentials obtained from the provider (for AWS,
@@ -184,6 +189,23 @@ type OrgAccount struct {
 // manager checks for it with a type assertion, so it stays provider-agnostic.
 type OrganizationLister interface {
 	ListOrganizationAccounts(ctx context.Context, t Target) ([]OrgAccount, error)
+}
+
+// Repo is one repository a git/CI provider can access. Non-secret metadata only.
+type Repo struct {
+	ExternalID    string
+	FullName      string
+	URL           string
+	DefaultBranch string
+	Private       bool
+}
+
+// RepoLister is implemented by git/CI providers (GitHub, GitLab, Bitbucket)
+// that can enumerate the repositories a connection can access. The connector
+// manager checks for it with a type assertion, so cloud providers (AWS/Azure/
+// GCP) that do not implement it are unaffected.
+type RepoLister interface {
+	ListRepositories(ctx context.Context, t Target) ([]Repo, error)
 }
 
 // MemberRoleARN returns the role ARN of a member account, built from a member

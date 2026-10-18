@@ -30,6 +30,7 @@ import ProjectsPage from '@/features/platform/Projects'
 import RolesPage from '@/features/platform/Roles'
 import ConnectorsPage from '@/features/platform/Connectors'
 import ConnectAwsPage from '@/features/platform/ConnectAws'
+import ConnectProviderPage from '@/features/platform/ConnectProvider'
 import RepositoriesPage from '@/features/platform/Repositories'
 
 // RequireAuth gates a route: redirects to /login when unauthenticated and shows
@@ -216,6 +217,16 @@ export default function App() {
         element={
           <RequireAuth permission="integrations:manage">
             <ConnectAwsPage />
+          </RequireAuth>
+        }
+      />
+      {/* Generic onboarding for non-AWS providers (azure, gcp, github, gitlab,
+          atlassian). AWS keeps its specialized wizard above. */}
+      <Route
+        path="/connectors/new/:provider"
+        element={
+          <RequireAuth permission="integrations:manage">
+            <ConnectProviderPage />
           </RequireAuth>
         }
       />

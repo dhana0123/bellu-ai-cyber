@@ -23,6 +23,7 @@ import type {
   PermissionRow,
   ProjectRow,
   RoleRow,
+  ConnectorRepositoriesView,
   Setup,
   Stats,
   UserRow,
@@ -176,6 +177,23 @@ export const realApi = {
       member_account_ids: memberAccountIds,
     }),
   deleteConnector: (id: number | string) => del(`/api/connectors/${id}`),
+
+  // git connector repositories
+  connectorRepositories: (id: number | string) =>
+    get<ConnectorRepositoriesView>(`/api/connectors/${id}/repositories`),
+  refreshConnectorRepositories: (id: number | string) =>
+    post<ConnectorRepositoriesView>(`/api/connectors/${id}/repositories/refresh`),
+  setConnectorRepositorySelection: (
+    id: number | string,
+    repositoryIds: number[],
+    selected: boolean,
+  ) =>
+    patch<ConnectorRepositoriesView>(`/api/connectors/${id}/repositories`, {
+      repository_ids: repositoryIds,
+      selected,
+    }),
+  setConnectorRepoMode: (id: number | string, mode: 'all' | 'selected') =>
+    patch<ConnectorRepositoriesView>(`/api/connectors/${id}/repositories/mode`, { mode }),
 }
 
 export type RealApi = typeof realApi

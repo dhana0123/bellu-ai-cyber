@@ -32,4 +32,9 @@ var (
 	// ErrConflict is returned when a connection for the same tenant, provider,
 	// and account already exists.
 	ErrConflict = errors.New("connector: a connection for this account already exists")
+
+	// ErrInvalidState is returned when a GitHub install state is missing,
+	// expired, or already used (single-use CSRF token). Handlers map it to a
+	// 400 so a replayed or forged callback is rejected.
+	ErrInvalidState = errors.New("connector: invalid or expired install state")
 )
