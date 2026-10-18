@@ -189,12 +189,31 @@ services:
       # every 6 hours (minimum 15m).
       BELLU_DISCOVERY_INTERVAL: ${BELLU_DISCOVERY_INTERVAL:-}
       BELLU_DISCOVERY_MAX_CONCURRENT: ${BELLU_DISCOVERY_MAX_CONCURRENT:-2}
+      # GitHub App integration. Values come from deploy/.env (gitignored). The
+      # App ID and slug are not secret; the private key and webhook secret are.
+      # The private key is mounted read-only at the path below (see volumes); as
+      # an alternative, set BELLU_GITHUB_APP_PRIVATE_KEY_PEM inline. Leave the
+      # App ID empty to keep the GitHub integration disabled.
+      BELLU_GITHUB_APP_ID: ${BELLU_GITHUB_APP_ID:-}
+      BELLU_GITHUB_APP_SLUG: ${BELLU_GITHUB_APP_SLUG:-}
+      BELLU_GITHUB_APP_PRIVATE_KEY_PATH: ${BELLU_GITHUB_APP_PRIVATE_KEY_PATH:-/run/secrets/github-app-key.pem}
+      BELLU_GITHUB_WEBHOOK_SECRET: ${BELLU_GITHUB_WEBHOOK_SECRET:-}
+      BELLU_GITHUB_API_BASE: ${BELLU_GITHUB_API_BASE:-https://api.github.com}
+      # Where the OAuth/install callback redirects the browser back to. Set to
+      # your public URL, e.g. http://13.204.68.244
+      BELLU_FRONTEND_BASE_URL: ${BELLU_FRONTEND_BASE_URL:-}
     # Join the root group (gid 0) that owns the shared steampipe config dir, so
     # the connector (uid 10001) can write per-session <conn>.spc files there.
     group_add:
       - "0"
     volumes:
       - steampipe_config:/steampipe-config
+      # GitHub App private key, mounted read-only. Defaults to a placeholder so
+      # the stack always starts even without GitHub configured. To enable
+      # GitHub, point BELLU_GITHUB_APP_KEY_FILE at the real .pem (e.g.
+      # ./secrets/github-app-key.pem) in deploy/.env. A missing/empty file plus
+      # no App ID keeps the integration disabled.
+      - ${BELLU_GITHUB_APP_KEY_FILE:-./secrets/github-app-key.pem.placeholder}:/run/secrets/github-app-key.pem:ro
     ports:
       - "127.0.0.1:8080:8080"
 
