@@ -1,0 +1,268 @@
+# CloudQuery AWS table mapping. Deliberately the same shape as the former
+# Steampipe AWS catalog so the collection cut is a data migration, not a schema
+# change: Bellu `table` names (the RawEvent resource_type) are kept identical to
+# the Steampipe catalog. The one new field, `cq_table`, names the CloudQuery AWS
+# plugin staging table that backs each Bellu table.
+#
+# CloudQuery AWS plugin table names are the pluralized form of the Steampipe
+# singular (e.g. aws_iam_role -> aws_iam_roles, aws_s3_bucket -> aws_s3_buckets).
+# When `cq_table` is omitted it defaults to `table`.
+#
+# Each table declares the connector capability that grants the IAM permissions
+# it needs. The source skips a table whose capability is not in the connection's
+# enabled set, so an ungranted capability never produces an AccessDenied error.
+# "core" is always-on (never gated). A table with no capability is ungated and
+# always collected.
+provider: aws
+connection: aws
+
+tables:
+  - table: aws_account
+    cq_table: aws_account
+    id_column: account_id
+    scope_column: account_id
+    capability: core
+
+  - table: aws_iam_role
+    cq_table: aws_iam_roles
+    id_column: arn
+    scope_column: account_id
+    capability: core
+
+  - table: aws_iam_user
+    cq_table: aws_iam_users
+    id_column: arn
+    scope_column: account_id
+    capability: core
+
+  - table: aws_iam_policy
+    cq_table: aws_iam_policies
+    id_column: arn
+    scope_column: account_id
+    capability: core
+
+  - table: aws_iam_instance_profile
+    cq_table: aws_iam_instance_profiles
+    id_column: arn
+    scope_column: account_id
+    capability: core
+
+  - table: aws_s3_bucket
+    cq_table: aws_s3_buckets
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_ec2_instance
+    cq_table: aws_ec2_instances
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_security_group
+    cq_table: aws_ec2_security_groups
+    id_column: group_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  # AWS network topology (R6.9). All read by ec2:Describe*, already in Core, so
+  # they reuse the core capability (no new IAM permission required).
+  - table: aws_vpc
+    cq_table: aws_ec2_vpcs
+    id_column: vpc_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_subnet
+    cq_table: aws_ec2_subnets
+    id_column: subnet_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_route_table
+    cq_table: aws_ec2_route_tables
+    id_column: route_table_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_internet_gateway
+    cq_table: aws_ec2_internet_gateways
+    id_column: internet_gateway_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_nat_gateway
+    cq_table: aws_ec2_nat_gateways
+    id_column: nat_gateway_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_vpc_peering_connection
+    cq_table: aws_ec2_vpc_peering_connections
+    id_column: id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_ec2_network_interface
+    cq_table: aws_ec2_network_interfaces
+    id_column: network_interface_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_ec2_transit_gateway
+    cq_table: aws_ec2_transit_gateways
+    id_column: transit_gateway_id
+    scope_column: account_id
+    region_column: region
+    capability: core
+
+  - table: aws_eks_cluster
+    cq_table: aws_eks_clusters
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: eks
+
+  - table: aws_ecs_task_definition
+    cq_table: aws_ecs_task_definitions
+    id_column: task_definition_arn
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  # Amazon Inspector v2 findings: AWS's agentless scanner covers EC2 instances,
+  # ECR images and Lambda functions and reports CVEs per resource. This is the
+  # vulnerability source for cloud-only discovery (no SBOM required). Only
+  # ACTIVE findings are collected so remediated/suppressed ones don't linger.
+  # Inspector must be enabled in the account; if not, the table returns no rows
+  # (or a per-table warning) and discovery continues.
+  - table: aws_inspector2_finding
+    cq_table: aws_inspector2_findings
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: workload
+    where: "status = 'ACTIVE'"
+
+  - table: aws_ecr_image
+    cq_table: aws_ecr_repository_images
+    id_column: image_digest
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  - table: aws_lambda_function
+    cq_table: aws_lambda_functions
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  # Additional data stores (R7.7), DSPM-gated.
+  - table: aws_rds_db_instance
+    cq_table: aws_rds_instances
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_rds_db_cluster
+    cq_table: aws_rds_clusters
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_dynamodb_table
+    cq_table: aws_dynamodb_tables
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_efs_file_system
+    cq_table: aws_efs_file_systems
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  - table: aws_elasticache_cluster
+    cq_table: aws_elasticache_clusters
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: dspm
+
+  # Internet entry points (R8.7), workload-gated (API Gateway GET).
+  - table: aws_api_gateway_rest_api
+    cq_table: aws_apigateway_rest_apis
+    id_column: api_id
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  - table: aws_api_gatewayv2_api
+    cq_table: aws_apigatewayv2_apis
+    id_column: api_id
+    scope_column: account_id
+    region_column: region
+    capability: workload
+
+  - table: aws_bedrock_custom_model
+    cq_table: aws_bedrock_custom_models
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: ai
+    # Amazon Bedrock is not available in every AWS region. With the connection's
+    # regions = ["*"], CloudQuery would call ListCustomModels in regions where the
+    # Bedrock control plane does not exist, which AWS answers with a 404
+    # UnknownOperationException and fails the whole table. Restrict this table to
+    # the regions where the Bedrock control plane (ListCustomModels) is offered.
+    # Other tables are unaffected and still query all regions. Extend this list
+    # as AWS adds Bedrock regions.
+    regions:
+      # Commercial regions where the Bedrock control plane (ListCustomModels)
+      # is offered, per the AWS "Amazon Bedrock endpoints and quotas" doc.
+      # Any region NOT in this list returns 404 UnknownOperationException, so
+      # this is the allow-list the region IN (...) push-down uses to avoid
+      # ever calling an unsupported region. Extend as AWS adds Bedrock regions.
+      - us-east-1
+      - us-east-2
+      - us-west-1
+      - us-west-2
+      - ap-northeast-1
+      - ap-northeast-2
+      - ap-northeast-3
+      - ap-south-1
+      - ap-southeast-1
+      - ap-southeast-2
+      - ca-central-1
+      - eu-central-1
+      - eu-central-2
+      - eu-west-1
+      - eu-west-2
+      - eu-west-3
+      - eu-south-1
+      - eu-south-2
+      - eu-north-1
+      - sa-east-1
+      - il-central-1
+
+  - table: aws_sagemaker_model
+    cq_table: aws_sagemaker_models
+    id_column: arn
+    scope_column: account_id
+    region_column: region
+    capability: ai

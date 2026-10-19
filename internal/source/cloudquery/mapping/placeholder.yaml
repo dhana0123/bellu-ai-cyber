@@ -1,0 +1,11 @@
+# Placeholder mapping so the //go:embed mapping/*.yaml directive in
+# catalog_embed.go has a matching file at compile time. The real provider
+# mappings (aws.yaml, azure.yaml, gcp.yaml, k8s.yaml) are authored in later
+# tasks (4.1, 19.1). This file is a minimal, valid Catalog and is not wired
+# into any provider; it exists only to satisfy the embed pattern.
+provider: placeholder
+connection: placeholder
+
+tables:
+  - table: placeholder_table
+    id_column: id
