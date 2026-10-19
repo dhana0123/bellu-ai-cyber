@@ -85,10 +85,10 @@ func keysOf(edges []InferredEdge) []edgeKey {
 // engine stamps them; the rule tests run through the engine to exercise that.
 func TestRules_InputToDerivedEdges(t *testing.T) {
 	tests := []struct {
-		name  string
-		rule  Rule
-		in    InferInput
-		want  []edgeKey
+		name string
+		rule Rule
+		in   InferInput
+		want []edgeKey
 		// wantEvidence maps an edge's (Src,Dst) to the raw-event ids the edge
 		// must carry, asserting rules attach provenance from the observed facts.
 		wantEvidence map[[2]string][]string

@@ -14,6 +14,7 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 	"github.com/bellu/bellu-ai-cyber/internal/temporal"
 	"github.com/bellu/bellu-ai-cyber/internal/temporal/classify"
+	"github.com/bellu/bellu-ai-cyber/internal/temporal/export"
 	"github.com/bellu/bellu-ai-cyber/internal/temporal/infer"
 	"github.com/bellu/bellu-ai-cyber/internal/temporal/replay"
 )
@@ -55,6 +56,24 @@ type Processor struct {
 	// data_class_confidence / classified_by on nodes). nil leaves the derived
 	// overlay unprojected (the base-graph sync still runs).
 	rebuilder *replay.Rebuilder
+	// exporter is the OPTIONAL OTLP change exporter (Req 15). When enabled,
+	// Process hands the run's observed-lane changes to it after the change
+	// engine records them, emitting them as OTLP entity events. It is fully
+	// failure-isolated: a nil exporter, a disabled exporter, or a failing sink
+	// never fails ingest or projection (the Exporter.Export call always returns
+	// nil). nil leaves ingest/projection completing without exporting (Req 15.2).
+	exporter *export.Exporter
+}
+
+// WithExporter attaches the OPTIONAL OTLP change exporter so Process emits the
+// run's observed-lane changes as OTLP entity events after the change engine
+// records them. It returns the receiver for chaining. A nil or disabled
+// exporter is a no-op: ingest and projection complete without exporting
+// (Req 15.2), and because Export is failure-isolated a failing exporter never
+// fails the run (Req 15.1).
+func (p *Processor) WithExporter(exp *export.Exporter) *Processor {
+	p.exporter = exp
+	return p
 }
 
 // WithEngine attaches a temporal change engine so Process records observed
@@ -112,8 +131,8 @@ func NewProcessor(resolveMappingsPath, agentRulesPath string) *Processor {
 
 // ProcessResult reports what a Process run produced.
 type ProcessResult struct {
-	Entities  int
-	Edges     int
+	Entities   int
+	Edges      int
 	Aliases    int
 	Conflicts  int
 	Agents     int
@@ -174,6 +193,16 @@ func (p *Processor) Process(ctx context.Context, st *store.Store, events []rawev
 		}
 	}
 
+	// OPTIONAL OTLP export (Req 15): once the observed facts are committed, hand
+	// the run's changes to the OTLP exporter. This is strictly best-effort and
+	// fully failure-isolated — Export always returns nil, so a disabled exporter
+	// is a no-op (ingest/projection complete without exporting, Req 15.2) and a
+	// failing exporter never fails ingest or projection (Req 15.1). A nil
+	// exporter skips the call entirely.
+	if p.exporter != nil {
+		_ = p.exporter.Export(ctx, changes)
+	}
+
 	// Derived lane: after the change engine records the observed facts, run the
 	// inference and classification engines over the SAME normalized run. They
 	// read only observed/normalized data (never the derived lane), so running
@@ -203,13 +232,13 @@ func (p *Processor) Process(ctx context.Context, st *store.Store, events []rawev
 	}
 
 	out = ProcessResult{
-		Entities:     len(rres.Entities),
-		Edges:        len(rres.Edges),
-		Aliases:      len(p.resolver.Aliases),
-		Conflicts:    len(p.resolver.Conflicts),
-		Agents:       len(agentEnts),
-		Unresolved:   len(p.resolver.Unresolved),
-		Dropped:      len(p.resolver.Dropped),
+		Entities:       len(rres.Entities),
+		Edges:          len(rres.Edges),
+		Aliases:        len(p.resolver.Aliases),
+		Conflicts:      len(p.resolver.Conflicts),
+		Agents:         len(agentEnts),
+		Unresolved:     len(p.resolver.Unresolved),
+		Dropped:        len(p.resolver.Dropped),
 		CanonicalIDs:   ids,
 		Changes:        changes,
 		DerivedChanges: derived,

@@ -1,0 +1,39 @@
+# CloudQuery Sentry monitor-CONFIGURATION mapping (Requirement 14.2).
+#
+# Reads Sentry monitor configuration ONLY — monitors (alert rules / cron
+# monitors) and projects — through the same Catalog shape as aws.yaml. This is
+# a *config* source feeding the derived lane: each monitor row becomes an
+# entity whose monitored_resources are resolved into monitor -> resource (USES)
+# edges by the MonitorConfigRule (internal/temporal/infer, task 14.2). It does
+# NOT ingest Sentry issues, events, or log streams — only the static
+# configuration that names which resources a monitor watches (see design.md
+# Non-Goals: "Datadog/Sentry are read for monitor->resource config only").
+#
+# Provider is `sentry` so MonitorConfigRule.isMonitor matches these entities by
+# provider; the `_monitor` table name also carries the "monitor" subtype marker
+# the rule recognizes. The MonitorConfigRule reads the monitored_resources
+# reference(s) off each entity, so the normalizer/plugin must surface that
+# column (pinned during the availability spike below).
+#
+# PLUGIN AVAILABILITY: the CloudQuery Sentry plugin is UNVERIFIED. It MUST be
+# confirmed available (and its staging table names and column shapes pinned)
+# via the spike register before this source is scheduled — see design.md
+# "Risks / Unverified Items" ("CloudQuery plugins for Datadog, Sentry, identity
+# provider" — Verify availability before scheduling those config sources).
+# Until then this source is gated off by the `monitoring` capability, so an
+# unavailable plugin never fails a run.
+provider: sentry
+connection: sentry
+
+tables:
+  - table: sentry_monitor
+    cq_table: sentry_monitors
+    id_column: id
+    scope_column: organization_slug
+    capability: monitoring
+
+  - table: sentry_project
+    cq_table: sentry_projects
+    id_column: id
+    scope_column: organization_slug
+    capability: monitoring

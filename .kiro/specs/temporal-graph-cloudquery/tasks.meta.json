@@ -436,6 +436,11 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792432435839
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432848371
       }
     ],
     "17.2 Implement input clamping, lane tagging, and error messages": [
@@ -443,6 +448,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426480979
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432858130
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433098271
       }
     ],
     "18.1 Implement coalescing, baseline events, and pruning": [
@@ -467,6 +482,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426487905
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432859319
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433099820
       }
     ],
     "19.2 Add identity-provider and Datadog/Sentry config mappings": [
@@ -474,6 +499,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426491339
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432860571
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433101082
       }
     ],
     "20.1 Checkpoint - full build and test suite green": [
@@ -481,6 +516,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426494839
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433996935
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792434078682
       }
     ],
     "4. AWS table-mapping YAML": [
@@ -652,6 +697,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427954668
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792434109851
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792434264145
       }
     ],
     "10.2 Integration test ingest → observed_events": [
@@ -698,6 +753,11 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792432433325
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432846680
       }
     ],
     "14.3 Write inference tests (facts/derived separation, **Property 2**)": [
@@ -756,6 +816,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427965141
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433112665
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433953458
       }
     ],
     "18.2 Write retention / as-of-after-prune test": [
@@ -780,6 +850,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427971315
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433114125
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433956389
       }
     ],
     "21.1 Implement a failure-isolated OTLP exporter from the observed lane": [
@@ -787,6 +867,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427972905
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433115341
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433960195
       }
     ],
     "2. CloudQuery Source: staging-row to RawEvent adapter": [
@@ -878,6 +968,34 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792432421118
+      }
+    ],
+    "17. MCP query server (`internal/mcp`)": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433102297
+      }
+    ],
+    "19. Additional collection providers": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433964458
+      }
+    ],
+    "21. (Optional) OTLP change exporter": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792433967601
+      }
+    ],
+    "20. Final checkpoint": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792434081892
       }
     ]
   }

@@ -22,10 +22,10 @@ import (
 // Crafted timeline for a single entity (one event_time axis "day", one
 // recorded_at axis "learn"). All times UTC.
 //
-//	 #  event_time (day)   recorded_at (learn)   attrs
-//	 e1 D1                 L1                     tier=bronze              (created)
-//	 e2 D3                 L2                     tier=silver              (update)
-//	 e3 D2  (BACKDATED)    L3  (learned LAST)     tier=gold, backfilled    (update)
+//	#  event_time (day)   recorded_at (learn)   attrs
+//	e1 D1                 L1                     tier=bronze              (created)
+//	e2 D3                 L2                     tier=silver              (update)
+//	e3 D2  (BACKDATED)    L3  (learned LAST)     tier=gold, backfilled    (update)
 //
 // where D1 < D2 < D3 and L1 < L2 < L3. e3 is backdated: its event_time D2 is
 // BEFORE e2's event_time D3, yet its recorded_at L3 is AFTER e2's L2 — Bellu

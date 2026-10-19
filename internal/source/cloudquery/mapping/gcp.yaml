@@ -1,0 +1,81 @@
+# CloudQuery GCP table mapping. Same shape as mapping/aws.yaml so GCP collects
+# through the same CloudQuery job and table-mapping format — no new pipeline
+# mechanism (R14.1). Bellu `table` names (the RawEvent resource_type) are kept
+# IDENTICAL to what the GCP normalizer consumes (internal/normalize/gcp.go), so
+# the collector swap is a data migration, not a schema change downstream.
+#
+# `cq_table` names the CloudQuery GCP plugin staging table that backs each
+# Bellu table. CloudQuery pluralizes the resource name (e.g.
+# gcp_storage_buckets, gcp_compute_instances, gcp_iam_service_accounts). The
+# exact plugin table names, their id/scope columns, and plugin
+# availability/licensing are UNVERIFIED and MUST be verified per the spike
+# register before this path is relied upon in production (see design.md
+# "Risks / Unverified Items": the CloudQuery plugin availability/licensing
+# row). Any name here is a best-known mapping, isolated to this data file so a
+# correction is a one-line edit.
+#
+# scope_column is the project id, matching how gcp.go keys buckets and bindings
+# by project (RawEvent.Scope). Capabilities gate reads exactly as for AWS.
+provider: gcp
+connection: gcp
+
+tables:
+  # CloudAccount: the project. scope is the project id.
+  - table: gcp_project
+    cq_table: gcp_projects
+    id_column: project_id
+    scope_column: project_id
+    capability: core
+
+  # Identity: service accounts. The bare email is the identity key the IAM
+  # bindings resolve to (see gcp.go normalizeGCPMember).
+  - table: gcp_service_account
+    cq_table: gcp_iam_service_accounts
+    id_column: email
+    scope_column: project_id
+    capability: core
+
+  # DataStore: storage buckets.
+  - table: gcp_storage_bucket
+    cq_table: gcp_storage_buckets
+    id_column: id
+    scope_column: project_id
+    capability: core
+
+  # Compute: compute instances.
+  - table: gcp_compute_instance
+    cq_table: gcp_compute_instances
+    id_column: id
+    scope_column: project_id
+    capability: core
+
+  # Cluster: GKE clusters.
+  - table: gcp_kubernetes_cluster
+    cq_table: gcp_container_clusters
+    id_column: id
+    scope_column: project_id
+    capability: eks
+
+  # Workload: Cloud Run services.
+  - table: gcp_cloud_run_service
+    cq_table: gcp_run_services
+    id_column: name
+    scope_column: project_id
+    capability: workload
+
+  # AIService: Vertex AI models.
+  - table: gcp_vertex_ai_model
+    cq_table: gcp_aiplatform_models
+    id_column: name
+    scope_column: project_id
+    capability: ai
+
+  # IAM policy bindings: project-level IAM policy whose bindings[] grant members
+  # roles. gcp.go flattens bindings[] into member/role pairs and scopes them by
+  # project. The CloudQuery GCP plugin exposes the project IAM policy as a
+  # single row carrying the bindings list.
+  - table: gcp_iam_binding
+    cq_table: gcp_iam_policies
+    id_column: project_id
+    scope_column: project_id
+    capability: core

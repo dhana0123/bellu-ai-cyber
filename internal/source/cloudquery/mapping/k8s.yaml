@@ -1,0 +1,55 @@
+# CloudQuery Kubernetes (k8s) table mapping. Same shape as mapping/aws.yaml so
+# Kubernetes collects through the same CloudQuery job and table-mapping format —
+# no new pipeline mechanism (R14.1). Bellu `table` names (the RawEvent
+# resource_type) are kept IDENTICAL to what the K8s normalizer consumes
+# (internal/normalize/k8s.go): kubernetes_namespace, kubernetes_service_account,
+# kubernetes_pod, kubernetes_deployment. The collector swap is a data
+# migration, not a schema change downstream.
+#
+# `cq_table` names the CloudQuery Kubernetes plugin staging table that backs
+# each Bellu table. The CloudQuery k8s plugin groups tables by API group and
+# pluralizes (e.g. k8s_core_pods, k8s_core_service_accounts,
+# k8s_apps_deployments, k8s_core_namespaces). The exact plugin table names, the
+# id/scope columns, and plugin availability/licensing are UNVERIFIED and MUST
+# be verified per the spike register before this path is relied upon in
+# production (see design.md "Risks / Unverified Items": the CloudQuery plugin
+# availability/licensing row). Any name here is a best-known mapping, isolated
+# to this data file so a correction is a one-line edit.
+#
+# Kubernetes resources are not regional, so no region_column is set. scope is
+# the kubeconfig `context` (the cluster the rows were synced from), which the
+# normalizer also reads via the cluster_* attribute / RawEvent.Scope to link
+# pods to their cloud Cluster node. id is the object `uid`. These tables stay on
+# the always-on "core" capability so the K8s inventory is never gated out.
+provider: k8s
+connection: k8s
+
+tables:
+  # Namespaces: not a canonical node (skipped in the normalizer) but collected
+  # so namespace context is available.
+  - table: kubernetes_namespace
+    cq_table: k8s_core_namespaces
+    id_column: uid
+    scope_column: context
+    capability: core
+
+  # Identity: service accounts (carry IRSA / GKE WI / Azure WI annotations).
+  - table: kubernetes_service_account
+    cq_table: k8s_core_service_accounts
+    id_column: uid
+    scope_column: context
+    capability: core
+
+  # Workload: pods (RUNS_IN cluster, RUNS_IMAGE by digest, USES service account).
+  - table: kubernetes_pod
+    cq_table: k8s_core_pods
+    id_column: uid
+    scope_column: context
+    capability: core
+
+  # Workload: deployments (USES service account via pod template).
+  - table: kubernetes_deployment
+    cq_table: k8s_apps_deployments
+    id_column: uid
+    scope_column: context
+    capability: core

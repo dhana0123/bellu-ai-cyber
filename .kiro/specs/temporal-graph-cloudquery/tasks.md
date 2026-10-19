@@ -118,7 +118,7 @@ optional.
     - Add `referenceCountedDeletions`: compare a source's prior `entity_assertions` to what it asserted this run; drop dropped-source rows; emit `entity.deleted` only when zero rows remain for a `canonical_id` across all sources; decrement+count+emit within the same transaction as 9.1; retain assertions and emit no deletions on a failed/aborted run
     - Replace the existing `MarkStaleEntitiesBySource` call sites
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
-  - [~]* 9.5 Write reference-counted deletion tests (**Property 3**)
+  - [x]* 9.5 Write reference-counted deletion tests (**Property 3**)
     - Two sources assert one entity: drop one → no deletion; drop both → `entity.deleted` + projection marked absent; failed run → assertions retained, no deletion
     - _Requirements: 5.3, 5.4, 5.6_
 
@@ -149,7 +149,7 @@ optional.
   - [x] 12.2 Implement `History`, `RecentChanges`, and diff-between-times
     - `History` returns the ordered change stream for an entity with both lanes merged by time; `RecentChanges` returns tenant-scoped changes after a cutoff up to a limit; a between-times diff returns attributes added/removed/changed between two folded states; validate inputs and return plain errors
     - _Requirements: 6.6, 6.7, 6.8, 16.2_
-  - [-]* 12.3 Write bi-temporal query tests (**Property 4**)
+  - [x]* 12.3 Write bi-temporal query tests (**Property 4**)
     - Crafted log with a backdated `event_time` learned later via `recorded_at`: assert reality vs as-of vs asKnownAt results, correct fold order, and monotonicity (fixed `event_time`, increasing `knownAt` only adds information)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
@@ -188,14 +188,14 @@ optional.
     - Assert projected inferred edges carry `inferred=true`/confidence/evidence and classified nodes carry the three namespaced props, and that a rebuild reproduces them
     - _Requirements: 8.3, 9.3_
 
-- [ ] 17. MCP query server (`internal/mcp`)
-  - [-] 17.1 Implement the six read tools behind JWT + RBAC
+- [x] 17. MCP query server (`internal/mcp`)
+  - [x] 17.1 Implement the six read tools behind JWT + RBAC
     - Add `internal/mcp/server.go` with `Server` holding the `Querier` and `graph.Writer.Driver()`; implement `find_entities`, `get_entity`, `get_neighbors`, `entity_history`, `recent_changes`, `describe_schema`; resolve `org` from the authenticated context (ignore client-supplied org); mount behind the existing JWT + RBAC router in `backend/cmd/bellu-api/main.go`
     - _Requirements: 10.1, 10.2, 10.3, 16.2_
-  - [~] 17.2 Implement input clamping, lane tagging, and error messages
+  - [x] 17.2 Implement input clamping, lane tagging, and error messages
     - Clamp `get_neighbors` depth to [1,5]; tag each returned edge as asserted or inferred; include entity name alongside id in outputs; return "entity not found" for missing/cross-tenant lookups and a generic "temporarily unavailable" on backend errors (log internal detail, do not return it)
     - _Requirements: 10.4, 10.5, 10.6, 10.7, 10.8_
-  - [~]* 17.3 Write MCP tests (tenant isolation + contract)
+  - [x]* 17.3 Write MCP tests (tenant isolation + contract)
     - Assert org resolved from JWT and client org ignored; depth clamped at 5; names present; plain not-found and unavailable messages; no cross-tenant existence leak
     - _Requirements: 10.2, 10.4, 10.5, 10.6, 10.7, 10.8, 16.2_
 
@@ -207,24 +207,24 @@ optional.
     - Assert an as-of query targeting a time after the pruned window resolves correct state from the retained baseline
     - _Requirements: 11.2, 11.4_
 
-- [ ] 19. Additional collection providers
-  - [~] 19.1 Add Azure, GCP, and Kubernetes mapping files
+- [x] 19. Additional collection providers
+  - [x] 19.1 Add Azure, GCP, and Kubernetes mapping files
     - Add `internal/source/cloudquery/mapping/{azure,gcp,k8s}.yaml` in the same shape as `aws.yaml` so each provider collects through a CloudQuery job with no new pipeline mechanism; guard on plugin availability per the spike register
     - _Requirements: 14.1_
-  - [~] 19.2 Add identity-provider and Datadog/Sentry config mappings
+  - [x] 19.2 Add identity-provider and Datadog/Sentry config mappings
     - Add mapping files for an identity provider (inventory) and Datadog/Sentry (monitor configuration only, feeding monitor→resource edges, not log streams); gate each on plugin availability
     - _Requirements: 14.2, 14.3_
-  - [~]* 19.3 Write mapping-parse tests for the new providers
+  - [x]* 19.3 Write mapping-parse tests for the new providers
     - Assert each new mapping parses and produces the expected table set under capability gating
     - _Requirements: 14.1, 14.2, 14.3_
 
-- [ ] 20. Final checkpoint
-  - [~] 20.1 Checkpoint - full build and test suite green
+- [x] 20. Final checkpoint
+  - [x] 20.1 Checkpoint - full build and test suite green
     - Ensure the project builds and all tests pass; ask the user if questions arise.
     - _Requirements: 12.3, 13.1_
 
-- [ ] 21. (Optional) OTLP change exporter
-  - [~]* 21.1 Implement a failure-isolated OTLP exporter from the observed lane
+- [x] 21. (Optional) OTLP change exporter
+  - [x]* 21.1 Implement a failure-isolated OTLP exporter from the observed lane
     - Add an optional exporter that, when enabled, emits observed change events as OTLP entity events; when disabled, ingest and projection complete without exporting; a failing exporter never fails ingest or projection
     - _Requirements: 15.1, 15.2_
 

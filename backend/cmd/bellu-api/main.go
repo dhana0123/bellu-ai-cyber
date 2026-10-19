@@ -31,6 +31,7 @@ import (
 	connectorcigithub "github.com/bellu/bellu-ai-cyber/internal/connector/provider/ci/github"
 	connectorgcp "github.com/bellu/bellu-ai-cyber/internal/connector/provider/gcp"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
+	"github.com/bellu/bellu-ai-cyber/internal/mcp"
 	"github.com/bellu/bellu-ai-cyber/internal/pipeline"
 	"github.com/bellu/bellu-ai-cyber/internal/redact"
 	"github.com/bellu/bellu-ai-cyber/internal/source"
@@ -110,7 +111,17 @@ func run() error {
 	// Inspector vulnerability findings fresh without a manual "discover".
 	startDiscoveryScheduler(ctx, st, connMgr)
 
-	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, Connector: connMgr, AllowOrigin: allowOrigin})
+	// MCP read surface: six tenant-scoped tools over the temporal graph. The
+	// Querier reads the two append-only logs (history + recent changes) and the
+	// graph writer backs the projection reads (inventory, detail, adjacency).
+	// The MCP server resolves its org from the authenticated principal at the
+	// mount, never from a client-supplied value, and is served only behind the
+	// existing JWT + RBAC router (graph:read). gw may be nil (Memgraph down):
+	// the log-backed tools still work and the projection-backed tools report the
+	// projection is unavailable.
+	mcpSrv := mcp.NewServer(temporal.NewQuerier(st), gw)
+
+	srv := server.New(server.Options{Store: st, Graph: gw, Auth: authSvc, Connector: connMgr, MCP: mcpSrv, AllowOrigin: allowOrigin})
 
 	httpSrv := &http.Server{
 		Addr:              addr,

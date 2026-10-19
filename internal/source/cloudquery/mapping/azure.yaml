@@ -1,0 +1,88 @@
+# CloudQuery Azure table mapping. Same shape as mapping/aws.yaml so Azure
+# collects through the same CloudQuery job and table-mapping format — no new
+# pipeline mechanism (R14.1). Bellu `table` names (the RawEvent resource_type)
+# are kept IDENTICAL to what the Azure normalizer consumes
+# (internal/normalize/azure.go), so the collector swap is a data migration, not
+# a schema change downstream.
+#
+# `cq_table` names the CloudQuery Azure plugin staging table that backs each
+# Bellu table. CloudQuery pluralizes the resource name (e.g.
+# azure_compute_virtual_machines, azure_storage_accounts). The exact plugin
+# table names, their id/scope columns, and plugin availability/licensing are
+# UNVERIFIED and MUST be verified per the spike register before this path is
+# relied upon in production (see design.md "Risks / Unverified Items": the
+# CloudQuery plugin availability/licensing row). Any name here is a best-known
+# mapping, isolated to this data file so a correction is a one-line edit.
+#
+# Capabilities gate which tables the collector reads, exactly as for AWS:
+# "core" is always-on; a table whose capability is not in the connection's
+# enabled set is skipped so an ungranted capability never errors.
+provider: azure
+connection: azure
+
+tables:
+  # CloudAccount: the subscription. account/scope is the subscription id.
+  - table: azure_subscription
+    cq_table: azure_subscriptions
+    id_column: id
+    scope_column: subscription_id
+    capability: core
+
+  # Identity: user-assigned managed identities. principal_id links role
+  # assignments to the identity (see azure.go).
+  - table: azure_managed_identity
+    cq_table: azure_resources_user_assigned_identities
+    id_column: id
+    scope_column: subscription_id
+    capability: core
+
+  # DataStore: storage accounts. Role assignments scoped to a storage account
+  # id yield CAN_* edges.
+  - table: azure_storage_account
+    cq_table: azure_storage_accounts
+    id_column: id
+    scope_column: subscription_id
+    capability: core
+
+  # Compute: virtual machines.
+  - table: azure_compute_virtual_machine
+    cq_table: azure_compute_virtual_machines
+    id_column: id
+    scope_column: subscription_id
+    capability: core
+
+  # Cluster: AKS managed clusters.
+  - table: azure_kubernetes_cluster
+    cq_table: azure_containerservice_managed_clusters
+    id_column: id
+    scope_column: subscription_id
+    capability: eks
+
+  # Workload: Container Apps.
+  - table: azure_container_app
+    cq_table: azure_appcontainers_container_apps
+    id_column: id
+    scope_column: subscription_id
+    capability: workload
+
+  # AIService: Azure OpenAI accounts (Cognitive Services accounts of kind
+  # OpenAI). Normalizer filters by kind downstream.
+  - table: azure_openai
+    cq_table: azure_cognitiveservices_accounts
+    id_column: id
+    scope_column: subscription_id
+    capability: ai
+
+  # Role definitions (for classifying role names) and role assignments (the
+  # access grants). Both feed the CAN_* derivation in azure.go.
+  - table: azure_role_definition
+    cq_table: azure_authorization_role_definitions
+    id_column: id
+    scope_column: subscription_id
+    capability: core
+
+  - table: azure_role_assignment
+    cq_table: azure_authorization_role_assignments
+    id_column: id
+    scope_column: subscription_id
+    capability: core

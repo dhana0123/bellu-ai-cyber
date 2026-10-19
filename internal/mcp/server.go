@@ -29,7 +29,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -105,7 +104,7 @@ type FindEntitiesInput struct {
 // authenticated tenant via org.
 func (s *Server) FindEntities(ctx context.Context, org int64, in FindEntitiesInput) ([]EntityRef, error) {
 	if s.driver == nil {
-		return nil, errProjectionUnavailable
+		return nil, ErrProjectionUnavailable
 	}
 	limit := in.Limit
 	if limit <= 0 {
@@ -123,18 +122,18 @@ func (s *Server) FindEntities(ctx context.Context, org int64, in FindEntitiesInp
 		kindClause = ":" + in.Kind
 	}
 
+	// V1 projection is tenant-global (org travels with the log reads); the name
+	// filter is a bound parameter, and an empty filter matches every name.
 	cypher := fmt.Sprintf(`
 		MATCH (n:Entity%s)
-		WHERE $org_scoped
-		  AND ($name_like = '' OR toLower(n.name) CONTAINS toLower($name_like))
+		WHERE ($name_like = '' OR toLower(n.name) CONTAINS toLower($name_like))
 		RETURN n.canonical_id AS canonical_id, n.name AS name, n.kind AS kind
 		ORDER BY n.name
 		LIMIT $limit`, kindClause)
 
 	rows, err := s.readRows(ctx, cypher, map[string]any{
-		"org_scoped": true, // V1 projection is tenant-global; org is enforced on the log reads.
-		"name_like":  in.NameLike,
-		"limit":      limit,
+		"name_like": in.NameLike,
+		"limit":     limit,
 	})
 	if err != nil {
 		return nil, err
@@ -183,7 +182,7 @@ type EntityDetail struct {
 // current projection. Results are scoped to the authenticated tenant via org.
 func (s *Server) GetEntity(ctx context.Context, org int64, in GetEntityInput) (*EntityDetail, error) {
 	if s.driver == nil {
-		return nil, errProjectionUnavailable
+		return nil, ErrProjectionUnavailable
 	}
 	if in.CanonicalID == "" {
 		return nil, fmt.Errorf("mcp: get_entity requires a canonical_id")
@@ -252,7 +251,7 @@ type Neighbors struct {
 // not-found behavior are task 17.2. Results are scoped to the tenant via org.
 func (s *Server) GetNeighbors(ctx context.Context, org int64, in GetNeighborsInput) (*Neighbors, error) {
 	if s.driver == nil {
-		return nil, errProjectionUnavailable
+		return nil, ErrProjectionUnavailable
 	}
 	if in.CanonicalID == "" {
 		return nil, fmt.Errorf("mcp: get_neighbors requires a canonical_id")
@@ -454,11 +453,13 @@ const (
 	defaultRecentLimit = 100
 )
 
-// errProjectionUnavailable is returned by the projection-backed tools when the
+// ErrProjectionUnavailable is returned by the projection-backed tools when the
 // graph writer was nil at construction (Memgraph down). The mount renders it as
-// the generic "temporarily unavailable" message (task 17.2); the logs-backed
-// tools keep working because the logs are the source of truth.
-var errProjectionUnavailable = fmt.Errorf("mcp: graph projection unavailable")
+// the generic "temporarily unavailable" message (Req 10.8); the logs-backed
+// tools keep working because the logs are the source of truth. It is exported so
+// the HTTP mount can recognize the sentinel and keep the internal detail out of
+// the client response while still logging it.
+var ErrProjectionUnavailable = fmt.Errorf("mcp: graph projection unavailable")
 
 // asString coerces a Cypher scalar to a string, tolerating nil.
 func asString(v any) string {
@@ -489,7 +490,3 @@ func asFloat(v any) float64 {
 	}
 	return 0
 }
-
-// trimKind is a small helper kept for symmetry with future input normalization
-// (task 17.2); it trims surrounding whitespace from a client-supplied kind.
-func trimKind(k string) string { return strings.TrimSpace(k) }

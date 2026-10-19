@@ -15,6 +15,7 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/connector"
 	"github.com/bellu/bellu-ai-cyber/internal/graph"
+	"github.com/bellu/bellu-ai-cyber/internal/mcp"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 
@@ -24,6 +25,7 @@ type Server struct {
 	graph       *graph.Writer // may be nil if Memgraph is unavailable
 	auth        *auth.Service
 	connector   *connector.Manager // may be nil if the connector is disabled
+	mcp         *mcp.Server        // may be nil if the MCP read surface is disabled
 	allowOrigin string
 }
 
@@ -33,6 +35,7 @@ type Options struct {
 	Graph       *graph.Writer
 	Auth        *auth.Service
 	Connector   *connector.Manager
+	MCP         *mcp.Server
 	AllowOrigin string
 }
 
@@ -42,7 +45,7 @@ func New(opts Options) *Server {
 	if origin == "" {
 		origin = "*"
 	}
-	return &Server{store: opts.Store, graph: opts.Graph, auth: opts.Auth, connector: opts.Connector, allowOrigin: origin}
+	return &Server{store: opts.Store, graph: opts.Graph, auth: opts.Auth, connector: opts.Connector, mcp: opts.MCP, allowOrigin: origin}
 }
 
 // Handler returns the Gin engine with all routes registered.
@@ -87,6 +90,13 @@ func (s *Server) Handler() http.Handler {
 				gr.GET("/conflicts", s.handleConflicts)
 				gr.GET("/graph/attack-paths", s.handleAttackPaths)
 				gr.GET("/graph/ai-calls", s.handleAICalls)
+
+				// MCP read tools over the temporal graph (projection + logs).
+				// They live behind the same Authenticate + graph:read controls as
+				// the other graph reads, and resolve the tenant from the
+				// authenticated principal (never the client), satisfying Req 10.2
+				// and Req 10.3.
+				s.registerMCPRoutes(gr)
 			}
 
 			// Findings / intelligence reads require findings:read.

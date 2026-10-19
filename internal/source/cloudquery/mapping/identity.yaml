@@ -1,0 +1,44 @@
+# CloudQuery identity-provider inventory mapping (Requirement 14.3).
+#
+# Collects identity-provider INVENTORY — users, groups, and applications —
+# through a CloudQuery job using the same Catalog shape as aws.yaml
+# (provider/connection/tables[] with table / cq_table / id_column /
+# scope_column / region_column / capability). The Bellu `table` names are kept
+# generic (identity_provider_*) so the same mapping serves any CloudQuery
+# identity-provider plugin (Okta, Entra ID, Google Workspace, ...); the
+# concrete plugin is selected by the connection, not by this file.
+#
+# PLUGIN AVAILABILITY: the CloudQuery plugin backing this source is UNVERIFIED.
+# It MUST be confirmed available (and its staging table names and column shapes
+# pinned) via the spike register before this source is scheduled — see
+# design.md "Risks / Unverified Items" ("CloudQuery plugins for Datadog,
+# Sentry, identity provider" — Verify availability before scheduling those
+# config sources). Until then this source is gated off by capability: a
+# connection that has not been granted the `identity` capability skips every
+# table here, so an unavailable plugin never fails a run.
+#
+# All tables are gated on the `identity` capability (plugin-availability gate).
+# cq_table values are the pluralized staging-table convention CloudQuery uses;
+# they are placeholders to be pinned to the chosen plugin's actual table names
+# during the availability spike.
+provider: identity
+connection: identity
+
+tables:
+  - table: identity_provider_user
+    cq_table: identity_provider_users
+    id_column: id
+    scope_column: org_id
+    capability: identity
+
+  - table: identity_provider_group
+    cq_table: identity_provider_groups
+    id_column: id
+    scope_column: org_id
+    capability: identity
+
+  - table: identity_provider_app
+    cq_table: identity_provider_apps
+    id_column: id
+    scope_column: org_id
+    capability: identity

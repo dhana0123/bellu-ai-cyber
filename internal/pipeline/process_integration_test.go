@@ -150,9 +150,9 @@ func TestIngestWritesObservedEvents(t *testing.T) {
 	// role. The normalizer emits the three entities plus CONTAINS edges, giving
 	// a mix of entity.created and relation.added for a first ingest.
 	const (
-		acctID     = "123456789012"
-		bucketARN  = "arn:aws:s3:::fixture-bucket"
-		roleARN    = "arn:aws:iam::123456789012:role/fixture-role"
+		acctID    = "123456789012"
+		bucketARN = "arn:aws:s3:::fixture-bucket"
+		roleARN   = "arn:aws:iam::123456789012:role/fixture-role"
 	)
 	events := []rawevent.RawEvent{
 		awsEvent(t, runID, "aws_account", acctID, observedAt, map[string]any{
