@@ -52,9 +52,9 @@ type Card struct {
 
 // Catalog is the authoritative set of capabilities and their permission bundles.
 var Catalog = map[Capability]Definition{
-	// Permissions below are derived from the exact IAM actions the Steampipe AWS
-	// plugin's List/Get/Hydrate functions call for the tables Bellu queries (see
-	// internal/source/steampipe/catalog/aws.yaml). Each table's required actions
+	// Permissions below are the IAM actions the discovery collector's List/Get
+	// calls require for the tables Bellu queries (see the CloudQuery mapping
+	// internal/source/cloudquery/mapping/aws.yaml). Each table's required actions
 	// come from the plugin's per-table `Tags{service,action}` metadata, so this
 	// set is exhaustive for discovery — no trial-and-error AccessDenied.
 	Core: {

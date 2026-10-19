@@ -436,7 +436,7 @@ func (discCreds) Revoke(int64) {}
 // okRunner is a PipelineRunner that always succeeds.
 type okRunner struct{}
 
-func (okRunner) Run(context.Context, source.Source, string, int64, source.ProgressReporter) error {
+func (okRunner) Run(context.Context, source.Source, string, int64, int64, source.ProgressReporter) error {
 	return nil
 }
 
@@ -444,7 +444,7 @@ func (okRunner) Run(context.Context, source.Source, string, int64, source.Progre
 // discovery session stays running while a test exercises concurrent behavior.
 type blockingRunner struct{ release <-chan struct{} }
 
-func (r blockingRunner) Run(ctx context.Context, _ source.Source, _ string, _ int64, _ source.ProgressReporter) error {
+func (r blockingRunner) Run(ctx context.Context, _ source.Source, _ string, _ int64, _ int64, _ source.ProgressReporter) error {
 	select {
 	case <-r.release:
 		return nil

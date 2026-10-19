@@ -45,6 +45,10 @@ type CloudProvider interface {
 // needs. It carries no credentials.
 type Target struct {
 	ConnectionID int64
+	// OrgID is the tenant the connection belongs to. The temporal change engine
+	// scopes observed_events / entity_assertions by it. It is populated by the
+	// manager from the stored connection; a client never supplies it.
+	OrgID int64
 	// ProjectID is the project the connection belongs to. Discovered resources
 	// are tagged with it so inventory can be scoped per project.
 	ProjectID    int64
@@ -167,10 +171,12 @@ type VerifyResult struct {
 	Failures     []PermissionResult `json:"failures,omitempty"`
 }
 
-// DiscoveryPlan is what the Discovery Orchestrator feeds to the existing
-// steampipe.Factory. SteampipeConfig is the config map (host/port/user/
-// password/database and the catalog/connection selector); CredentialEnv holds
-// the assumed-role AWS_* environment supplied to Steampipe for the session
+// DiscoveryPlan is what the Discovery Orchestrator feeds to the collection
+// Source Factory (cloudquery.Factory). SteampipeConfig is the generic
+// Source-Factory config map (the field name is retained from the Steampipe era;
+// for CloudQuery it carries the staging dsn, the mapping connection selector,
+// capability gating, and the per-run credential env); CredentialEnv holds the
+// assumed-role AWS_* environment supplied to the collection job for the session
 // only. Neither is persisted.
 type DiscoveryPlan struct {
 	SteampipeConfig map[string]any

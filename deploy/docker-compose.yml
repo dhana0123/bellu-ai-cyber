@@ -12,7 +12,6 @@
 #   postgres-customer  evidence + normalized history + AI Security Graph store
 #   memgraph           the AI Security Graph
 #   memgraph-lab       graph UI
-#   steampipe          cloud/K8s collector (collectors profile)
 #   zeek               network sensor (collectors profile)
 #   bellu-core         the Go application (ingest/normalize/resolve/sync/run)
 #   bellu-api          the Go HTTP control-panel API (:8080)
@@ -78,38 +77,6 @@ services:
       QUICK_CONNECT_MG_HOST: memgraph
       QUICK_CONNECT_MG_PORT: 7687
 
-  steampipe:
-    image: turbot/steampipe:latest
-    # The service exposes Postgres on 9193. Connections and read-only creds are
-    # provided via mounted .spc files. Used from Task 6 onward.
-    # Install the AWS plugin on first boot (idempotent) before starting the
-    # service, so the aws_* tables exist. Without the plugin, queries fail with
-    # "relation aws_account does not exist".
-    entrypoint:
-      - "sh"
-      - "-c"
-      - "cp -n /seed/aws.spc /home/steampipe/.steampipe/config/aws.spc 2>/dev/null || true; chmod -R g+rwX /home/steampipe/.steampipe/config 2>/dev/null || true; [ -d /home/steampipe/.steampipe/plugins/ghcr.io/turbot/steampipe/plugins/turbot/aws@latest ] || steampipe plugin install ghcr.io/turbot/steampipe/plugins/turbot/aws@latest; exec steampipe service start --foreground --database-listen network --database-port 9193 --database-password ${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}"
-    ports:
-      - "127.0.0.1:9193:9193"
-    environment:
-      # Bellu's own AWS identity (bellu-connector). Steampipe uses this as the
-      # base identity and assumes the customer's BelluConnectorRole per the
-      # connection config the connector writes into the shared config volume.
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-    volumes:
-      # Shared config volume: the connector (bellu-api) writes a per-connection
-      # <conn>.spc here with the session credentials to assume; steampipe reads
-      # it. Also seed the default aws.spc on first boot.
-      - steampipe_config:/home/steampipe/.steampipe/config
-      # Persistent plugin cache: the AWS plugin survives `docker compose down`
-      # and restarts, so boots after the first are instant (no re-download).
-      - steampipe_plugins:/home/steampipe/.steampipe/plugins
-      - ./steampipe/aws.spc:/seed/aws.spc:ro
-    profiles:
-      - collectors
-
   zeek:
     image: zeek/zeek:latest
     # Development uses PCAP replay (see `make zeek-replay`). Live capture runs
@@ -167,14 +134,14 @@ services:
       BELLU_JWT_SECRET: ${BELLU_JWT_SECRET:-dev-insecure-change-me}
       BELLU_ADMIN_EMAIL: ${BELLU_ADMIN_EMAIL:-admin@bellu.local}
       BELLU_ADMIN_PASSWORD: ${BELLU_ADMIN_PASSWORD:-admin12345}
-      # Cloud connector: how discovery reaches the steampipe collector. AWS
-      # credentials for assumed roles come from the default chain at call time;
-      # none are stored.
-      BELLU_STEAMPIPE_HOST: steampipe
-      BELLU_STEAMPIPE_PORT: "9193"
-      BELLU_STEAMPIPE_USER: steampipe
-      BELLU_STEAMPIPE_PASSWORD: ${STEAMPIPE_DB_PASSWORD:-bellu_steampipe}
-      BELLU_STEAMPIPE_DB: steampipe
+      # Cloud connector / discovery: CloudQuery syncs cloud inventory into the
+      # cq_staging schema of the customer PostgreSQL (same DB as the evidence
+      # store), and the cloudquery.Source reads it back. BELLU_CQ_STAGING_DSN
+      # defaults to the primary Postgres DSN; override only for a split
+      # deployment. AWS credentials for assumed roles come from the default
+      # chain at call time; none are stored.
+      BELLU_CQ_STAGING_DSN: ${BELLU_CQ_STAGING_DSN:-}
+      BELLU_CQ_CONNECTION: ${BELLU_CQ_CONNECTION:-aws}
       # Cloud connector one-click launch: Bellu's own AWS identity + template
       # bucket. Keys come from deploy/.env (gitignored); leave the bucket unset
       # to disable launch links (download-only).
@@ -185,14 +152,15 @@ services:
       BELLU_CONNECTOR_TEMPLATE_BUCKET: ${BELLU_CONNECTOR_TEMPLATE_BUCKET:-}
       BELLU_CONNECTOR_TEMPLATE_REGION: ${BELLU_CONNECTOR_TEMPLATE_REGION:-}
       BELLU_CONNECTOR_LINK_TTL_MIN: ${BELLU_CONNECTOR_LINK_TTL_MIN:-60}
-      # Where the connector writes per-connection steampipe config (shared with
-      # the steampipe container).
-      BELLU_STEAMPIPE_CONFIG_DIR: /steampipe-config
       # Scheduled re-discovery (refreshes inventory, attack paths and Inspector
       # vulnerabilities). Off when empty; e.g. "6h" to re-scan idle connections
       # every 6 hours (minimum 15m).
       BELLU_DISCOVERY_INTERVAL: ${BELLU_DISCOVERY_INTERVAL:-}
       BELLU_DISCOVERY_MAX_CONCURRENT: ${BELLU_DISCOVERY_MAX_CONCURRENT:-2}
+      # Note: BELLU_STEAMPIPE_CONFIG_DIR and the shared steampipe config volume
+      # are gone — CloudQuery runs as a per-discovery subprocess and the STS
+      # session credentials ride on the discovery plan's credential env into the
+      # sync subprocess environment only; nothing is written to disk.
       # GitHub App integration. Values come from deploy/.env (gitignored). The
       # App ID and slug are not secret; the private key and webhook secret are.
       # The private key is mounted read-only at the path below (see volumes); as
@@ -206,12 +174,7 @@ services:
       # Where the OAuth/install callback redirects the browser back to. Set to
       # your public URL, e.g. http://13.204.68.244
       BELLU_FRONTEND_BASE_URL: ${BELLU_FRONTEND_BASE_URL:-}
-    # Join the root group (gid 0) that owns the shared steampipe config dir, so
-    # the connector (uid 10001) can write per-session <conn>.spc files there.
-    group_add:
-      - "0"
     volumes:
-      - steampipe_config:/steampipe-config
       # GitHub App private key, mounted read-only. Defaults to a placeholder so
       # the stack always starts even without GitHub configured. To enable
       # GitHub, point BELLU_GITHUB_APP_KEY_FILE at the real .pem (e.g.
@@ -247,8 +210,6 @@ services:
       - certbot_webroot:/var/www/certbot
 
 volumes:
-  steampipe_config:
-  steampipe_plugins:
   pgdata:
   memgraph_data:
   certbot_webroot:

@@ -1,5 +1,5 @@
 // Package discovery implements the Connector's Discovery Orchestrator. It
-// drives the EXISTING Steampipe source and Bellu pipeline for a connection; it
+// drives the CloudQuery source and Bellu pipeline for a connection; it
 // contains no provider-specific resource queries and introduces no new model
 // Kinds, Relations, or normalizers. Credentials are supplied to the collection
 // for the duration of a session only and discarded when it ends.

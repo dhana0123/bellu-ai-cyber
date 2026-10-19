@@ -15,8 +15,8 @@ import (
 // already running for the connection, so a caller can map it to a conflict.
 var ErrSessionRunning = errors.New("discovery: a session is already running for this connection")
 
-// SourceFactory builds the existing collection source from a config map. In
-// production this is the real steampipe.Factory; tests inject a fake.
+// SourceFactory builds the collection source from a config map. In production
+// this is the real cloudquery.Factory; tests inject a fake.
 type SourceFactory func(cfg map[string]any) (source.Source, error)
 
 // PipelineRunner runs the existing Bellu pipeline (ingest -> normalize ->
@@ -25,9 +25,11 @@ type SourceFactory func(cfg map[string]any) (source.Source, error)
 // honor context cancellation so Cancel stops collection promptly.
 type PipelineRunner interface {
 	// Run drives the source through the pipeline under runID, reporting progress
-	// via reporter. projectID tags discovered resources with the connection's
-	// project for scoped inventory (0 means untagged / all-projects).
-	Run(ctx context.Context, src source.Source, runID string, projectID int64, reporter source.ProgressReporter) error
+	// via reporter. orgID is the tenant the discovered inventory belongs to (the
+	// temporal change engine scopes observed_events by it). projectID tags
+	// discovered resources with the connection's project for scoped inventory
+	// (0 means untagged / all-projects).
+	Run(ctx context.Context, src source.Source, runID string, orgID, projectID int64, reporter source.ProgressReporter) error
 }
 
 // CredentialSink receives the session-only credential environment and returns a
@@ -214,7 +216,7 @@ func (o *Orchestrator) runSession(ctx context.Context, sess *Session, hub *progr
 	o.mu.Unlock()
 	defer cancel()
 
-	runErr := o.runner.Run(runCtx, src, sess.RunID, t.ProjectID, hub)
+	runErr := o.runner.Run(runCtx, src, sess.RunID, t.OrgID, t.ProjectID, hub)
 
 	if runErr != nil {
 		if runCtx.Err() == context.Canceled {

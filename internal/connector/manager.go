@@ -970,6 +970,7 @@ func (m *Manager) transition(ctx context.Context, c *Connection, e Event) error 
 func (m *Manager) targetFor(c *Connection) provider.Target {
 	return provider.Target{
 		ConnectionID: c.ID,
+		OrgID:        c.OrgID,
 		ProjectID:    c.ProjectID,
 		AccountID:    c.AccountID,
 		RoleARN:      c.RoleARN,

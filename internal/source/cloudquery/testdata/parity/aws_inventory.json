@@ -1,0 +1,54 @@
+{
+  "_comment": "Shared AWS inventory fixture for the Steampipe/CloudQuery parity harness (task 5.1). Each key is a Bellu table name (identical in both the Steampipe catalog and the CloudQuery mapping). Each row is the resource's payload as it appears in BOTH sources' staging/query output. The CloudQuery adapter additionally receives CloudQuery-internal _cq_* columns, which the harness injects per-row at drive time and which the adapter strips, so after Finalize both sources must produce the same payload bytes. Keeping the resource data here (and only here) is what makes it one shared fixture both sources consume.",
+  "aws_account": [
+    {
+      "account_id": "111122223333",
+      "arn": "arn:aws:organizations::111122223333:account/o-abc123/111122223333",
+      "title": "prod-account"
+    }
+  ],
+  "aws_iam_role": [
+    {
+      "account_id": "111122223333",
+      "arn": "arn:aws:iam::111122223333:role/app-exec",
+      "role_name": "app-exec",
+      "create_date": "2024-01-02T03:04:05Z",
+      "assume_role_policy_std": {"Version": "2012-10-17", "Statement": []}
+    },
+    {
+      "account_id": "111122223333",
+      "arn": "arn:aws:iam::111122223333:role/ci-deployer",
+      "role_name": "ci-deployer",
+      "create_date": "2024-02-10T09:00:00Z",
+      "assume_role_policy_std": {"Version": "2012-10-17", "Statement": []}
+    }
+  ],
+  "aws_s3_bucket": [
+    {
+      "account_id": "111122223333",
+      "region": "us-east-1",
+      "arn": "arn:aws:s3:::prod-assets",
+      "name": "prod-assets",
+      "bucket_policy_is_public": false,
+      "versioning_enabled": true
+    },
+    {
+      "account_id": "111122223333",
+      "region": "us-west-2",
+      "arn": "arn:aws:s3:::public-logs",
+      "name": "public-logs",
+      "bucket_policy_is_public": true,
+      "versioning_enabled": false
+    }
+  ],
+  "aws_ec2_instance": [
+    {
+      "account_id": "111122223333",
+      "region": "us-east-1",
+      "arn": "arn:aws:ec2:us-east-1:111122223333:instance/i-0abc123def456",
+      "instance_id": "i-0abc123def456",
+      "instance_state": "running",
+      "instance_type": "t3.medium"
+    }
+  ]
+}

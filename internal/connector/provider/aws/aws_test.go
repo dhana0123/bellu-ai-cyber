@@ -221,10 +221,12 @@ func TestVerifierAllPass(t *testing.T) {
 	}
 }
 
-// TestDiscoverBuildsPlan asserts Discover builds a steampipe config and
-// session-only credential env without provider-specific queries.
+// TestDiscoverBuildsPlan asserts Discover builds a CloudQuery Factory config
+// (staging DSN + mapping selector + capabilities + credential env) and the
+// session-only credential env, without provider-specific queries.
 func TestDiscoverBuildsPlan(t *testing.T) {
-	a := New(Options{STS: &fakeSTS{returnCreds: true}, SteampipeConn: "aws", SteampipePassword: "pw"})
+	const stagingDSN = "postgres://u:pw@db:5432/bellu?sslmode=disable"
+	a := New(Options{STS: &fakeSTS{returnCreds: true}, CQConnection: "aws", CQStagingDSN: stagingDSN})
 	creds := &provider.Credentials{AccessKeyID: "AK", SecretAccessKey: "SK", SessionToken: "TK"}
 	tg := validTarget()
 	tg.Region = "us-east-1"
@@ -234,7 +236,16 @@ func TestDiscoverBuildsPlan(t *testing.T) {
 		t.Fatalf("discover: %v", err)
 	}
 	if plan.SteampipeConfig["connection"] != "aws" {
-		t.Errorf("steampipe connection = %v, want aws", plan.SteampipeConfig["connection"])
+		t.Errorf("mapping connection = %v, want aws", plan.SteampipeConfig["connection"])
+	}
+	if plan.SteampipeConfig["dsn"] != stagingDSN {
+		t.Errorf("staging dsn = %v, want %q", plan.SteampipeConfig["dsn"], stagingDSN)
+	}
+	// The config map carries the credential env so the CloudQuery Factory can
+	// forward it to the JobRunner; it is the same map as CredentialEnv.
+	cfgEnv, ok := plan.SteampipeConfig["credential_env"].(map[string]string)
+	if !ok || cfgEnv["AWS_SESSION_TOKEN"] != "TK" {
+		t.Errorf("config credential_env not populated: %+v", plan.SteampipeConfig["credential_env"])
 	}
 	if plan.CredentialEnv["AWS_ACCESS_KEY_ID"] != "AK" || plan.CredentialEnv["AWS_SESSION_TOKEN"] != "TK" {
 		t.Errorf("credential env not populated: %+v", plan.CredentialEnv)

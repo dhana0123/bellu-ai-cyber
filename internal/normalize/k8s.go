@@ -21,7 +21,7 @@ import (
 type K8s struct{}
 
 // Sources implements Normalizer.
-func (K8s) Sources() []string { return []string{"steampipe"} }
+func (K8s) Sources() []string { return []string{"cloudquery"} }
 
 // Normalize implements Normalizer, filtering to k8s provider events.
 func (K8s) Normalize(events []rawevent.RawEvent) (Result, error) {

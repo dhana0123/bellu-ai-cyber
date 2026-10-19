@@ -4,14 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bellu/bellu-ai-cyber/internal/source/steampipe"
+	"github.com/bellu/bellu-ai-cyber/internal/source/cloudquery"
 )
 
-// TestCatalogCoversSteampipeAWSTables is the guard that ends permission
-// trial-and-error: it loads the Steampipe AWS catalog (the exact tables Bellu
+// TestCatalogCoversCloudQueryAWSTables is the guard that ends permission
+// trial-and-error: it loads the CloudQuery AWS mapping (the exact tables Bellu
 // queries during discovery) and asserts that, for every table, the enabled
 // capabilities grant a permission for that table's AWS service. If someone adds
-// a table to internal/source/steampipe/catalog/aws.yaml (e.g. a new AI service)
+// a table to internal/source/cloudquery/mapping/aws.yaml (e.g. a new AI service)
 // without granting its permission here, this test fails at build time instead
 // of surfacing as an AccessDenied in production.
 //
@@ -19,10 +19,10 @@ import (
 // ungranted, like bedrock/eks). It does not assert per-action completeness —
 // the per-table action lists are derived from the plugin source and encoded in
 // the capability bundles directly.
-func TestCatalogCoversSteampipeAWSTables(t *testing.T) {
-	cat, err := steampipe.LoadCatalog("aws.yaml")
+func TestCatalogCoversCloudQueryAWSTables(t *testing.T) {
+	cat, err := cloudquery.LoadCatalog("aws.yaml")
 	if err != nil {
-		t.Fatalf("load steampipe aws catalog: %v", err)
+		t.Fatalf("load cloudquery aws mapping: %v", err)
 	}
 
 	// Gating is a scan-time concern: a table is collected only when the
@@ -67,7 +67,7 @@ func grantedServices(caps []string) map[string]bool {
 	return out
 }
 
-// iamServiceForTable maps a Steampipe aws_* table name to the IAM service that
+// iamServiceForTable maps an aws_* table name to the IAM service that
 // authorizes its API calls. Most follow aws_<service>_<resource>; the aliases
 // cover tables whose plugin name differs from the IAM service namespace.
 func iamServiceForTable(table string) string {

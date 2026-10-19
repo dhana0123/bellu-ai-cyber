@@ -25,7 +25,7 @@ import (
 type AWS struct{}
 
 // Sources implements Normalizer.
-func (AWS) Sources() []string { return []string{"steampipe"} }
+func (AWS) Sources() []string { return []string{"cloudquery"} }
 
 // Normalize implements Normalizer. It only processes aws_* resource types so a
 // shared Steampipe source can carry multiple providers.

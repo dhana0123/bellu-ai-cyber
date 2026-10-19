@@ -90,7 +90,7 @@ type fakeRunner struct {
 	run func(ctx context.Context, src source.Source, runID string) error
 }
 
-func (r *fakeRunner) Run(ctx context.Context, src source.Source, runID string, _ int64, _ source.ProgressReporter) error {
+func (r *fakeRunner) Run(ctx context.Context, src source.Source, runID string, _ int64, _ int64, _ source.ProgressReporter) error {
 	return r.run(ctx, src, runID)
 }
 

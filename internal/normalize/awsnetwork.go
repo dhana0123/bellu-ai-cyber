@@ -40,7 +40,7 @@ const (
 type AWSNetwork struct{}
 
 // Sources implements Normalizer.
-func (AWSNetwork) Sources() []string { return []string{"steampipe"} }
+func (AWSNetwork) Sources() []string { return []string{"cloudquery"} }
 
 // Normalize implements Normalizer.
 func (AWSNetwork) Normalize(events []rawevent.RawEvent) (Result, error) {

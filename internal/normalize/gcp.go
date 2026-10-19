@@ -16,7 +16,7 @@ import (
 type GCP struct{}
 
 // Sources implements Normalizer.
-func (GCP) Sources() []string { return []string{"steampipe"} }
+func (GCP) Sources() []string { return []string{"cloudquery"} }
 
 // Normalize implements Normalizer, filtering to gcp provider events.
 func (GCP) Normalize(events []rawevent.RawEvent) (Result, error) {

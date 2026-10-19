@@ -36,15 +36,13 @@ sources:
     # Point at generated SBOMs (make sbom writes out/sboms). The checked-in
     # fixtures under testdata/sboms let `bellu run` work out of the box.
     dir: "testdata/sboms"
-  steampipe:
-    # host/port of the steampipe service; connection selects the catalog yaml.
-    host: "localhost"
-    port: 9193
-    user: "steampipe"
-    password: "bellu_steampipe"
-    database: "steampipe"
+  cloudquery:
+    # CloudQuery syncs cloud inventory into the cq_staging schema of this
+    # PostgreSQL (the same DB as the evidence store) and the source reads it
+    # back. `dsn` is the staging DSN; `connection` selects the table-mapping
+    # YAML under internal/source/cloudquery/mapping (aws.yaml here).
+    dsn: "postgres://bellu:bellu@localhost:5432/bellu?sslmode=disable"
     connection: "aws"
-    catalog_dir: "internal/source/steampipe/catalog"
   zeek:
     # Live/replayed logs land in deploy/zeek/logs; testdata/zeek has fixtures.
     dir: "deploy/zeek/logs"

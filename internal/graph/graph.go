@@ -253,6 +253,52 @@ func (w *Writer) MarkStale(ctx context.Context, canonicalIDs []string) error {
 	return err
 }
 
+// EdgeRef identifies one directed relationship by its endpoint canonical ids
+// and relation type. It is the removal counterpart of store.GraphEdge, carrying
+// only what is needed to MATCH and delete a specific edge.
+type EdgeRef struct {
+	SrcID    string
+	Relation model.Relation
+	DstID    string
+}
+
+// RemoveEdges deletes the given relationships from the projection. Edges, unlike
+// nodes, carry no stale flag: a removed relation becomes absence (the fold path
+// omits it entirely), so the incremental path deletes it to converge on the
+// same end state as a full rebuild. Endpoint nodes are left untouched. The
+// relation type is validated against the allow-list before interpolation.
+func (w *Writer) RemoveEdges(ctx context.Context, refs []EdgeRef) error {
+	if len(refs) == 0 {
+		return nil
+	}
+	byRel := map[model.Relation][]EdgeRef{}
+	for _, r := range refs {
+		if !model.ValidRelation(r.Relation) {
+			return fmt.Errorf("graph: refusing unknown relation %q", r.Relation)
+		}
+		byRel[r.Relation] = append(byRel[r.Relation], r)
+	}
+
+	sess := w.session(ctx)
+	defer sess.Close(ctx)
+
+	for rel, rs := range byRel {
+		// Relation type is from the allow-list, safe to interpolate.
+		cypher := fmt.Sprintf(`
+			UNWIND $rows AS row
+			MATCH (a:Entity {canonical_id: row.src})-[r:%s]->(b:Entity {canonical_id: row.dst})
+			DELETE r`, rel)
+		rows := make([]map[string]any, 0, len(rs))
+		for _, r := range rs {
+			rows = append(rows, map[string]any{"src": r.SrcID, "dst": r.DstID})
+		}
+		if _, err := sess.Run(ctx, cypher, map[string]any{"rows": rows}); err != nil {
+			return fmt.Errorf("graph: remove %s: %w", rel, err)
+		}
+	}
+	return nil
+}
+
 // Counts returns node and relationship counts, for verification.
 func (w *Writer) Counts(ctx context.Context) (nodes, rels int64, err error) {
 	sess := w.session(ctx)

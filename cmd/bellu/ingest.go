@@ -14,10 +14,10 @@ import (
 func runIngest(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("ingest", flag.ContinueOnError)
 	cfgPath := fs.String("config", "bellu.yaml", "path to bellu.yaml")
-	sourceName := fs.String("source", "", "source to collect from (e.g. fixture, cyclonedx, steampipe, zeek)")
+	sourceName := fs.String("source", "", "source to collect from (e.g. fixture, cyclonedx, cloudquery, zeek)")
 	file := fs.String("file", "", "input file (fixture source)")
 	dir := fs.String("dir", "", "input directory (cyclonedx, zeek sources)")
-	connection := fs.String("connection", "", "connection name (steampipe source)")
+	connection := fs.String("connection", "", "connection name (cloudquery source)")
 	runID := fs.String("run", "", "run id (default: generated)")
 	if err := fs.Parse(args); err != nil {
 		return err

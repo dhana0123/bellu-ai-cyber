@@ -14,7 +14,7 @@ const (
 	TableErrorState TableState = "error"
 )
 
-// TableProgress is the per-table progress for one Steampipe table.
+// TableProgress is the per-table progress for one collected table.
 type TableProgress struct {
 	Table string     `json:"table"`
 	State TableState `json:"state"`

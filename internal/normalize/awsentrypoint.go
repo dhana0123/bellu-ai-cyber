@@ -27,7 +27,7 @@ const (
 type AWSEntryPoint struct{}
 
 // Sources implements Normalizer.
-func (AWSEntryPoint) Sources() []string { return []string{"steampipe"} }
+func (AWSEntryPoint) Sources() []string { return []string{"cloudquery"} }
 
 // Normalize implements Normalizer.
 func (AWSEntryPoint) Normalize(events []rawevent.RawEvent) (Result, error) {

@@ -2,15 +2,14 @@
 //
 // Like the AWS adapter it performs no resource queries itself: it generates the
 // onboarding instructions for a read-only Azure AD service principal, and
-// builds the discovery plan handed to the existing Steampipe source (the
-// azure.yaml catalog). Credentials (the service-principal client secret) live
-// only in the session/credential env for the discovery run and are never
-// persisted on the Connection.
+// builds the discovery plan handed to the CloudQuery source (the azure.yaml
+// mapping). Credentials (the service-principal client secret) live only in the
+// session/credential env for the discovery run and are never persisted on the
+// Connection.
 package azure
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 )
@@ -20,42 +19,37 @@ const ProviderName = "azure"
 
 // Adapter implements provider.CloudProvider for Azure.
 type Adapter struct {
-	steampipeHost     string
-	steampipePort     int
-	steampipeUser     string
-	steampipePassword string
-	steampipeDB       string
-	steampipeConn     string // catalog/connection selector, e.g. "azure"
+	// cqStagingDSN is the customer PostgreSQL DSN the CloudQuery sync writes its
+	// cq_staging destination into (and the cloudquery.Source reads from). It is a
+	// connection string, not a source credential: the per-connection service
+	// principal credentials travel separately on DiscoveryPlan.CredentialEnv and
+	// are never persisted.
+	cqStagingDSN string
+	// cqConnection is the mapping selector (e.g. "azure") the cloudquery.Factory
+	// resolves to mapping/<conn>.yaml.
+	cqConnection string
 }
 
-// Options configures the Azure adapter. Steampipe defaults match the local dev
-// stack.
+// Options configures the Azure adapter.
 type Options struct {
-	SteampipeHost     string
-	SteampipePort     int
-	SteampipeUser     string
-	SteampipePassword string
-	SteampipeDB       string
-	SteampipeConn     string
+	// CQStagingDSN is the customer PostgreSQL DSN the CloudQuery sync writes its
+	// cq_staging destination into and the cloudquery.Source reads from.
+	CQStagingDSN string
+	// CQConnection is the mapping selector (mapping/<conn>.yaml). Defaults to
+	// "azure".
+	CQConnection string
 }
 
-// New builds an Azure adapter with sensible local-dev defaults.
+// New builds an Azure adapter. The CloudQuery mapping selector defaults to
+// "azure".
 func New(opts Options) *Adapter {
-	host := firstNonEmpty(opts.SteampipeHost, "localhost")
-	user := firstNonEmpty(opts.SteampipeUser, "steampipe")
-	db := firstNonEmpty(opts.SteampipeDB, "steampipe")
-	conn := firstNonEmpty(opts.SteampipeConn, "azure")
-	port := opts.SteampipePort
-	if port == 0 {
-		port = 9193
+	conn := opts.CQConnection
+	if conn == "" {
+		conn = "azure"
 	}
 	return &Adapter{
-		steampipeHost:     host,
-		steampipePort:     port,
-		steampipeUser:     user,
-		steampipePassword: opts.SteampipePassword,
-		steampipeDB:       db,
-		steampipeConn:     conn,
+		cqStagingDSN: opts.CQStagingDSN,
+		cqConnection: conn,
 	}
 }
 
@@ -121,27 +115,31 @@ func (a *Adapter) CheckPermissions(ctx context.Context, t provider.Target, creds
 	return res, nil
 }
 
-// Discover builds the Steampipe discovery plan for Azure. The azure.yaml
-// catalog is selected and the service-principal credentials are passed as the
-// standard AZURE_* environment for the session only.
+// Discover builds the CloudQuery discovery plan for Azure. It performs no
+// provider-specific resource queries: it assembles the CloudQuery Factory
+// config map (staging DSN + mapping selector + capability gating + the
+// session-only credential env) exactly as the AWS adapter does. The azure.yaml
+// mapping is selected via the "connection" key.
+//
+// The plan carries the staging DSN and the mapping selector in SteampipeConfig
+// (the field name is retained from the Steampipe era; it is just the generic
+// Source-Factory config map the orchestrator feeds to the wired Factory). The
+// service-principal credentials travel in CredentialEnv and the CloudQuery
+// Factory forwards them to the JobRunner for the run only; they are never
+// persisted to the staging DB, the on-disk spec, logs, or API responses.
 func (a *Adapter) Discover(ctx context.Context, t provider.Target, creds *provider.Credentials) (*provider.DiscoveryPlan, error) {
-	connName := fmt.Sprintf("azure_conn_%d", t.ConnectionID)
-	cfg := map[string]any{
-		"host":              a.steampipeHost,
-		"port":              a.steampipePort,
-		"user":              a.steampipeUser,
-		"password":          a.steampipePassword,
-		"database":          a.steampipeDB,
-		"connection":        a.steampipeConn, // selects azure.yaml catalog
-		"connection_schema": connName,
-		"capabilities":      t.Capabilities,
-	}
-	// AccountID carries the subscription id for Azure connections. The tenant/
-	// client/secret arrive via the session env sink, keyed by connection name;
-	// they are never persisted on the Connection.
+	// The session-only AZURE_* credential environment the CloudQuery sync
+	// injects as per-run environment variables. AccountID carries the
+	// subscription id; the tenant/client/secret arrive via the session env sink,
+	// keyed by connection name, and are never persisted on the Connection.
 	env := map[string]string{
-		"BELLU_STEAMPIPE_CONNECTION": connName,
-		"AZURE_SUBSCRIPTION_ID":      t.AccountID,
+		"AZURE_SUBSCRIPTION_ID": t.AccountID,
+	}
+	cfg := map[string]any{
+		"dsn":            a.cqStagingDSN,
+		"connection":     a.cqConnection, // selects mapping/azure.yaml
+		"capabilities":   t.Capabilities,
+		"credential_env": env,
 	}
 	return &provider.DiscoveryPlan{SteampipeConfig: cfg, CredentialEnv: env}, nil
 }

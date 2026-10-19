@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -19,8 +18,6 @@ import (
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/bellu/bellu-ai-cyber/backend/server"
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
@@ -37,8 +34,12 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/pipeline"
 	"github.com/bellu/bellu-ai-cyber/internal/redact"
 	"github.com/bellu/bellu-ai-cyber/internal/source"
-	"github.com/bellu/bellu-ai-cyber/internal/source/steampipe"
+	"github.com/bellu/bellu-ai-cyber/internal/source/cloudquery"
 	"github.com/bellu/bellu-ai-cyber/internal/store"
+	"github.com/bellu/bellu-ai-cyber/internal/temporal"
+	"github.com/bellu/bellu-ai-cyber/internal/temporal/classify"
+	"github.com/bellu/bellu-ai-cyber/internal/temporal/infer"
+	"github.com/bellu/bellu-ai-cyber/internal/temporal/replay"
 )
 
 func main() {
@@ -170,123 +171,39 @@ func startDiscoveryScheduler(ctx context.Context, st *store.Store, mgr *connecto
 // buildConnector wires the cloud-connector manager with the AWS adapter
 // registered. The adapter uses the default AWS credential chain for Bellu's own
 // principal to call STS AssumeRole; per-connection temporary credentials are
-// held in memory only and never persisted. Steampipe connection parameters come
-// from the environment with local-dev defaults.
-// steampipeConfigSink returns a discovery CredentialSink that writes a
-// per-session Steampipe AWS connection file into the shared config dir, telling
-// Steampipe to assume the customer role with the session's temporary
-// credentials. The cleanup restores the default config when the session ends.
-// When dir is empty (no shared volume configured), it is a no-op and discovery
-// relies on whatever credentials the Steampipe container already has.
-func steampipeConfigSink(dir string) discovery.CredentialSink {
-	if dir == "" {
-		return nil
-	}
-	return func(env map[string]string) (func(), error) {
-		// Each discovery session gets its OWN connection + config file, named
-		// after the connection, so concurrent discoveries never overwrite each
-		// other's credentials. The session's temporary credentials already grant
-		// customer-account access (Bellu performed STS AssumeRole), so Steampipe
-		// authenticates as the assumed role directly.
-		conn := env["BELLU_STEAMPIPE_CONNECTION"]
-		if conn == "" {
-			conn = "aws"
-		}
-		spc := fmt.Sprintf(`connection %q {
-  plugin        = "ghcr.io/turbot/steampipe/plugins/turbot/aws@latest"
-  regions       = ["*"]
-  access_key    = %q
-  secret_key    = %q
-  session_token = %q
-}
-`, conn, env["AWS_ACCESS_KEY_ID"], env["AWS_SECRET_ACCESS_KEY"], env["AWS_SESSION_TOKEN"])
-		path := filepath.Join(dir, conn+".spc")
-		// Share the file with the steampipe process (a different uid) via the
-		// common root group (gid 0) that owns the shared config volume, rather
-		// than making the credential file world-readable. This is the
-		// least-privilege pattern for cross-container volume sharing: group
-		// ownership + group-read, no world access, neither container as root.
-		if err := os.WriteFile(path, []byte(spc), 0o640); err != nil {
-			return nil, fmt.Errorf("write steampipe config: %w", err)
-		}
-		// Force mode (umask-independent) and set the group to 0 so steampipe,
-		// which runs in gid 0, can read it. Chown to gid 0 works because
-		// bellu-api is a member of group 0 (group_add in compose).
-		_ = os.Chmod(path, 0o640)
-		_ = os.Chown(path, -1, 0)
-		// Steampipe hot-reloads config, but a new connection becomes queryable
-		// only after the plugin attaches its schema. Wait (bounded) until a
-		// representative table in the connection resolves, so discovery does not
-		// race ahead and hit "relation does not exist".
-		waitForSteampipeConnection(conn, 60*time.Second)
-		// Cleanup deletes the per-session config so credentials never linger.
-		cleanup := func() { _ = os.Remove(path) }
-		return cleanup, nil
-	}
-}
-
-// waitForSteampipeConnection polls the Steampipe service until a representative
-// table in the connection's schema is queryable (or the timeout elapses).
-// Steampipe reloads config asynchronously and the connection schema exists
-// slightly before its tables resolve, so this probes an actual table
-// (to_regclass) rather than just information_schema.schemata.
-func waitForSteampipeConnection(schema string, timeout time.Duration) {
-	host := getenv("BELLU_STEAMPIPE_HOST", "steampipe")
-	port := getenv("BELLU_STEAMPIPE_PORT", "9193")
-	user := getenv("BELLU_STEAMPIPE_USER", "steampipe")
-	pass := os.Getenv("BELLU_STEAMPIPE_PASSWORD")
-	db := getenv("BELLU_STEAMPIPE_DB", "steampipe")
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, pass, host, port, db)
-	probe := schema + ".aws_account"
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := pgx.Connect(context.Background(), dsn)
-		if err == nil {
-			var ready bool
-			qerr := conn.QueryRow(context.Background(),
-				`SELECT to_regclass($1) IS NOT NULL`, probe).Scan(&ready)
-			conn.Close(context.Background())
-			if qerr == nil && ready {
-				return
-			}
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-}
-
+// held in memory only and never persisted. Discovery collects through a
+// per-run CloudQuery job: the AWS adapter's Discover emits the cloudquery.Factory
+// config and the session-only credential env, and the Factory wires the CLI
+// JobRunner.
 func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *connector.Manager {
 	reg := provider.NewRegistry()
+
+	// CloudQuery staging DSN: the CloudQuery sync writes its cq_staging
+	// destination into the customer PostgreSQL (Requirement 16.3), the same
+	// database the rest of Bellu uses, and the cloudquery.Source reads the
+	// staging rows back from it. BELLU_CQ_STAGING_DSN overrides it for a split
+	// deployment; it defaults to the primary Postgres DSN.
+	cqStagingDSN := getenv("BELLU_CQ_STAGING_DSN", cfg.Postgres.DSN)
 
 	awsAdapter := connectoraws.New(connectoraws.Options{
 		STS:               newSTSClient(),
 		Templates:         newTemplateStore(),
 		BelluPrincipalARN: os.Getenv("BELLU_CONNECTOR_PRINCIPAL_ARN"),
-		SteampipeHost:     getenv("BELLU_STEAMPIPE_HOST", "steampipe"),
-		SteampipePort:     atoiOr(os.Getenv("BELLU_STEAMPIPE_PORT"), 9193),
-		SteampipeUser:     getenv("BELLU_STEAMPIPE_USER", "steampipe"),
-		SteampipePassword: os.Getenv("BELLU_STEAMPIPE_PASSWORD"),
-		SteampipeDB:       getenv("BELLU_STEAMPIPE_DB", "steampipe"),
-		SteampipeConn:     getenv("BELLU_STEAMPIPE_CONNECTION", "aws"),
+		CQStagingDSN:      cqStagingDSN,
+		CQConnection:      getenv("BELLU_CQ_CONNECTION", "aws"),
 	})
 	reg.Register(awsAdapter)
 
 	// Additional cloud providers (Azure, GCP) share the CloudProvider interface
-	// and the Steampipe discovery path (azure.yaml / gcp.yaml catalogs). They
-	// register in the same registry with zero Manager changes. Steampipe
-	// connection params come from the same env as AWS.
-	spHost := getenv("BELLU_STEAMPIPE_HOST", "steampipe")
-	spPort := atoiOr(os.Getenv("BELLU_STEAMPIPE_PORT"), 9193)
-	spUser := getenv("BELLU_STEAMPIPE_USER", "steampipe")
-	spPass := os.Getenv("BELLU_STEAMPIPE_PASSWORD")
-	spDB := getenv("BELLU_STEAMPIPE_DB", "steampipe")
+	// and the CloudQuery discovery path (azure.yaml / gcp.yaml mappings). They
+	// register in the same registry with zero Manager changes and reuse the same
+	// cq_staging DSN as AWS; the per-connection credentials ride on the discovery
+	// plan's credential env, never persisted.
 	reg.Register(connectorazure.New(connectorazure.Options{
-		SteampipeHost: spHost, SteampipePort: spPort, SteampipeUser: spUser,
-		SteampipePassword: spPass, SteampipeDB: spDB, SteampipeConn: "azure",
+		CQStagingDSN: cqStagingDSN, CQConnection: "azure",
 	}))
 	reg.Register(connectorgcp.New(connectorgcp.Options{
-		SteampipeHost: spHost, SteampipePort: spPort, SteampipeUser: spUser,
-		SteampipePassword: spPass, SteampipeDB: spDB, SteampipeConn: "gcp",
+		CQStagingDSN: cqStagingDSN, CQConnection: "gcp",
 	}))
 
 	// CI/VCS providers (GitHub, GitLab, Atlassian). GitHub uses a GitHub App
@@ -314,6 +231,30 @@ func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *conne
 		"internal/resolve/mappings.yaml",
 		"internal/normalize/aiagent/rules.yaml",
 	)
+	// Temporal change engine (observed lane): runs inside the pipeline after
+	// normalize+resolve and before the Memgraph projection, appending
+	// observed_events for every ingest so the inventory becomes an event-sourced
+	// temporal graph. It diffs each run against the current projection cache
+	// (normalized_entities/normalized_edges). The engine shares the same store.
+	proc.WithEngine(temporal.NewEngine(st))
+
+	// Derived lane (inference + classification): after the change engine records
+	// the observed facts, the inference engine emits cross-source edges and the
+	// rule-based classifier labels datastores, both from observed/normalized data
+	// only. Their output is written to the derived_events log and overlaid onto
+	// the Memgraph projection by the replay Rebuilder (inferred edges carry
+	// inferred=true + confidence + evidence; classified nodes get the three
+	// namespaced data_class/data_class_confidence/classified_by properties).
+	proc.WithDerived(
+		infer.NewEngine(infer.DefaultRules()...),
+		classify.NewRuleClassifier(),
+	)
+	// The replay Rebuilder is the single write path from the two logs to the
+	// Memgraph projection. When the graph is unavailable it is left nil and the
+	// overlay is skipped (the facts remain in the logs, recoverable later).
+	if gw != nil {
+		proc.WithRebuilder(replay.NewRebuilder(st, gw))
+	}
 	redactor, rerr := redact.New(cfg.Redaction.KeyPatterns, cfg.Redaction.JSONPaths)
 	if rerr != nil {
 		log.Printf("warning: redaction disabled (%v)", rerr)
@@ -321,11 +262,20 @@ func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *conne
 	}
 	runner := connectorPipelineRunner{store: st, graph: gw, proc: proc, redactor: redactor}
 
+	// Discovery runs on CloudQuery now that the Steampipe/CloudQuery parity
+	// tests are green (task 5, Property 5). The orchestrator builds the source
+	// via cloudquery.Factory: the AWS adapter's Discover emits the Factory
+	// config (staging DSN + mapping selector + capabilities + per-run credential
+	// env), and the Factory wires the production CLI JobRunner that launches
+	// `cloudquery sync` before any staging row is read. No credential sink is
+	// needed: the STS session credentials ride on the discovery plan's
+	// credential_env to the JobRunner's subprocess environment and are discarded
+	// after the run on every path, so nothing is written to disk (contrast the
+	// Steampipe `.spc` sink this replaces).
 	disc := discovery.New(discovery.Options{
-		Factory: steampipe.Factory,
+		Factory: cloudquery.Factory,
 		Runner:  runner,
 		Creds:   adapterCredentialer{adapter: awsAdapter},
-		Sink:    steampipeConfigSink(getenv("BELLU_STEAMPIPE_CONFIG_DIR", "")),
 	})
 	// The Manager's GitHubClient interface needs only VerifyInstallation, which
 	// the concrete client satisfies. Pass nil when App config is absent so
@@ -443,11 +393,11 @@ type connectorPipelineRunner struct {
 	redactor *redact.Redactor
 }
 
-func (r connectorPipelineRunner) Run(ctx context.Context, src source.Source, runID string, projectID int64, reporter source.ProgressReporter) error {
+func (r connectorPipelineRunner) Run(ctx context.Context, src source.Source, runID string, orgID, projectID int64, reporter source.ProgressReporter) error {
 	// 1) Ingest: record the run and stream collected events into Postgres,
 	// redacting payloads first. We consume Collect directly (rather than via
 	// pipeline.Pipeline) so the progress reporter stays wired to the hub.
-	if err := r.store.StartRun(ctx, runID, "steampipe"); err != nil {
+	if err := r.store.StartRun(ctx, runID, "cloudquery"); err != nil {
 		return fmt.Errorf("start run: %w", err)
 	}
 	sink := store.NewSink(r.store, runID)
@@ -526,12 +476,15 @@ drain:
 	if err != nil {
 		return fmt.Errorf("load raw events: %w", err)
 	}
-	pres, err := r.proc.Process(ctx, r.store, raw)
+	// "cloudquery" is the collection source label (same as StartRun above); it is
+	// what the temporal change engine keys entity_assertions / reference-counted
+	// deletion on, and what the normalize registry dispatches on.
+	pres, err := r.proc.Process(ctx, r.store, raw, orgID, runID, "cloudquery")
 	if err != nil {
 		return err
 	}
-	log.Printf("discovery %s: collected=%d entities=%d edges=%d agents=%d",
-		runID, collected, pres.Entities, pres.Edges, pres.Agents)
+	log.Printf("discovery %s: collected=%d entities=%d edges=%d agents=%d changes=%d",
+		runID, collected, pres.Entities, pres.Edges, pres.Agents, len(pres.Changes))
 
 	// Tag the discovered entities with the connection's project so inventory can
 	// be scoped per project. Best-effort: a tagging failure must not fail the
@@ -542,13 +495,18 @@ drain:
 		}
 	}
 
-	// 3) Sync to Memgraph (optional; inventory reads from Postgres so this is
-	// best-effort and never fails the discovery run).
+	// 3) Project to Memgraph (optional; inventory reads from Postgres so this is
+	// best-effort and never fails the discovery run). The change engine's output
+	// (pres.Changes) is the authoritative input for the temporal replay/overlay
+	// projection; wiring it into the incremental ApplyRun path is task 11.1/16.1.
+	// For now the projection step receives the changes and the base graph sync
+	// keeps running so the inventory stays current.
 	if r.graph != nil {
-		if ne, nr, serr := r.proc.Sync(ctx, r.store, r.graph); serr != nil {
+		if ne, nr, serr := r.proc.Sync(ctx, r.store, r.graph, orgID, pres.Changes, pres.DerivedChanges); serr != nil {
 			log.Printf("discovery %s: graph sync failed (non-fatal): %v", runID, serr)
 		} else {
-			log.Printf("discovery %s: graph synced entities=%d edges=%d", runID, ne, nr)
+			log.Printf("discovery %s: graph synced entities=%d edges=%d derived=%d",
+				runID, ne, nr, len(pres.DerivedChanges))
 		}
 	}
 	return nil

@@ -125,6 +125,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426415828
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792429314392
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430053430
       }
     ],
     "5.2 Assert byte-identical RawEvents and identical normalized output": [
@@ -132,6 +142,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426419429
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430075481
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430403531
       }
     ],
     "6.1 Wire the AWS adapter and discovery orchestrator to `cloudquery.Factory`": [
@@ -139,6 +159,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426422909
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430425637
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430949489
       }
     ],
     "7.1 Remove the Steampipe package, catalogs, and configuration": [
@@ -146,6 +176,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426426509
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431656923
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432386365
       }
     ],
     "7.2 Checkpoint - build and full suite green after the cut": [
@@ -153,6 +193,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426430108
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432404365
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432415725
       }
     ],
     "8.1 Add migration `00015_observed_events.sql`": [
@@ -211,6 +261,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426444359
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792429316067
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430051898
       }
     ],
     "11.1 Implement incremental `ApplyRun` reusing `graph.Writer`": [
@@ -218,6 +278,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426447978
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430076891
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430399739
       }
     ],
     "11.2 Implement full `RebuildAsOf` fold and recovery semantics": [
@@ -225,6 +295,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426451170
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430426920
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430950856
       }
     ],
     "12.1 Implement `Querier.StateAt` (as-of + asKnownAt)": [
@@ -232,6 +312,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426454469
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430968258
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431633278
       }
     ],
     "12.2 Implement `History`, `RecentChanges`, and diff-between-times": [
@@ -239,6 +329,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426457688
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431655663
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432384804
       }
     ],
     "13.1 Add migration `00016_derived_events.sql`": [
@@ -263,6 +363,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426464759
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792429317635
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430057050
       }
     ],
     "14.2 Implement the five rule families": [
@@ -270,6 +380,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426467839
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430078388
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430404991
       }
     ],
     "15.1 Implement the rule-based classifier (Stage A)": [
@@ -277,6 +397,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426470888
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792429318923
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430054880
       }
     ],
     "16.1 Project inferred edges and classification properties": [
@@ -284,6 +414,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426474448
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430970030
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431634679
       }
     ],
     "17.1 Implement the six read tools behind JWT + RBAC": [
@@ -291,6 +431,11 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426477689
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432435839
       }
     ],
     "17.2 Implement input clamping, lane tagging, and error messages": [
@@ -305,6 +450,16 @@
         "executionId": "3b16de30-198d-46ec-8edc-2c0703b9188c",
         "chatSessionId": "sess_f50812bb-d5af-42ac-a74c-0c43f8019954",
         "timestamp": 1792426484608
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430429920
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430952190
       }
     ],
     "19.1 Add Azure, GCP, and Kubernetes mapping files": [
@@ -434,6 +589,11 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792429135168
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792429305791
       }
     ],
     "6.2 Integration test the flipped AWS discovery path": [
@@ -441,6 +601,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427949916
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430975393
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431630692
       }
     ],
     "9.2 Write change-engine unit tests (exactly-once classification)": [
@@ -470,6 +640,11 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792429136972
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792429304462
       }
     ],
     "9.5 Write reference-counted deletion tests (**Property 3**)": [
@@ -484,6 +659,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427956424
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430087614
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430407848
       }
     ],
     "11.3 Write replay-determinism test (**Property 1**)": [
@@ -491,6 +676,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427958164
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430971632
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431631990
       }
     ],
     "12.3 Write bi-temporal query tests (**Property 4**)": [
@@ -498,6 +693,11 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427959415
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432433325
       }
     ],
     "14.3 Write inference tests (facts/derived separation, **Property 2**)": [
@@ -505,6 +705,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427960713
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430428399
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430955084
       }
     ],
     "15.2 Write classification tests": [
@@ -512,6 +722,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427962211
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430081708
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430406331
       }
     ],
     "16.2 Write derived-overlay projection test": [
@@ -519,6 +739,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427963595
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431653910
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432388015
       }
     ],
     "17.3 Write MCP tests (tenant isolation + contract)": [
@@ -533,6 +763,16 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792427968565
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430973544
+      },
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431629300
       }
     ],
     "19.3 Write mapping-parse tests for the new providers": [
@@ -568,6 +808,76 @@
         "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
         "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
         "timestamp": 1792429120962
+      }
+    ],
+    "10. Wire the change engine into ingest": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430058730
+      }
+    ],
+    "15. Classification engine (`internal/temporal/classify`)": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430060280
+      }
+    ],
+    "5. Steampipe/CloudQuery parity tests (gates the cutover)": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430409536
+      }
+    ],
+    "14. Inference engine (`internal/temporal/infer`)": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430411120
+      }
+    ],
+    "6. Flip AWS to CloudQuery behind the parity gate": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430953490
+      }
+    ],
+    "11. Memgraph projection / rebuild (`internal/temporal/replay`)": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430956440
+      }
+    ],
+    "18. Retention and heartbeat coalescing": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792430957992
+      }
+    ],
+    "16. Project the derived lane into Memgraph": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792431637640
+      }
+    ],
+    "12. Temporal query layer": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432389525
+      }
+    ],
+    "7. Hard-cut Steampipe removal": [
+      {
+        "executionId": "199a8584-6446-4ac1-842a-d11d2b46ca2c",
+        "chatSessionId": "sess_b49a3fa3-a1cd-4111-8492-4a67c9a0139c",
+        "timestamp": 1792432421118
       }
     ]
   }

@@ -58,7 +58,7 @@ optional.
     - On non-zero exit, return a job failure and emit no RawEvents from the aborted sync; on `ctx` cancellation, terminate the subprocess and return the cancellation error; discard the env map on every failure path
     - Ensure `Source.Collect` surfaces job failure on the error channel and does not stream partial inventory to the change engine
     - _Requirements: 1.6, 1.7, 16.4_
-  - [-]* 3.3 Write unit tests for runner failure/cancel and credential non-persistence
+  - [x]* 3.3 Write unit tests for runner failure/cancel and credential non-persistence
     - Fake runner asserts: non-zero exit yields a failure and zero RawEvents; cancellation returns `ctx.Err()`; credentials never appear in the spec file, logs, or error strings on any path
     - _Requirements: 1.3, 1.6, 1.7, 16.4_
 
@@ -68,29 +68,29 @@ optional.
     - Keep Bellu `table` names identical to the Steampipe catalog so the cut is a data migration, not a schema change
     - _Requirements: 2.4, 14.1_
 
-- [ ] 5. Steampipe/CloudQuery parity tests (gates the cutover)
-  - [~] 5.1 Build a shared-fixture parity harness
+- [x] 5. Steampipe/CloudQuery parity tests (gates the cutover)
+  - [x] 5.1 Build a shared-fixture parity harness
     - Add `internal/source/cloudquery/parity_test.go` that drives the same inventory fixture through both the Steampipe source (via its recorder/fixture path) and `cloudquery.Source` (staging populated from the spike fixtures, nil JobRunner)
     - _Requirements: 12.1_
-  - [~] 5.2 Assert byte-identical RawEvents and identical normalized output
+  - [x] 5.2 Assert byte-identical RawEvents and identical normalized output
     - Assert the two sources emit byte-identical RawEvent sets after `Finalize` (content-addressed compare); then run both through `normalize.Registry` and assert identical `normalized_entities`/`normalized_edges` (**Property 5: Steampipe/CloudQuery parity**)
     - _Requirements: 12.1, 12.2_
 
-- [ ] 6. Flip AWS to CloudQuery behind the parity gate
-  - [~] 6.1 Wire the AWS adapter and discovery orchestrator to `cloudquery.Factory`
+- [x] 6. Flip AWS to CloudQuery behind the parity gate
+  - [x] 6.1 Wire the AWS adapter and discovery orchestrator to `cloudquery.Factory`
     - Replace the Steampipe source construction in the AWS connector adapter and discovery orchestrator with `cloudquery.Factory`, wiring the JobRunner and mapping; keep the flip gated on the parity tests from task 5 being green
     - Update `backend/cmd/bellu-api/main.go` wiring to construct the CloudQuery source where the Steampipe source was constructed
     - _Requirements: 1.1, 12.3_
-  - [~]* 6.2 Integration test the flipped AWS discovery path
+  - [x]* 6.2 Integration test the flipped AWS discovery path
     - Drive a discovery run through the orchestrator with a fake JobRunner and assert RawEvents reach the pipeline unchanged
     - _Requirements: 1.1, 12.3_
 
-- [ ] 7. Hard-cut Steampipe removal
-  - [~] 7.1 Remove the Steampipe package, catalogs, and configuration
+- [x] 7. Hard-cut Steampipe removal
+  - [x] 7.1 Remove the Steampipe package, catalogs, and configuration
     - Delete `internal/source/steampipe` (package + `catalog/`), remove the Steampipe compose service and the `.spc` credential sink from `deploy/`, and remove the `BELLU_STEAMPIPE_*` environment variables from config and `deploy/.env*`
     - Remove remaining Steampipe references from `backend/cmd/bellu-api/main.go` and connector adapters
     - _Requirements: 13.1, 13.2, 13.3_
-  - [~] 7.2 Checkpoint - build and full suite green after the cut
+  - [x] 7.2 Checkpoint - build and full suite green after the cut
     - Ensure the project builds and the full test suite passes; ask the user if questions arise.
     - _Requirements: 13.1_
 
@@ -111,7 +111,7 @@ optional.
   - [x]* 9.2 Write change-engine unit tests (exactly-once classification)
     - Table-driven cases: created / attribute_updated / state_changed / unchanged (coalesced, no row) and relation.added / removed / attribute_changed, each produced exactly once; assert unchanged writes no row
     - _Requirements: 3.2, 3.3, 3.4, 17.1_
-  - [-]* 9.3 Write transaction-rollback unit test
+  - [x]* 9.3 Write transaction-rollback unit test
     - Inject a mid-write failure and assert no partial observed events persist, assertions are unchanged, and projection is not attempted
     - _Requirements: 3.7, 3.8_
   - [x] 9.4 Implement reference-counted deletion (replaces `MarkStaleEntitiesBySource`)
@@ -122,34 +122,34 @@ optional.
     - Two sources assert one entity: drop one → no deletion; drop both → `entity.deleted` + projection marked absent; failed run → assertions retained, no deletion
     - _Requirements: 5.3, 5.4, 5.6_
 
-- [ ] 10. Wire the change engine into ingest
-  - [~] 10.1 Insert the change engine after normalize in the ingest path
+- [x] 10. Wire the change engine into ingest
+  - [x] 10.1 Insert the change engine after normalize in the ingest path
     - Call `Engine.Apply` after `normalize.Registry.Normalize` and before the Memgraph projection in the pipeline/ingest wiring; hand the returned changes to the projection step; wire construction in `backend/cmd/bellu-api/main.go`
     - _Requirements: 3.2, 17.1_
-  - [~]* 10.2 Integration test ingest → observed_events
+  - [x]* 10.2 Integration test ingest → observed_events
     - Run a fixture ingest end-to-end and assert observed events are written with correct change types, evidence links, and bi-temporal fields
     - _Requirements: 3.1, 3.5, 3.6_
 
-- [ ] 11. Memgraph projection / rebuild (`internal/temporal/replay`)
-  - [~] 11.1 Implement incremental `ApplyRun` reusing `graph.Writer`
+- [x] 11. Memgraph projection / rebuild (`internal/temporal/replay`)
+  - [x] 11.1 Implement incremental `ApplyRun` reusing `graph.Writer`
     - Add `internal/temporal/replay/rebuilder.go` with `Rebuilder.ApplyRun(ctx, org, observed, derived)`: write the run's observed changes as the base graph via the existing `graph.Writer` MERGE path, then the run's derived changes as overlay (MERGE/SET); reference-counted deletions become MarkStale/absence
     - _Requirements: 7.1, 7.3_
-  - [~] 11.2 Implement full `RebuildAsOf` fold and recovery semantics
+  - [x] 11.2 Implement full `RebuildAsOf` fold and recovery semantics
     - Implement `RebuildAsOf(ctx, org, eventTime, knownAt)`: fold observed → base nodes/edges (excluding deleted) via `SyncEntities`/`SyncEdges`, then fold derived → overlay; idempotent merge/set so re-runs produce the same projection; serve as the authoritative recovery path when incremental apply leaves a suspect state
     - On Memgraph unavailability, preserve the committed logs and support rebuild when it returns (projection failure never loses facts); set a rebuild marker if a run's projection is incomplete
     - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.6_
-  - [~]* 11.3 Write replay-determinism test (**Property 1**)
+  - [x]* 11.3 Write replay-determinism test (**Property 1**)
     - For a crafted sequence of runs assert `rebuild(logs ≤ T) == applyRuns(logs ≤ T)` and that Memgraph holds no state not derivable from the two logs
     - _Requirements: 7.3, 7.4_
 
-- [ ] 12. Temporal query layer
-  - [~] 12.1 Implement `Querier.StateAt` (as-of + asKnownAt)
+- [x] 12. Temporal query layer
+  - [x] 12.1 Implement `Querier.StateAt` (as-of + asKnownAt)
     - Add `internal/temporal/querier.go` with `StateAt(ctx, org, canonicalID, eventTime, knownAt)`: fold observed (and derived) events with `event_time <= eventTime AND recorded_at <= knownAt` ordered by `(event_time, recorded_at, seq)`, treating terminal `entity.deleted` as absent; `knownAt=now` gives reality view; tenant-scoped by `org_id`
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 16.2_
-  - [~] 12.2 Implement `History`, `RecentChanges`, and diff-between-times
+  - [x] 12.2 Implement `History`, `RecentChanges`, and diff-between-times
     - `History` returns the ordered change stream for an entity with both lanes merged by time; `RecentChanges` returns tenant-scoped changes after a cutoff up to a limit; a between-times diff returns attributes added/removed/changed between two folded states; validate inputs and return plain errors
     - _Requirements: 6.6, 6.7, 6.8, 16.2_
-  - [~]* 12.3 Write bi-temporal query tests (**Property 4**)
+  - [-]* 12.3 Write bi-temporal query tests (**Property 4**)
     - Crafted log with a backdated `event_time` learned later via `recorded_at`: assert reality vs as-of vs asKnownAt results, correct fold order, and monotonicity (fixed `event_time`, increasing `knownAt` only adds information)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
@@ -161,35 +161,35 @@ optional.
     - Assert `observed_events` rejects derived change types and `derived_events` rejects observed change types via the CHECK constraints
     - _Requirements: 4.1, 4.2_
 
-- [ ] 14. Inference engine (`internal/temporal/infer`)
-  - [~] 14.1 Implement the `Rule` interface and engine
+- [x] 14. Inference engine (`internal/temporal/infer`)
+  - [x] 14.1 Implement the `Rule` interface and engine
     - Add `internal/temporal/infer/engine.go` with the `Rule` interface, `InferredEdge`, and an engine that runs rules reading only observed/normalized data and writes candidate edges exclusively to `derived_events`; the engine never branches on provider type (new rules added as rules)
     - _Requirements: 8.1, 8.4, 4.3, 4.4_
-  - [~] 14.2 Implement the five rule families
+  - [x] 14.2 Implement the five rule families
     - Add rules: env-var/secret-ref → workload `DEPENDS_ON`; event-source mapping → service `CALLS`; IaC+repo/CI → repo `BUILT_FROM`/`RUNS_IMAGE`; execution role → workload `AUTHENTICATES_AS`; monitor config → monitor `USES`; each emits with confidence + evidence ids, reusing existing `model.Relation` values
     - _Requirements: 8.2, 8.1_
-  - [~]* 14.3 Write inference tests (facts/derived separation, **Property 2**)
+  - [x]* 14.3 Write inference tests (facts/derived separation, **Property 2**)
     - Rule inputs → expected derived edges; assert derived output never appears in `observed_events` and rules never read derived output
     - _Requirements: 8.1, 8.2, 4.3, 4.4_
 
-- [ ] 15. Classification engine (`internal/temporal/classify`)
-  - [~] 15.1 Implement the rule-based classifier (Stage A)
+- [x] 15. Classification engine (`internal/temporal/classify`)
+  - [x] 15.1 Implement the rule-based classifier (Stage A)
     - Add `internal/temporal/classify/classify.go` with the `Classifier` interface and a rule-based classifier producing `DataClass` (class, readers, writers, confidence, `classified_by`) from metadata only — naming conventions, IaC, IAM policy reader/writer derivation — never reading datastore contents; write to `derived_events`; emit an `internal`/Unknown fallback when no rule matches; keep the output shape identical so a later model stage needs no projection/schema change
     - _Requirements: 9.1, 9.2, 9.4, 4.4_
-  - [~]* 15.2 Write classification tests
+  - [x]* 15.2 Write classification tests
     - Metadata inputs → expected `DataClass`; assert no datastore content is read and Unknown fallback applies when no rule matches
     - _Requirements: 9.1, 9.4_
 
-- [ ] 16. Project the derived lane into Memgraph
-  - [~] 16.1 Project inferred edges and classification properties
+- [x] 16. Project the derived lane into Memgraph
+  - [x] 16.1 Project inferred edges and classification properties
     - Extend the replay overlay to MERGE inferred edges with `inferred=true` + confidence + evidence, and SET namespaced node properties `data_class`, `data_class_confidence`, `classified_by` from folded classifications; wire the inference and classification engines into the ingest path after the change engine
     - _Requirements: 7.1, 8.3, 9.3_
-  - [~]* 16.2 Write derived-overlay projection test
+  - [x]* 16.2 Write derived-overlay projection test
     - Assert projected inferred edges carry `inferred=true`/confidence/evidence and classified nodes carry the three namespaced props, and that a rebuild reproduces them
     - _Requirements: 8.3, 9.3_
 
 - [ ] 17. MCP query server (`internal/mcp`)
-  - [~] 17.1 Implement the six read tools behind JWT + RBAC
+  - [-] 17.1 Implement the six read tools behind JWT + RBAC
     - Add `internal/mcp/server.go` with `Server` holding the `Querier` and `graph.Writer.Driver()`; implement `find_entities`, `get_entity`, `get_neighbors`, `entity_history`, `recent_changes`, `describe_schema`; resolve `org` from the authenticated context (ignore client-supplied org); mount behind the existing JWT + RBAC router in `backend/cmd/bellu-api/main.go`
     - _Requirements: 10.1, 10.2, 10.3, 16.2_
   - [~] 17.2 Implement input clamping, lane tagging, and error messages
@@ -199,11 +199,11 @@ optional.
     - Assert org resolved from JWT and client org ignored; depth clamped at 5; names present; plain not-found and unavailable messages; no cross-tenant existence leak
     - _Requirements: 10.2, 10.4, 10.5, 10.6, 10.7, 10.8, 16.2_
 
-- [ ] 18. Retention and heartbeat coalescing
-  - [~] 18.1 Implement coalescing, baseline events, and pruning
+- [x] 18. Retention and heartbeat coalescing
+  - [x] 18.1 Implement coalescing, baseline events, and pruning
     - In the change engine, coalesce consecutive `*.unchanged` observations (write no row; bump `entity_assertions.last_seen`); at the retention horizon write a baseline event (full snapshot, `change_type` attribute_updated, `event_time=horizon`) before pruning; prune observed/derived rows older than the horizon except baselines
     - _Requirements: 11.1, 11.2, 11.3_
-  - [~]* 18.2 Write retention / as-of-after-prune test
+  - [x]* 18.2 Write retention / as-of-after-prune test
     - Assert an as-of query targeting a time after the pruned window resolves correct state from the retained baseline
     - _Requirements: 11.2, 11.4_
 

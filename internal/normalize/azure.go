@@ -17,7 +17,7 @@ import (
 type Azure struct{}
 
 // Sources implements Normalizer.
-func (Azure) Sources() []string { return []string{"steampipe"} }
+func (Azure) Sources() []string { return []string{"cloudquery"} }
 
 // Normalize implements Normalizer, filtering to azure provider events.
 func (Azure) Normalize(events []rawevent.RawEvent) (Result, error) {

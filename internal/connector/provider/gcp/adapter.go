@@ -2,15 +2,13 @@
 //
 // Like the AWS/Azure adapters it performs no resource queries itself: it
 // generates onboarding instructions for a read-only GCP service account and
-// builds the discovery plan handed to the existing Steampipe source (the
-// gcp.yaml catalog). The service-account key lives only in the session
-// credential env for the discovery run and is never persisted on the
-// Connection.
+// builds the discovery plan handed to the CloudQuery source (the gcp.yaml
+// mapping). The service-account key lives only in the session credential env
+// for the discovery run and is never persisted on the Connection.
 package gcp
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 )
@@ -20,41 +18,36 @@ const ProviderName = "gcp"
 
 // Adapter implements provider.CloudProvider for GCP.
 type Adapter struct {
-	steampipeHost     string
-	steampipePort     int
-	steampipeUser     string
-	steampipePassword string
-	steampipeDB       string
-	steampipeConn     string // catalog/connection selector, e.g. "gcp"
+	// cqStagingDSN is the customer PostgreSQL DSN the CloudQuery sync writes its
+	// cq_staging destination into (and the cloudquery.Source reads from). It is a
+	// connection string, not a source credential: the per-connection service
+	// account credentials travel separately on DiscoveryPlan.CredentialEnv and
+	// are never persisted.
+	cqStagingDSN string
+	// cqConnection is the mapping selector (e.g. "gcp") the cloudquery.Factory
+	// resolves to mapping/<conn>.yaml.
+	cqConnection string
 }
 
 // Options configures the GCP adapter.
 type Options struct {
-	SteampipeHost     string
-	SteampipePort     int
-	SteampipeUser     string
-	SteampipePassword string
-	SteampipeDB       string
-	SteampipeConn     string
+	// CQStagingDSN is the customer PostgreSQL DSN the CloudQuery sync writes its
+	// cq_staging destination into and the cloudquery.Source reads from.
+	CQStagingDSN string
+	// CQConnection is the mapping selector (mapping/<conn>.yaml). Defaults to
+	// "gcp".
+	CQConnection string
 }
 
-// New builds a GCP adapter with sensible local-dev defaults.
+// New builds a GCP adapter. The CloudQuery mapping selector defaults to "gcp".
 func New(opts Options) *Adapter {
-	host := firstNonEmpty(opts.SteampipeHost, "localhost")
-	user := firstNonEmpty(opts.SteampipeUser, "steampipe")
-	db := firstNonEmpty(opts.SteampipeDB, "steampipe")
-	conn := firstNonEmpty(opts.SteampipeConn, "gcp")
-	port := opts.SteampipePort
-	if port == 0 {
-		port = 9193
+	conn := opts.CQConnection
+	if conn == "" {
+		conn = "gcp"
 	}
 	return &Adapter{
-		steampipeHost:     host,
-		steampipePort:     port,
-		steampipeUser:     user,
-		steampipePassword: opts.SteampipePassword,
-		steampipeDB:       db,
-		steampipeConn:     conn,
+		cqStagingDSN: opts.CQStagingDSN,
+		cqConnection: conn,
 	}
 }
 
@@ -110,25 +103,29 @@ func (a *Adapter) CheckPermissions(ctx context.Context, t provider.Target, creds
 	return res, nil
 }
 
-// Discover builds the Steampipe discovery plan for GCP. The gcp.yaml catalog is
-// selected and the project id is passed as the standard GCP_PROJECT env for the
-// session only; the service-account key is injected by the session sink.
+// Discover builds the CloudQuery discovery plan for GCP. It performs no
+// provider-specific resource queries: it assembles the CloudQuery Factory
+// config map (staging DSN + mapping selector + capability gating + the
+// session-only credential env) exactly as the AWS adapter does. The gcp.yaml
+// mapping is selected via the "connection" key.
+//
+// The plan carries the staging DSN and the mapping selector in SteampipeConfig
+// (the field name is retained from the Steampipe era; it is just the generic
+// Source-Factory config map). The service-account key travels in CredentialEnv
+// and the CloudQuery Factory forwards it to the JobRunner for the run only; it
+// is never persisted.
 func (a *Adapter) Discover(ctx context.Context, t provider.Target, creds *provider.Credentials) (*provider.DiscoveryPlan, error) {
-	connName := fmt.Sprintf("gcp_conn_%d", t.ConnectionID)
-	cfg := map[string]any{
-		"host":              a.steampipeHost,
-		"port":              a.steampipePort,
-		"user":              a.steampipeUser,
-		"password":          a.steampipePassword,
-		"database":          a.steampipeDB,
-		"connection":        a.steampipeConn, // selects gcp.yaml catalog
-		"connection_schema": connName,
-		"capabilities":      t.Capabilities,
-	}
-	// AccountID carries the GCP project id for GCP connections.
+	// The session-only GCP_* credential environment the CloudQuery sync injects
+	// as per-run environment variables. AccountID carries the GCP project id;
+	// the service-account key is injected by the session sink.
 	env := map[string]string{
-		"BELLU_STEAMPIPE_CONNECTION": connName,
-		"GCP_PROJECT":                t.AccountID,
+		"GCP_PROJECT": t.AccountID,
+	}
+	cfg := map[string]any{
+		"dsn":            a.cqStagingDSN,
+		"connection":     a.cqConnection, // selects mapping/gcp.yaml
+		"capabilities":   t.Capabilities,
+		"credential_env": env,
 	}
 	return &provider.DiscoveryPlan{SteampipeConfig: cfg, CredentialEnv: env}, nil
 }
