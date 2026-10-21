@@ -1,54 +1,12 @@
 import { Handle, Position, type NodeProps } from 'reactflow'
-import {
-  Globe,
-  Bot,
-  Boxes,
-  KeyRound,
-  Database,
-  Cloud,
-  Server,
-  Bug,
-  ShieldAlert,
-  Cpu,
-  Network,
-  Box,
-  GitBranch,
-  Package,
-  type LucideIcon,
-} from 'lucide-react'
+
+import { styleForKind } from '@/features/graph-explorer/lib/iconRegistry'
 
 export interface GraphNodeData {
   kind: string
   label: string
   /** When true, the node is rendered with a pulsing glow (the focused item). */
   highlight?: boolean
-}
-
-interface KindStyle {
-  icon: LucideIcon
-  color: string
-  sub: string
-}
-
-// Icon + accent color per canonical kind. Keys match the kinds the graph
-// builder emits; preserved exactly from the pre-migration component.
-const KIND_STYLE: Record<string, KindStyle> = {
-  Internet: { icon: Globe, color: '#3b82f6', sub: 'Internet' },
-  AIAgent: { icon: Bot, color: '#f59e0b', sub: 'AI Agent' },
-  Workload: { icon: Boxes, color: '#8b5cf6', sub: 'Workload' },
-  Identity: { icon: KeyRound, color: '#8b5cf6', sub: 'Identity' },
-  DataStore: { icon: Database, color: '#10b981', sub: 'Data Store' },
-  CloudAccount: { icon: Cloud, color: '#3b82f6', sub: 'Cloud Account' },
-  Compute: { icon: Server, color: '#3b82f6', sub: 'Compute' },
-  Cluster: { icon: Network, color: '#3b82f6', sub: 'Cluster' },
-  ContainerImage: { icon: Box, color: '#06b6d4', sub: 'Container Image' },
-  Repository: { icon: GitBranch, color: '#06b6d4', sub: 'Repository' },
-  Package: { icon: Package, color: '#06b6d4', sub: 'Package' },
-  Vulnerability: { icon: Bug, color: '#ef4444', sub: 'Vulnerability' },
-  AIService: { icon: Cpu, color: '#f59e0b', sub: 'AI Service' },
-  ExternalService: { icon: Cloud, color: '#ef4444', sub: 'External Service' },
-  MCPServer: { icon: Server, color: '#f59e0b', sub: 'MCP Server' },
-  default: { icon: ShieldAlert, color: '#9ca3af', sub: 'Resource' },
 }
 
 // Fixed footprint; MUST match the layout math in TraceGraph.tsx.
@@ -67,14 +25,14 @@ const dotStyle = (color: string, side: 'left' | 'right'): React.CSSProperties =>
 })
 
 export default function GraphNode({ data }: NodeProps<GraphNodeData>) {
-  const style = KIND_STYLE[data.kind] || KIND_STYLE.default
+  const style = styleForKind(data.kind)
   const Icon = style.icon
   return (
     <div
       className="relative flex flex-col items-center text-center"
       style={{ width: NODE_W, height: NODE_H }}
     >
-      <Handle type="target" position={Position.Left} style={dotStyle(style.color, 'left')} />
+      <Handle type="target" position={Position.Left} style={dotStyle(style.colorCss, 'left')} />
 
       <div
         className={
@@ -84,17 +42,17 @@ export default function GraphNode({ data }: NodeProps<GraphNodeData>) {
         style={{
           width: ICON,
           height: ICON,
-          border: `2px solid ${style.color}`,
+          border: `2px solid ${style.colorCss}`,
           // When highlighted the keyframe animation drives box-shadow + transform,
           // so we don't set an inline box-shadow (it would override the animation).
           ...(data.highlight
             ? {}
-            : { boxShadow: `0 0 0 5px ${style.color}14, 0 0 18px ${style.color}22` }),
+            : { boxShadow: `0 0 0 5px ${style.colorCss}14, 0 0 18px ${style.colorCss}22` }),
           // CSS var feeds the keyframe glow color (see graph-node-pulse).
-          ['--pulse-color' as string]: style.color,
+          ['--pulse-color' as string]: style.colorCss,
         }}
       >
-        <Icon style={{ width: 20, height: 20, color: style.color }} />
+        <Icon style={{ width: 20, height: 20, color: style.colorCss }} />
       </div>
 
       <div className="mt-2 leading-tight">
@@ -104,10 +62,10 @@ export default function GraphNode({ data }: NodeProps<GraphNodeData>) {
         >
           {data.label}
         </div>
-        <div className="text-[10px] text-muted-foreground">{style.sub}</div>
+        <div className="text-[10px] text-muted-foreground">{style.label}</div>
       </div>
 
-      <Handle type="source" position={Position.Right} style={dotStyle(style.color, 'right')} />
+      <Handle type="source" position={Position.Right} style={dotStyle(style.colorCss, 'right')} />
     </div>
   )
 }

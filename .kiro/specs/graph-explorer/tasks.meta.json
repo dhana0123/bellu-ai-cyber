@@ -1,0 +1,479 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add `ExplorerFilter`, `ExplorerData`, and facet result types plus the `GraphExplorer` method in `internal/store`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593839712
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593943733
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594119268
+      }
+    ],
+    "2.1 Define the response contract types in `backend/server`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593843291
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594133429
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594260538
+      }
+    ],
+    "2.2 Implement `handleGraphExplorer` with input validation, clamping, and project scoping": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593846421
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594287501
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594424449
+      }
+    ],
+    "2.3 Wire the route into the `gr` group in `backend/server/server.go`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593849113
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594432318
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594486138
+      }
+    ],
+    "3. Checkpoint - backend complete": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593851809
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594505713
+      }
+    ],
+    "4.1 Add `src/types/graphExplorer.ts`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593854942
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593945299
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594120517
+      }
+    ],
+    "4.2 Add `client.graphExplorer` in `src/lib/api.ts` and surface it through `src/lib/client.ts`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593858019
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594134808
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594262126
+      }
+    ],
+    "5.1 Add `src/features/graph-explorer/lib/categories.ts`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593860919
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593946847
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594122336
+      }
+    ],
+    "6.1 Add `applyFilter` in `src/features/graph-explorer/lib/applyFilter.ts`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593887463
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594136355
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594263421
+      }
+    ],
+    "7.1 Add `SpatialGrid` and `stepForceLayout` in `src/features/graph-explorer/lib/forceLayout.ts`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593890567
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594137574
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594264715
+      }
+    ],
+    "8. Checkpoint - pure logic libraries complete": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593893529
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594525938
+      }
+    ],
+    "9.1 Implement `useGraphExplorer` in `src/features/graph-explorer/hooks/useGraphExplorer.ts`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593896343
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594534378
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594651538
+      }
+    ],
+    "9.2 Implement saved-views persistence inside the hook": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593899620
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594659419
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594804163
+      }
+    ],
+    "10.1 Implement `FacetSection` in `src/features/graph-explorer/components/FacetSection.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593902925
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594818099
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595121738
+      }
+    ],
+    "10.2 Implement `FilterPanel` in `src/features/graph-explorer/components/FilterPanel.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593905507
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595145460
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595272059
+      }
+    ],
+    "11.1 Implement `TopBar` in `src/features/graph-explorer/components/TopBar.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593908057
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594819509
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595123680
+      }
+    ],
+    "12.1 Implement `GraphTableView` in `src/features/graph-explorer/components/GraphTableView.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593910767
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594820884
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595125558
+      }
+    ],
+    "13.1 Implement `GraphCanvas` in `src/features/graph-explorer/components/GraphCanvas.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593914667
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594822538
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595127343
+      }
+    ],
+    "14.1 Implement `NodeDetailPanel` in `src/features/graph-explorer/components/NodeDetailPanel.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593917766
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595147189
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595273464
+      }
+    ],
+    "14.2 Implement `DegradedBanner` in `src/features/graph-explorer/components/DegradedBanner.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593920771
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594824033
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595129188
+      }
+    ],
+    "15.1 Implement the `GraphExplorer` page in `src/features/graph-explorer/GraphExplorer.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593923727
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595298075
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595410712
+      }
+    ],
+    "15.2 Register the `/explorer` route in `src/App.tsx`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593927227
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595419852
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595524272
+      }
+    ],
+    "16.2 Final checkpoint": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792593930367
+      },
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595572943
+      }
+    ],
+    "1. Backend store aggregation: `Store.GraphExplorer`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594123867
+      }
+    ],
+    "5. Frontend lib: categories": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594125419
+      }
+    ],
+    "4. Frontend types and data seam": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594265931
+      }
+    ],
+    "6. Frontend lib: client-side filter": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594267160
+      }
+    ],
+    "7. Frontend lib: force layout": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594268442
+      }
+    ],
+    "2. Backend handler: `handleGraphExplorer`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594489338
+      }
+    ],
+    "9. Frontend hook: `useGraphExplorer`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792594808198
+      }
+    ],
+    "11. Frontend component: `TopBar`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595130943
+      }
+    ],
+    "12. Frontend component: `GraphTableView`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595132638
+      }
+    ],
+    "13. Frontend component: `GraphCanvas` (pixi.js)": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595134773
+      }
+    ],
+    "10. Frontend components: filter controls": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595275065
+      }
+    ],
+    "14. Frontend component: `NodeDetailPanel` and `DegradedBanner`": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595276471
+      }
+    ],
+    "15. Frontend page and route wiring": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595527234
+      }
+    ],
+    "16. Table/canvas parity and final checkpoint": [
+      {
+        "executionId": "41ee5162-26d7-4d99-9f92-6943ca8b4cab",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792595576478
+      }
+    ]
+  }
+}

@@ -185,10 +185,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { can } = useAuth()
 
   return (
-    <SidebarProvider>
+    // h-svh + overflow-hidden caps the shell to exactly one viewport so the
+    // content area (<main>, flex-1) is bounded and scrolls INTERNALLY instead
+    // of growing the page past the viewport. min-h-0 lets the inset column
+    // shrink so a full-height page (e.g. the graph explorer) fits precisely.
+    <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar can={can} />
-      <SidebarInset>
-        <header className="flex h-14 items-center gap-3 border-b px-4 md:px-6">
+      <SidebarInset className="min-h-0">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 md:px-6">
           {/* The minimizer: collapses / expands the sidebar. */}
           <SidebarTrigger className="-ml-1" />
 

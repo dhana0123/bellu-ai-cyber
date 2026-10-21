@@ -29,6 +29,7 @@ import type {
   UserRow,
   VerifyResult,
 } from '@/types/foundation'
+import type { GraphExplorerResponse, GraphFilter } from '@/types/graphExplorer'
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
@@ -108,6 +109,16 @@ export const realApi = {
         `${like ? `&like=${encodeURIComponent(like)}` : ''}`,
     ),
   explainEdge: (id: number | string) => get<EdgeDetail>(`/api/edges/explain?id=${id}`),
+  graphExplorer: (filter: Partial<GraphFilter> & { projectId?: number; limit?: number } = {}) => {
+    const q = new URLSearchParams()
+    if (filter.categories?.length) q.set('categories', filter.categories.join(','))
+    if (filter.providers?.length) q.set('providers', filter.providers.join(','))
+    if (filter.kinds?.length) q.set('kinds', filter.kinds.join(','))
+    if (filter.projectId != null) q.set('project_id', String(filter.projectId))
+    if (filter.limit != null) q.set('limit', String(filter.limit))
+    const qs = q.toString()
+    return get<GraphExplorerResponse>(`/api/graph/explorer${qs ? `?${qs}` : ''}`)
+  },
 
   // findings / intelligence
   findings: (filters: FindingsFilter = {}) => {

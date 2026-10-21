@@ -13,6 +13,7 @@ import SecurityOverview from '@/features/ai-spm/SecurityOverview'
 import AiInventory from '@/features/ai-spm/AiInventory'
 import AiEcosystemInventory from '@/features/ai-inventory/AiEcosystemInventory'
 import TraceGraphPage from '@/features/ai-spm/TraceGraphPage'
+import GraphExplorer from '@/features/graph-explorer/GraphExplorer'
 import Findings from '@/features/ai-spm/Findings'
 import Vulnerabilities from '@/features/vulnerabilities/Vulnerabilities'
 import Investigate from '@/features/ai-spm/Investigate'
@@ -117,6 +118,14 @@ export default function App() {
         element={
           <RequireAuth permission="graph:read">
             <TraceGraphPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/explorer"
+        element={
+          <RequireAuth permission="graph:read">
+            <GraphExplorer />
           </RequireAuth>
         }
       />

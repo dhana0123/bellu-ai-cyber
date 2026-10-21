@@ -1,0 +1,364 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "6. Checkpoint - pure utils complete": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602432325
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602944736
+      }
+    ],
+    "8.1 Add the pooled per-node container and radius-driven sizing": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602436338
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603077218
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603391395
+      }
+    ],
+    "8.2 Wire LOD-driven visibility and progressive labels": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602439765
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603402165
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603410214
+      }
+    ],
+    "8.3 Wire fit-to-view to load, data change, and reset": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602443457
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603411477
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603421524
+      }
+    ],
+    "8.4 Wire selection-based edge fade and disc de-emphasis": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602446592
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603420016
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603430456
+      }
+    ],
+    "8.5 Preserve the WebGL fallback and accessibility markup": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602449986
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603429145
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603440309
+      }
+    ],
+    "8.7 Render edge-relation labels at the deepest zoom tier": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602453084
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603438513
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603448665
+      }
+    ],
+    "9. Checkpoint - canvas integration complete": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602457392
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603815086
+      }
+    ],
+    "10.1 Point the inventory icons at the shared registry (`ai-inventory/components/category.tsx`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602460783
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603608409
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603752936
+      }
+    ],
+    "10.2 Point the trace-graph node at the shared registry (`components/graph/GraphNode.tsx`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602464263
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603610476
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603754561
+      }
+    ],
+    "10.3 Retire the superseded `nodeIcons.ts`": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602467432
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603618926
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603755886
+      }
+    ],
+    "11. Final checkpoint and verification": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602470465
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603817356
+      }
+    ],
+    "1. Create the shared icon/color registry utility (`lib/iconRegistry.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602492595
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602698943
+      }
+    ],
+    "2. Create the degree/size utility (`lib/nodeSize.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602494736
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602701226
+      }
+    ],
+    "3. Create the LOD controller utility (`lib/lod.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602496536
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602705874
+      }
+    ],
+    "4. Create the label collision-culling utility (`lib/labelCulling.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602498388
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602707923
+      }
+    ],
+    "5. Create the fit-to-view utility (`lib/fitToView.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602500496
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602712176
+      }
+    ],
+    "4.1 Write unit tests for label culling (`lib/labelCulling.test.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602725687
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602932092
+      }
+    ],
+    "5.1 Write unit tests for fit-to-view (`lib/fitToView.test.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602729144
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602933908
+      }
+    ],
+    "3.1 Write unit tests for the LOD controller (`lib/lod.test.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602732432
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602930048
+      }
+    ],
+    "2.1 Write unit tests for the size util (`lib/nodeSize.test.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602735984
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602927976
+      }
+    ],
+    "1.1 Write unit tests for the icon registry (`lib/iconRegistry.test.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602738342
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602926573
+      }
+    ],
+    "7. Evolve the force layout for radius-aware spacing (`lib/forceLayout.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792602954546
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603074285
+      }
+    ],
+    "7.1 Write unit tests for the spacing floor (`lib/forceLayout.test.ts`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603075605
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603393055
+      }
+    ],
+    "8. Integrate sizing, LOD, labels, and fit-to-view into the pixi shell (`components/GraphCanvas.tsx`)": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603452205
+      }
+    ],
+    "8.6 Write a smoke test for GraphCanvas and vitest-axe on surrounding controls": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603463636
+      },
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603606713
+      }
+    ],
+    "10. Parity refactor of existing icon consumers": [
+      {
+        "executionId": "34a25564-729b-4cc4-a2f0-d2666077ece5",
+        "chatSessionId": "sess_b2e76bd3-e3f7-47ec-9f2e-575a04a93a02",
+        "timestamp": 1792603902225
+      }
+    ]
+  }
+}

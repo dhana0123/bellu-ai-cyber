@@ -90,6 +90,7 @@ func (s *Server) Handler() http.Handler {
 				gr.GET("/conflicts", s.handleConflicts)
 				gr.GET("/graph/attack-paths", s.handleAttackPaths)
 				gr.GET("/graph/ai-calls", s.handleAICalls)
+				gr.GET("/graph/explorer", s.handleGraphExplorer)
 
 				// MCP read tools over the temporal graph (projection + logs).
 				// They live behind the same Authenticate + graph:read controls as

@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   Search,
   Radar,
+  Share2,
   MessagesSquare,
   FlaskConical,
   Cloud,
@@ -49,6 +50,7 @@ export const navTree: NavNode[] = [
     label: 'Discovery',
     icon: Radar,
     children: [
+      { to: '/explorer', label: 'Knowledge Graph', icon: Share2, permission: 'graph:read' },
       { to: '/inventory', label: 'Inventory', icon: Boxes, permission: 'graph:read' },
       { to: '/repositories', label: 'Repositories', icon: GitBranch, permission: 'graph:read' },
       { to: '/ai-agents', label: 'AI Agents', icon: Bot, permission: 'graph:read' },
