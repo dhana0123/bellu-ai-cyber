@@ -118,6 +118,11 @@ func (s *Server) Handler() http.Handler {
 				inv.GET("/edges/explain", s.handleExplainEdge)
 			}
 
+			// Agents plane: launch/status, bounded graph-context read
+			// (agent:run) and findings write-back (findings:ingest). Each
+			// handler resolves the tenant from the principal, never from input.
+			s.registerAgentRoutes(authed)
+
 			// Admin: users / roles / projects.
 			s.registerAdminRoutes(authed)
 

@@ -1,0 +1,322 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add `PermAgentRun` (`agent:run`) and `PermFindingsIngest` (`findings:ingest`) to the permission catalog in `internal/auth/model.go`; define built-in role `RoleAgentServiceAccount` (`agent_service_account`, bound to exactly one org) granting only `graph:read`, `findings:read`, `agent:run`, `findings:ingest`; wire it into catalog/role seeding": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738490356
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738557166
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738877186
+      }
+    ],
+    "2.1 Implement `GET /api/agent/graph-context` in `backend/server`: add `GraphContext`, `TargetRef`, `GraphNode`, `GraphEdge` types; `parseTargetRef` (entity vs raw, 400 on unparseable); `buildScopedSubgraph` scoped to org via `s.graph`, bounded by `maxContextNodes=200` and `maxContextDepth=2`, setting `truncated` when caps clip; resolve org from principal via the `mcpOrg` pattern; raw targets return empty-but-valid bounded context; `s.graph == nil` returns 200 with `graph:false` + empty neighbors; graph read failure returns 503 generic": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738494093
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738899457
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739272704
+      }
+    ],
+    "3.1 Implement `POST /api/agent/findings:ingest` in `backend/server`: add `IngestRequest`/`IngestFinding` types; `mapIngestFinding` enforcing `model.ValidKind` allow-list on linked assets, synthetic org-scoped asset ref for raw targets (`syntheticAssetID`), `risk_score` clamp to `[0,100]`, reject on empty `vuln_id` and on empty `asset_id`+`raw_target`; add `store.UpsertFinding` keyed on `(asset_id, vuln_id)` per org; resolve org from principal (ignore any body org); return `{created, updated, rejected}` with per-finding rejection continuing the batch": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738497390
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738902353
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739277875
+      }
+    ],
+    "4.1 Implement `POST /api/agent/runs` and `GET /api/agent/runs/:id` in `backend/server`: add `LaunchRequest`, `AuthzScope`, `RunStatus` types; launch returns 202 with `run_id` + `status:queued`, 400 on unparseable body, 400 when `active_testing=true` with empty `allow_targets`; status read scoped by org (404 for other-org runs, no existence disclosure); add `store.CreateAgentRun` and `store.GetAgentRun` with org-scoped persistence; resolve org from principal (never from body)": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738500686
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738904754
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739284149
+      }
+    ],
+    "5. Wire agent routes into the server": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738504675
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739322128
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740070679
+      }
+    ],
+    "6. Checkpoint — control-plane seams complete": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738508376
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740099430
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740124997
+      }
+    ],
+    "7.1 Vendor the Strix engine under `agents-plane/strix/` (agents, core/coordinator, llm, runtime, report, tools, config); pin dependencies with `uv`; add project scaffolding so it runs standalone": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738511423
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738558871
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738874993
+      }
+    ],
+    "8. Bellu config and model route in the plane": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738514231
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738906198
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739285798
+      }
+    ],
+    "9.1 Implement `BelluMCP`: maps one-to-one onto the six MCP read tools at `POST /api/mcp/*`, sends the service-account bearer token and no org, rejects unknown tool names before issuing a request, treats 503 as `unavailable` rather than raising, 15s timeout; register via `register_agent_tools`": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738517294
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739323588
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740072091
+      }
+    ],
+    "10.1 Implement `GraphContext.fetch` against `GET /api/agent/graph-context` at run start and `as_prompt_block` rendering (nodes with kinds, edges with relations) adapted from the Strix prompting guide; inject the rendered block into the root agent's context; handle empty/unavailable (`graph:false`) subgraphs gracefully": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738520663
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739325630
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740074140
+      }
+    ],
+    "11.1 Implement `report_findings` + `_to_bellu`: map Strix findings to the Bellu ingest schema (linked -> `asset_id`+`asset_kind`; raw -> `raw_target`), clamp `risk_score` client-side, POST to `findings:ingest`, report incrementally and on root completion": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738523746
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739327823
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740077202
+      }
+    ],
+    "12. Scan runner dispatch": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738526839
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740138844
+      }
+    ],
+    "13.1 Enforce `root_complete` vs `child_complete` in the AgentCoordinator: `root_complete` from a non-root agent is rejected; `child_complete` from the root is treated as an error and does not close the scan; model statuses `running`, `waiting`, `completed`, `failed`, `budget_paused` with `waiting` while awaiting child/mailbox and `budget_paused` while budget exhausted": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738530000
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740136078
+      }
+    ],
+    "14. Checkpoint — read-only graph-reasoning slice runs end-to-end": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738533175
+      }
+    ],
+    "15.1 Implement `ActiveTestingGate`: default read-only refuses every sandbox action when scope is absent or disabled; when enabled, `ensure_allowed` permits only targets matched by `allow_targets` (hostname/IP/CIDR matching via `_compile_targets`/`_target_matches`); out-of-scope targets are refused and the refusal recorded": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738536077
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739329560
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740080336
+      }
+    ],
+    "16. Docker sandbox behind the gate": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738539023
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740137575
+      }
+    ],
+    "17. Final checkpoint — end-to-end integration and safety review": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738541817
+      }
+    ],
+    "7. Hard-fork the Strix engine into `agents-plane/`": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738879736
+      }
+    ],
+    "1. Auth additions: permissions and service-account role": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792738881319
+      }
+    ],
+    "2. Graph-context seam handler": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739280326
+      }
+    ],
+    "3. Findings ingest seam handler": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739288174
+      }
+    ],
+    "4. Runs seam handlers": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792739289673
+      }
+    ],
+    "9. `bellu_mcp` tool": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740075848
+      }
+    ],
+    "10. `graph_context` provider": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740078997
+      }
+    ],
+    "11. `finding_report` tool": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740081768
+      }
+    ],
+    "15. Active testing gate": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740083220
+      }
+    ]
+  }
+}

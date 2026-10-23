@@ -39,9 +39,10 @@ interface GraphPalette {
   label: string // node/edge label text
   labelHalo: string // label outline/background for contrast
   edge: string // default edge stroke
-  edgeDim: string // non-incident edge when a node is selected
-  edgeIncident: string // edge incident to the selected node
-  nodeDim: string // non-incident node disc when a selection is active
+  edgeDim: string // non-incident edge when a node is focused
+  edgeIncident: string // edge incident to the SELECTED (clicked) node
+  edgeHover: string // edge incident to the HOVERED node (softer)
+  nodeDim: string // non-incident node disc when a node is focused
   hoverBg: string // hover label background box fill (a darker shade)
   hoverText: string // hover label text on the box
 }
@@ -53,7 +54,8 @@ function paletteFor(theme: Theme): GraphPalette {
         labelHalo: '#111827',
         edge: '#4b5563',
         edgeDim: '#2a2f3a',
-        edgeIncident: '#94a3b8', // soft slate highlight, not heavy white
+        edgeIncident: '#94a3b8', // selection: clearer slate accent
+        edgeHover: '#5b6472', // hover: very soft, low-contrast accent
         nodeDim: '#374151',
         hoverBg: '#0b0f17', // darker shade behind the hovered label
         hoverText: '#f1f5f9',
@@ -63,7 +65,8 @@ function paletteFor(theme: Theme): GraphPalette {
         labelHalo: '#ffffff',
         edge: '#cbd5e1',
         edgeDim: '#eef2f7',
-        edgeIncident: '#94a3b8', // soft slate highlight, not heavy dark
+        edgeIncident: '#94a3b8', // selection: clearer slate accent
+        edgeHover: '#c7cdd6', // hover: very soft, low-contrast accent
         nodeDim: '#e2e8f0',
         hoverBg: '#1f2937', // dark box even in light theme, per request
         hoverText: '#f8fafc',
@@ -295,7 +298,13 @@ function GraphEvents({
   // what it connects to.
   useEffect(() => {
     const graph = sigma.getGraph()
+    // Focus is the selected node if one is clicked, else the hovered node.
     const focus = selectedId ?? hovered
+    // Hover-only focus (nothing selected) uses the SOFTER accent; a selection
+    // uses the clearer accent.
+    const hoverOnly = selectedId === null && hovered !== null
+    const edgeAccent = hoverOnly ? palette.edgeHover : palette.edgeIncident
+    const edgeAccentSize = hoverOnly ? 1 : 1.5
 
     sigma.setSetting('nodeReducer', (node, data) => {
       if (focus === null) return data
@@ -315,8 +324,8 @@ function GraphEvents({
       const src = graph.source(edge)
       const tgt = graph.target(edge)
       if (src === focus || tgt === focus) {
-        // Edge connected to the focused node: brighten + thicken it.
-        return { ...data, color: palette.edgeIncident, size: 2, zIndex: 1 }
+        // Edge connected to the focused node: softer on hover, clearer on select.
+        return { ...data, color: edgeAccent, size: edgeAccentSize, zIndex: 1 }
       }
       return { ...data, color: palette.edgeDim, zIndex: 0 }
     })
