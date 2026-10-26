@@ -1,0 +1,555 @@
+{
+  "pbtResults": {
+    "13.1 Write property test for stage-flow leg counts": {
+      "status": "passed",
+      "lastRunTimestamp": 1792987409204
+    },
+    "2.4 Write property test for claim exclusivity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792987483469
+    },
+    "6.1 Write property test for read-only auto-runs": {
+      "status": "passed",
+      "lastRunTimestamp": 1792987795964
+    },
+    "19.1 Write property test for PoC redaction at the store": {
+      "status": "passed",
+      "lastRunTimestamp": 1792987823415
+    }
+  },
+  "executionHistory": {
+    "1. Phase 1 schema: durable-first `monitor_events` queue + `agent_runs` additions": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983833890
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983911350
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984092687
+      }
+    ],
+    "2.1 Define store types and the idempotent durable-first insert": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983837710
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984101496
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984251469
+      }
+    ],
+    "2.3 Implement the SKIP LOCKED claim and run/status/list operations": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983841270
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984266685
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984355026
+      }
+    ],
+    "3. Phase 1 classify + static route (`internal/monitor/router.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983845254
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984102897
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984249856
+      }
+    ],
+    "4. Phase 1 ingest + Mission Control handlers (`backend/server/monitor_handlers.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983849440
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984383341
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984677319
+      }
+    ],
+    "5. Phase 1 new permission + route wiring (`internal/auth/model.go`, `backend/server/monitor_routes.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983852599
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984701275
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985005406
+      }
+    ],
+    "7. Phase 1 status write-back (`backend/server/agent_runs_handlers.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983857100
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984385014
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984673976
+      }
+    ],
+    "9. Phase 1 scheduled sweep (`internal/monitor/sweep.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983861569
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984703057
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985006915
+      }
+    ],
+    "10. Phase 1 Python worker loop (`agents-plane/strix/core/bellu_runner.py`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983865191
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985500455
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986024795
+      }
+    ],
+    "11. Checkpoint — Phase 1 read-only loop end to end": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983869090
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987253740
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987293920
+      }
+    ],
+    "12. Phase 2 trace schema (`internal/store/migrations/00021_run_trace.sql`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983872659
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984386416
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984675685
+      }
+    ],
+    "14. Phase 2 trace store operations (`internal/store/monitor_events.go` / trace store)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983876580
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984704804
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985008306
+      }
+    ],
+    "16. Phase 2 Python trace emitter (`agents-plane/strix/core/bellu_runner.py`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983880039
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986041095
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986367394
+      }
+    ],
+    "17. Checkpoint — Phase 2 run detail + timeline reflect emitted trace": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983883380
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987255816
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987295294
+      }
+    ],
+    "18. Phase 3 finding_reports schema (`internal/store/migrations/00022_finding_reports.sql`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983887549
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984387873
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984672391
+      }
+    ],
+    "22. Phase 3 frontend API client types (`frontend/src/lib/api.ts`, `frontend/src/types/foundation.ts`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983891810
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984389339
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984678990
+      }
+    ],
+    "24.1 Write the end-to-end integration test": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792983896730
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986821780
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987252080
+      }
+    ],
+    "2. Phase 1 monitor store (`internal/store/monitor_events.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792984358768
+      }
+    ],
+    "6. Phase 1 claim handler + read-only launch (`backend/server/monitor_handlers.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985034007
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985482395
+      }
+    ],
+    "8. Phase 1 event taps (`internal/connector/github_webhook.go`, discovery completion, finding delta)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985035807
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985484138
+      }
+    ],
+    "13. Phase 2 fixed stage vocabulary + mapper (`internal/monitor/stages.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985037295
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985485797
+      }
+    ],
+    "19. Phase 3 finding report store (`internal/store/monitor_events.go` / finding report store)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985039595
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985487798
+      }
+    ],
+    "15. Phase 2 trace write-back + detail/timeline reads (`backend/server/agent_runs_handlers.go`, `backend/server/monitor_routes.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792985502077
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986026758
+      }
+    ],
+    "20. Phase 3 report write-back + extended finding read (`backend/server/agent_findings_handlers.go`, `backend/server/findings_handlers.go`, `backend/server/monitor_routes.go`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986039475
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986369045
+      }
+    ],
+    "21. Phase 3 Python report sender (`agents-plane/strix/tools/finding_report.py`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986380175
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986807509
+      }
+    ],
+    "23. Phase 3 Finding Detail page (`frontend/src/features/issues/FindingDetail.tsx`, `frontend/src/mocks`)": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986382058
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792986808909
+      }
+    ],
+    "24. Final checkpoint — end-to-end integration + safety review": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987257341
+      }
+    ],
+    "13.1 Write property test for stage-flow leg counts": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987322040
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987604852
+      }
+    ],
+    "2.2 Write property test for ingest idempotency": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987323630
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987608862
+      }
+    ],
+    "2.4 Write property test for claim exclusivity": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987325767
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987606026
+      }
+    ],
+    "2.5 Write property test for tenant isolation on the store": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987327292
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987607433
+      }
+    ],
+    "8.1 Write property test for the vulnerability delta": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987618972
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987926212
+      }
+    ],
+    "6.1 Write property test for read-only auto-runs": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987620585
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987929252
+      }
+    ],
+    "19.1 Write property test for PoC redaction at the store": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987622154
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987931005
+      }
+    ],
+    "15.1 Write property test for trace tenant isolation + leg folding": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987623502
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987935480
+      }
+    ],
+    "20.1 Write property test for graceful degradation": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987625284
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987933231
+      }
+    ],
+    "24.2 Safety-review assertions across the integrated system": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792987947232
+      },
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792988494615
+      }
+    ],
+    "21.1 Write property test for the plane-side PoC strip": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792988519495
+      }
+    ],
+    "23.1 Write vitest tests for the Finding Detail page": [
+      {
+        "executionId": "192b032d-1e71-4146-b3fb-ce57f71663a9",
+        "chatSessionId": "sess_be73ae3e-495c-412d-b073-9bd7b7085348",
+        "timestamp": 1792988521301
+      }
+    ]
+  }
+}

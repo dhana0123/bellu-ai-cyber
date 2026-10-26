@@ -18,6 +18,7 @@ const (
 	PermIntegrations   = "integrations:manage"
 	PermAgentRun       = "agent:run"       // launch agent runs + read agent graph-context
 	PermFindingsIngest = "findings:ingest" // write findings back from the agents plane
+	PermMonitorIngest  = "monitor:ingest"  // ingest monitoring events from external taps
 )
 
 // AllPermissions is the catalog seeded into the permissions table.
@@ -36,6 +37,7 @@ var AllPermissions = []struct {
 	{PermIntegrations, "Manage integrations"},
 	{PermAgentRun, "Launch agent runs and read agent graph-context"},
 	{PermFindingsIngest, "Ingest findings from the agents plane"},
+	{PermMonitorIngest, "Ingest monitoring events from external taps"},
 }
 
 // Role scope levels.
@@ -110,7 +112,7 @@ var BuiltinRoles = []BuiltinRole{
 	{
 		Key: RoleAgentServiceAccount, Name: "Agent Service Account", ScopeLevel: ScopeGlobal,
 		Description: "Machine identity for the agents plane, bound to a single org.",
-		Permissions: []string{PermGraphRead, PermFindingsRead, PermAgentRun, PermFindingsIngest},
+		Permissions: []string{PermGraphRead, PermFindingsRead, PermAgentRun, PermFindingsIngest, PermMonitorIngest},
 	},
 }
 

@@ -15,13 +15,31 @@ import (
 // Store persists findings into the findings table using the shared
 // *store.Store connection pool, mirroring the intel_* persistence layer. The
 // caller retains ownership of the Store (and its pool lifecycle).
+//
+// emitter is the optional vulnerability-delta monitor tap. When non-nil,
+// UpsertFinding fires exactly one monitor event on a nothing->open transition
+// (UpsertResult.Created == true) and none otherwise, so both the sweep and the
+// correlation ingest path share the same delta logic without duplicating it
+// (Requirements 4.5, 4.6). When nil, the tap is a no-op and the upsert behaves
+// exactly as before.
 type Store struct {
-	store *store.Store
+	store   *store.Store
+	emitter MonitorEmitter
 }
 
 // NewStore returns a findings Store backed by the given *store.Store.
 func NewStore(s *store.Store) *Store {
 	return &Store{store: s}
+}
+
+// WithMonitorEmitter returns the Store with the vulnerability-delta monitor tap
+// wired to emitter. It is a fluent setter so callers can opt into the tap at
+// construction (finding.NewStore(st).WithMonitorEmitter(st)) while callers that
+// do not need it keep using NewStore unchanged. A nil emitter leaves the tap
+// disabled.
+func (s *Store) WithMonitorEmitter(emitter MonitorEmitter) *Store {
+	s.emitter = emitter
+	return s
 }
 
 // Key identifies a finding by its deduplication tuple (asset_id, vuln_id).
@@ -136,6 +154,32 @@ func (s *Store) Get(ctx context.Context, id int64) (Finding, error) {
 	f.Severity = canonical.Severity(severity)
 	f.Status = Status(status)
 	return f, nil
+}
+
+// GetIDByKey resolves a finding's surrogate id from its deduplication tuple
+// (asset_id, vuln_id), the key the findings_uniq constraint enforces. The
+// report write-back seam uses it to turn an agent-supplied (asset_id, vuln_id)
+// pair into the finding_id that finding_reports references, when the caller
+// reports against the finding it just ingested rather than a numeric id.
+//
+// A tuple that matches no finding returns ErrNotFound, which the handler maps
+// to a 404 with no existence disclosure (tenant isolation / P1). The findings
+// table is not org-partitioned (the tenant boundary is carried in the
+// synthetic asset_id the ingest seam builds — see ingest_store.go), so this
+// lookup takes no org argument and matches purely on the dedup key.
+func (s *Store) GetIDByKey(ctx context.Context, assetID, vulnID string) (int64, error) {
+	var id int64
+	err := s.store.Pool().QueryRow(ctx,
+		`SELECT id FROM findings WHERE asset_id = $1 AND vuln_id = $2`,
+		assetID, vulnID,
+	).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("finding: get id by key (%s/%s): %w", assetID, vulnID, err)
+	}
+	return id, nil
 }
 
 // Filter narrows a List query. A zero-value field is omitted from the WHERE

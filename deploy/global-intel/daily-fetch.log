@@ -1,0 +1,22 @@
+==> 2026-10-26T03:30:01Z global-intel fetch (mode=incremental, local dev)
+ Container bellu-intel-postgres-intel-1 Running 
+ Container bellu-intel-opensearch-1 Running 
+ Container bellu-intel-opensearch-dashboards-1 Running 
+ Container bellu-intel-global-intel-1 Running 
+ Container bellu-intel-postgres-intel-1 Waiting 
+ Container bellu-intel-postgres-intel-1 Healthy 
+2026/10/26 03:30:02 OK   00011_discovery_progress.sql (38.27ms)
+2026/10/26 03:30:02 OK   00012_graph_visibility.sql (99.35ms)
+2026/10/26 03:30:02 OK   00013_connector_repositories.sql (31.12ms)
+2026/10/26 03:30:02 OK   00014_github_app.sql (68.18ms)
+2026/10/26 03:30:02 OK   00015_observed_events.sql (63.99ms)
+2026/10/26 03:30:02 OK   00016_derived_events.sql (34.84ms)
+2026/10/26 03:30:02 OK   00017_agent_runs.sql (20.52ms)
+2026/10/26 03:30:02 goose: successfully migrated database to version: 17
+migrations applied to postgres://***@postgres-intel:5432/bellu_intel?sslmode=disable
+raw store: fs://intel-raw
+run: mode=incremental raw-dir=intel-raw sources=[osv kev epss] postgres=postgres://***@postgres-intel:5432/bellu_intel?sslmode=disable search=true
+  source osv   ok: 26619 canonical record(s)
+  source kev   ok: 1756 canonical record(s)
+  source epss  ok: 3928899 canonical record(s)
+  correlate: upserted 408072 deduped vulnerabilit(ies)

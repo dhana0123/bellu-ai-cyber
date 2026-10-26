@@ -90,10 +90,47 @@ func (s *Server) handleFinding(c *gin.Context) {
 		evidence = []store.EvidenceDetail{}
 	}
 
+	// Phase 3 extension: load the finding's generated report(s) and the run
+	// linkage, degrading gracefully so the detail view always renders (Property
+	// P7, Req 17.1, 17.2). The org is resolved from the authenticated principal
+	// (never the path) so the report read stays tenant-scoped (Req 19.1); the
+	// route is already behind findings:read so a principal is present.
+	//
+	// SECURITY (P6): the report list carries only the poc_available flag plus
+	// sections/rendered_markdown — never a weaponized poc_script_code body
+	// (stripped at the store, finding_reports.go) — so nothing in this response
+	// can leak the exploit body (Req 16.3).
+	org, _ := mcpOrg(c)
+
+	// reports is ALWAYS a non-nil slice so the JSON renders `reports: []` rather
+	// than null when a finding has no report; a store error degrades to the
+	// empty list and the finding/intel/evidence still render (P7, Req 17.2).
+	reports := []store.FindingReport{}
+	if rr, rerr := s.store.GetFindingReport(ctx, org, id); rerr == nil && rr != nil {
+		reports = rr
+	}
+
+	// triggered_by is the run linkage surfaced on the detail (Req 17.1): resolve
+	// it from the auto-triggered run a report links to. It is best-effort — an
+	// absent/unlinked run, a cross-org run, or a lookup error simply leaves it
+	// empty and the detail still renders (P7).
+	triggeredBy := ""
+	for i := range reports {
+		if reports[i].RunID == "" {
+			continue
+		}
+		if d, derr := s.store.GetAgentRunDetail(ctx, org, reports[i].RunID); derr == nil {
+			triggeredBy = d.TriggeredBy
+			break
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"finding":  f,
-		"intel":    vuln,
-		"evidence": evidence,
+		"finding":      f,
+		"intel":        vuln,
+		"evidence":     evidence,
+		"reports":      reports,     // [] when no report (P7, Req 17.2)
+		"triggered_by": triggeredBy, // run linkage when present (Req 17.1)
 	})
 }
 

@@ -2,8 +2,21 @@ package finding
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+
+	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
+
+// MonitorEmitter is the minimal monitor-event sink the vulnerability delta tap
+// needs. It is injected (never imported as a concrete server type) so the
+// finding package stays free of transport/server dependencies and no import
+// cycle is created; *store.Store satisfies it via its InsertMonitorEvent
+// method. A nil emitter disables the tap (the upsert still works unchanged), so
+// code paths that have no monitor wiring keep compiling and running.
+type MonitorEmitter interface {
+	InsertMonitorEvent(ctx context.Context, org int64, in store.MonitorEventInput) (int64, error)
+}
 
 // UpsertResult reports the outcome of an UpsertFinding call. Created is true
 // when the upsert inserted a brand-new row and false when it updated an
@@ -52,5 +65,40 @@ func (s *Store) UpsertFinding(ctx context.Context, org int64, f Finding) (Upsert
 	if err != nil {
 		return UpsertResult{}, fmt.Errorf("finding: upsert ingest (%s/%s): %w", f.AssetID, f.VulnID, err)
 	}
-	return UpsertResult{Created: inserted}, nil
+	res := UpsertResult{Created: inserted}
+	// Vulnerability delta tap: fire exactly one monitor event ONLY on a
+	// nothing->open transition (Created == true); a re-upsert of a still-open
+	// finding reports Created == false and emits nothing, so a re-correlation
+	// sweep over unchanged findings produces no events — no re-trigger storm
+	// (Requirements 4.5, 4.6, 5.2, 5.3). The emit is best-effort: a monitor-emit
+	// failure must never fail the upsert the caller depends on, and even if a
+	// delta fired twice the store's unique (org, source, delivery_id) key folds
+	// the second into a no-op.
+	if res.Created && s.emitter != nil {
+		s.emitVulnerabilityDelta(ctx, org, f)
+	}
+	return res, nil
+}
+
+// emitVulnerabilityDelta persists one vulnerability monitor event for a
+// nothing->open finding delta. source = "correlate", event_kind =
+// "vulnerability", delivery_id = asset_id + ":" + vuln_id (Requirement 2.6).
+// The org is the caller's authenticated tenant (never read from a payload), so
+// the event lands in the right tenant's queue (tenant isolation). It is
+// best-effort: all errors (including the duplicate sentinel) are swallowed so
+// the upsert path is never disturbed.
+func (s *Store) emitVulnerabilityDelta(ctx context.Context, org int64, f Finding) {
+	payload, err := json.Marshal(map[string]string{
+		"asset_id": f.AssetID,
+		"vuln_id":  f.VulnID,
+	})
+	if err != nil {
+		return
+	}
+	_, _ = s.emitter.InsertMonitorEvent(ctx, org, store.MonitorEventInput{
+		Source:     "correlate",
+		DeliveryID: f.AssetID + ":" + f.VulnID,
+		EventKind:  "vulnerability",
+		Payload:    payload,
+	})
 }

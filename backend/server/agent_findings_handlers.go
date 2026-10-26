@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/bellu/bellu-ai-cyber/global-intel/canonical"
 	"github.com/bellu/bellu-ai-cyber/internal/finding"
 	"github.com/bellu/bellu-ai-cyber/internal/model"
+	"github.com/bellu/bellu-ai-cyber/internal/monitor"
+	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 
 // This file implements seam 2 of the agents plane: the findings write-back
@@ -85,7 +88,13 @@ func (s *Server) handleAgentFindingsIngest(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	store := finding.NewStore(s.store)
+	// Wire the vulnerability delta tap: an agent-ingested finding that is a
+	// nothing->open transition (UpsertResult.Created == true) emits exactly one
+	// monitor event; a re-ingest of a still-open finding emits nothing
+	// (Requirements 4.5, 4.6). The shared *store.Store is the MonitorEmitter, so
+	// this path and the sweep get the delta through the same upsert helper with
+	// no duplicated logic. The emit is best-effort inside UpsertFinding.
+	store := finding.NewStore(s.store).WithMonitorEmitter(s.store)
 
 	var created, updated, rejected int
 	// rejections carries a per-finding reason for each skipped finding so the
@@ -184,4 +193,167 @@ func clamp(v, lo, hi float64) float64 {
 		return hi
 	}
 	return v
+}
+
+// This block implements seam 3 of the agents plane: the finding-report
+// write-back endpoint POST /api/agent/findings/reports (Phase 3, Req 14/15).
+// Where findings:ingest carries thin finding fields, this seam carries the
+// agent's ACTUAL generated report artifact — structured columns, the long-form
+// JSONB sections, and the plane's rendered markdown — and stores it per
+// (finding_id, team) via store.UpsertFindingReport (Req 14.1, 14.2, 15.1).
+//
+// Two safety invariants hold here, identical to every other new seam:
+//   - Tenant isolation (P1, Req 19.1/19.2): the org is resolved from the
+//     authenticated principal via mcpOrg; a finding that does not exist for the
+//     caller is a 404 with no existence disclosure.
+//   - PoC redaction (P6, Req 16.2/16.3): the store defensively strips any
+//     poc_script_code key from Sections at any nesting level, so the weaponized
+//     body is never persisted even if a caller supplies one. Only the
+//     poc_available flag is stored.
+
+// ReportIngestRequest is the report write-back body. The finding the report
+// attaches to is identified EITHER by a numeric finding_id directly, OR by the
+// (asset_id, vuln_id) dedup key the agent just ingested, which the handler
+// resolves to the finding_id. Org is NEVER read from the body — it is resolved
+// from the authenticated principal (Req 19.1).
+type ReportIngestRequest struct {
+	// FindingID targets the finding directly by its surrogate id. When zero, the
+	// handler resolves the finding from AssetID+VulnID instead.
+	FindingID int64 `json:"finding_id,omitempty"`
+	// AssetID + VulnID resolve the finding by its (asset_id, vuln_id) dedup key
+	// when FindingID is not supplied (Req 15 — report against the just-ingested
+	// finding without a round-trip to learn its numeric id).
+	AssetID string `json:"asset_id,omitempty"`
+	VulnID  string `json:"vuln_id,omitempty"`
+	// RunID links the report to the auto-triggered run that produced it; empty
+	// stores SQL NULL (run_id is nullable).
+	RunID string `json:"run_id,omitempty"`
+	// Team is the explicit report classifier 'red' or 'blue' (Req 15.2). When
+	// empty, the team is derived from the reporting agent's stage (Req 15.3).
+	Team string `json:"team,omitempty"`
+	// Stage / AgentName drive team derivation when Team is empty: Stage is a
+	// stage string taken as-is, else AgentName is mapped to a stage via
+	// monitor.MapStage (Req 15.3).
+	Stage     string `json:"stage,omitempty"`
+	AgentName string `json:"agent_name,omitempty"`
+	// Title / Severity back the list/badges.
+	Title    string `json:"title,omitempty"`
+	Severity string `json:"severity,omitempty"`
+	// PoCAvailable is the flag only; the weaponized body is NEVER transported
+	// (Req 16.1). Sections carries the long-form structured content (the store
+	// strips any poc_script_code key defensively, Req 16.2).
+	PoCAvailable     bool            `json:"poc_available,omitempty"`
+	Sections         json.RawMessage `json:"sections,omitempty"`
+	RenderedMarkdown string          `json:"rendered_markdown,omitempty"`
+}
+
+// handleAgentFindingReportIngest accepts one report artifact and upserts it per
+// (finding_id, team) (Req 14.1, 14.2, 15.1). Org comes from the authenticated
+// principal only (Req 19.1); a missing principal is a 401. The finding is
+// resolved by finding_id or by (asset_id, vuln_id); a finding that does not
+// exist for the caller is a 404 with no existence disclosure (Req 15.4, 19.2).
+// The team is the caller's explicit 'red'/'blue' when valid, else derived from
+// the reporting agent's stage (Req 15.2, 15.3). A store failure collapses to a
+// generic temporarily-unavailable so no backend detail leaks (Req 21.2).
+func (s *Server) handleAgentFindingReportIngest(c *gin.Context) {
+	org, ok := mcpOrg(c) // tenant from principal; body org (if any) ignored (Req 19.1)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	var req ReportIngestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	// Resolve the target finding id. A direct finding_id wins; otherwise resolve
+	// it from the (asset_id, vuln_id) dedup key. A report with neither is a 400.
+	findingID := req.FindingID
+	if findingID == 0 {
+		if req.AssetID == "" || req.VulnID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "need finding_id or asset_id and vuln_id"})
+			return
+		}
+		id, err := finding.NewStore(s.store).GetIDByKey(ctx, req.AssetID, req.VulnID)
+		if errors.Is(err, finding.ErrNotFound) {
+			// No existence disclosure: a finding in another org (or none at all)
+			// is indistinguishable from a miss (Req 15.4, 19.2).
+			c.JSON(http.StatusNotFound, gin.H{"error": "finding not found"})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily unavailable"})
+			return
+		}
+		findingID = id
+	}
+
+	team := reportTeam(req)
+
+	r := store.FindingReport{
+		FindingID:        findingID,
+		RunID:            req.RunID,
+		Team:             team,
+		Title:            req.Title,
+		Severity:         req.Severity,
+		PoCAvailable:     req.PoCAvailable,
+		Sections:         req.Sections, // poc_script_code stripped at any depth by the store (P6)
+		RenderedMarkdown: req.RenderedMarkdown,
+	}
+
+	// UpsertFindingReport is gated through the findings table: a finding_id that
+	// does not exist produces no row (INSERT ... SELECT matches nothing), so a
+	// write-back against a finding in another org is a silent no-op with no
+	// existence disclosure. A direct-finding_id caller therefore cannot learn a
+	// cross-org finding exists; the 200 below reports the stored team only.
+	if err := s.store.UpsertFindingReport(ctx, org, r); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily unavailable"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"finding_id": findingID,
+		"team":       team,
+	})
+}
+
+// reportTeam classifies a report into 'red' or 'blue' (Req 15.2, 15.3).
+//
+// An explicit Team of 'red' or 'blue' is honored verbatim (Req 15.2). Otherwise
+// the team is derived from the reporting agent's stage (Req 15.3): a supplied
+// Stage string is mapped if present, else AgentName is mapped via
+// monitor.MapStage. EXPLOIT maps to 'red'; VERIFY, STABILITY, and REPORT map to
+// 'blue'. Any other stage (or no stage signal at all) defaults to 'blue', the
+// safe remediation-facing side, so a report is always classifiable.
+func reportTeam(req ReportIngestRequest) string {
+	switch req.Team {
+	case "red", "blue":
+		return req.Team
+	}
+
+	stage := monitor.Stage(req.Stage)
+	if req.Stage == "" {
+		// No explicit stage: derive it from the reporting agent name (Req 15.3).
+		stage = monitor.MapStage(req.AgentName)
+	}
+	return teamForStage(stage)
+}
+
+// teamForStage maps a pipeline stage to its report team (Req 15.3): EXPLOIT is
+// the active/offensive side ('red'); VERIFY, STABILITY, and REPORT are the
+// remediation/defensive side ('blue'). Every other stage defaults to 'blue'.
+func teamForStage(stage monitor.Stage) string {
+	switch stage {
+	case monitor.StageExploit:
+		return "red"
+	case monitor.StageVerify, monitor.StageStability, monitor.StageReport:
+		return "blue"
+	default:
+		return "blue"
+	}
 }

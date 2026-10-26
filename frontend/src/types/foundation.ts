@@ -243,11 +243,30 @@ export interface CanonicalVuln {
   Sources: string[]
 }
 
+/**
+ * A red- or blue-team finding report as returned inside FindingDetailResponse.
+ * The weaponized PoC body is NEVER transported or typed: `poc_available` is a
+ * flag only, there is no field for a raw PoC script (Req 16.3 / 18.3).
+ */
+export interface FindingReportView {
+  team: 'red' | 'blue'
+  title: string
+  severity: string
+  /** Flag only — the weaponized PoC body is never sent (P6). */
+  poc_available: boolean
+  /** Long-form structured fields; never contains a raw PoC script body. */
+  sections: Record<string, unknown>
+  rendered_markdown: string
+}
+
 /** Response of GET /api/findings/:id. intel may be null. */
 export interface FindingDetailResponse {
   finding: Finding
   intel: CanonicalVuln | null
   evidence: EvidenceDetail[]
+  /** [] => render the header + intel + evidence fallback (P7). */
+  reports: FindingReportView[]
+  triggered_by?: string
 }
 
 export interface EdgeDetail {

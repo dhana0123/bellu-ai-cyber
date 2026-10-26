@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 
 // VerifyGitHubWebhook reports whether sig (the raw X-Hub-Signature-256 header,
@@ -67,6 +69,13 @@ func (m *Manager) HandleGitHubWebhook(ctx context.Context, deliveryID, eventType
 		}
 		return WebhookResult{}, err
 	}
+
+	// Monitor tap (Requirement 4.1, 4.2): only on a fresh (non-duplicate)
+	// delivery, emit one monitor event reusing the X-GitHub-Delivery value as
+	// the delivery id so the monitor layer is idempotent end-to-end with the
+	// webhook dedup (Requirement 2.5). Best-effort: a monitor-emit failure must
+	// never fail webhook processing.
+	m.emitGitHubMonitorEvent(ctx, deliveryID, eventType, head.Installation.ID, payload)
 
 	status := "ignored"
 	var procErr error
@@ -205,4 +214,80 @@ func (m *Manager) removeRepos(ctx context.Context, connID int64, removed []struc
 		}
 	}
 	return m.repo.DeleteRepositoriesNotIn(ctx, connID, keep)
+}
+
+// githubEventKind maps a GitHub webhook event type to a canonical monitor
+// event_kind: "ci" for the check-run / workflow family and "code_change" for
+// the push / pull-request family. Any other event type returns "" and emits no
+// monitor event (only CI and code-change signals drive monitoring; the store's
+// event_kind CHECK constraint accepts neither an empty kind nor an off-list
+// value, so an un-mapped event is simply not tapped).
+func githubEventKind(eventType string) string {
+	switch eventType {
+	case "check_run", "check_suite", "workflow_run", "workflow_job", "workflow_dispatch":
+		return "ci"
+	case "push", "pull_request", "pull_request_review", "pull_request_target":
+		return "code_change"
+	default:
+		return ""
+	}
+}
+
+// emitGitHubMonitorEvent is the GitHub webhook monitor tap. It persists exactly
+// one monitor event for a check-run/workflow (event_kind="ci") or push/
+// pull-request (event_kind="code_change") delivery, reusing the X-GitHub-Delivery
+// value as the delivery id (Requirements 4.1, 4.2, 2.5). It is a no-op when:
+//   - no monitor sink is wired (m.monitor == nil),
+//   - the delivery id is empty (Requirement 4.3 / 2.4 — no event persisted),
+//   - the event type is neither a CI nor a code-change signal, or
+//   - the installation cannot be resolved to a tenant org.
+//
+// The org is the authoritative tenant that owns the GitHub installation,
+// resolved from the stored installation record — never from the webhook body
+// (tenant isolation). The emitted payload carries an "event_type" discriminator
+// so monitor.Classify can read the delivered event kind from the body.
+//
+// The whole tap is best-effort: every failure (org lookup, marshal, duplicate
+// sentinel, store error) is swallowed so a monitor-emit problem never fails
+// webhook processing.
+func (m *Manager) emitGitHubMonitorEvent(ctx context.Context, deliveryID, eventType string, installationID int64, payload []byte) {
+	if m.monitor == nil || deliveryID == "" {
+		return
+	}
+	kind := githubEventKind(eventType)
+	if kind == "" {
+		return // not a CI or code-change signal: nothing to tap
+	}
+
+	// Resolve the tenant org from the installation (the authoritative tenant,
+	// never the payload). A missing/unknown installation means no tenant to
+	// attribute the event to, so the tap is skipped.
+	inst, ok, err := m.repo.GetGitHubInstallationByInstallationID(ctx, installationID)
+	if err != nil || !ok || inst == nil || inst.OrgID == 0 {
+		return
+	}
+
+	// Carry a small JSON payload with the event discriminator so monitor.Classify
+	// can read it. Re-marshal the raw body under "body" so downstream readers
+	// still have the original shape, but keep it minimal and never fail the tap
+	// on a malformed body (fall back to just the discriminator).
+	var body json.RawMessage
+	if json.Valid(payload) {
+		body = json.RawMessage(payload)
+	}
+	envelope := struct {
+		EventType string          `json:"event_type"`
+		Body      json.RawMessage `json:"body,omitempty"`
+	}{EventType: eventType, Body: body}
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		return
+	}
+
+	_, _ = m.monitor.InsertMonitorEvent(ctx, inst.OrgID, store.MonitorEventInput{
+		Source:     "github",
+		DeliveryID: deliveryID,
+		EventKind:  kind,
+		Payload:    data,
+	})
 }

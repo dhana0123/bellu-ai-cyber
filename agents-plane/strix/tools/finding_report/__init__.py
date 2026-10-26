@@ -27,7 +27,9 @@ from __future__ import annotations
 from strix.tools.finding_report.tool import (
     BelluReporter,
     StrixFinding,
+    build_report_payload,
     report_findings,
+    send_report,
     strix_report_to_finding,
 )
 
@@ -35,6 +37,8 @@ from strix.tools.finding_report.tool import (
 __all__ = [
     "BelluReporter",
     "StrixFinding",
+    "build_report_payload",
     "report_findings",
+    "send_report",
     "strix_report_to_finding",
 ]

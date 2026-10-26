@@ -49,6 +49,27 @@ RISK_MAX = 100.0
 INGEST_PATH = "/api/agent/findings:ingest"
 DEFAULT_INGEST_TIMEOUT = 30.0
 
+# The control-plane report write-back target (task 20's
+# ``POST /api/agent/findings/reports``). This is the FULL-artifact companion to
+# the thin ``findings:ingest`` seam: the agent's actual generated report (long-
+# form sections + the plane's rendered markdown) flows back here so the Finding
+# Detail view can render it. The verb/path are kept in one dict so wiring stays
+# a single edit.
+REPORT_WRITE_BACK: dict[str, str] = {
+    "verb": "POST",
+    "path": "/api/agent/findings/reports",
+}
+DEFAULT_REPORT_TIMEOUT = 30.0
+
+# HTTP boundary at/above which a response is treated as a failed write-back.
+_HTTP_BAD_REQUEST = 400
+
+# The weaponized exploit body. It is NEVER transported, stored, or served (Req
+# 16.1 / Property 6): report payloads carry only a ``poc_available`` flag and the
+# PoC *description*. Named here so the strip is a single source of truth shared
+# by the payload builder and the markdown renderer.
+POC_SCRIPT_KEY = "poc_script_code"
+
 
 def _clamp_risk(score: float) -> float:
     """Clamp a risk score into ``[RISK_MIN, RISK_MAX]`` (Requirement 6.9)."""
@@ -204,6 +225,173 @@ def _report_risk_score(report: dict[str, Any]) -> float:
     return _clamp_risk(cvss * 10.0)
 
 
+def _strip_poc_script(value: Any) -> Any:
+    """Return ``value`` with every ``poc_script_code`` key removed, recursively.
+
+    The weaponized PoC body can be nested anywhere a report dict is embedded
+    (top level, inside ``code_locations`` entries, inside an update-history
+    revision), so the strip walks dicts and lists at every depth. The result is
+    a fresh structure; the input is never mutated (Req 16.1 / Property 6).
+    """
+    if isinstance(value, dict):
+        return {
+            k: _strip_poc_script(v) for k, v in value.items() if k != POC_SCRIPT_KEY
+        }
+    if isinstance(value, list):
+        return [_strip_poc_script(item) for item in value]
+    return value
+
+
+def _report_team(report: dict[str, Any]) -> str:
+    """Return an explicit ``red``/``blue`` team only when the report states one.
+
+    Req 15.3 asks the agents plane to PREFER sending the reporting agent's
+    ``agent_name``/``stage`` and let the control plane derive the team (so the
+    EXPLOIT->red, VERIFY/STABILITY/REPORT->blue mapping lives in one place). We
+    therefore pass through an explicit ``team`` only when the report clearly
+    carries a valid one, and otherwise leave it empty so the server derives it
+    from the stage signal.
+    """
+    team = str(report.get("team") or "").strip().lower()
+    return team if team in {"red", "blue"} else ""
+
+
+def build_report_payload(report: dict[str, Any], run_id: str) -> dict[str, Any]:
+    """Build the finding-report write-back body from a Strix vulnerability report.
+
+    This is the FULL-artifact companion to :func:`_to_bellu` (the thin ingest
+    mapping). It targets ``POST /api/agent/findings/reports`` (task 20), which
+    accepts either a numeric ``finding_id`` or the ``(asset_id, vuln_id)`` dedup
+    key the thin ingest already used — so the control plane resolves the finding
+    without a round-trip. We reuse :func:`strix_report_to_finding` +
+    :func:`_to_bellu` to compute that same key (``asset_id``+``asset_kind`` for a
+    linked finding, ``raw_target`` for a raw one), keeping the two seams in
+    agreement about how a finding is identified.
+
+    Team (Req 15.2/15.3): an explicit ``red``/``blue`` on the report is passed
+    through; otherwise we send the reporting agent's ``agent_name`` (and
+    ``stage`` when present) and let the server derive the team from the stage
+    (EXPLOIT->red; VERIFY/STABILITY/REPORT->blue). No team is guessed here.
+
+    PoC redaction (Req 16.1 / Property 6): the weaponized ``poc_script_code``
+    body is NEVER included. ``poc_available`` is a flag derived from the presence
+    of a PoC description or script; ``sections`` is the long-form content with
+    every ``poc_script_code`` key stripped at every nesting level; and
+    ``rendered_markdown`` is produced from a PoC-stripped COPY of the report so
+    the renderer (which would otherwise embed the script body under "Proof of
+    Concept") emits only the PoC description and presence — never the body.
+    """
+    # Import here (not at module load) so the thin-ingest path never pulls in the
+    # report writer and its pygments dependency.
+    from strix.report.writer import render_vulnerability_md
+
+    finding = strix_report_to_finding(report)
+
+    payload: dict[str, Any] = {
+        "run_id": run_id,
+        "vuln_id": finding.vuln_id,
+        "title": str(report.get("title") or ""),
+        "severity": str(report.get("severity") or ""),
+        # Flag only — presence of a description OR a script counts as "a PoC
+        # exists", but the script body itself is never transported (Req 16.1).
+        "poc_available": bool(
+            report.get("poc_description") or report.get(POC_SCRIPT_KEY)
+        ),
+    }
+
+    # Identify the finding by the SAME dedup key the thin ingest used, so the
+    # control plane can resolve finding_id without a round-trip. Linked ->
+    # asset_id+asset_kind; raw -> raw_target.
+    if finding.is_linked:
+        payload["asset_id"] = finding.graph_entity_id
+        payload["asset_kind"] = finding.asset_kind
+    else:
+        payload["raw_target"] = finding.raw_target
+
+    # Team: honor an explicit red/blue, else send the stage signal and let the
+    # server derive it (Req 15.3).
+    explicit_team = _report_team(report)
+    if explicit_team:
+        payload["team"] = explicit_team
+    else:
+        agent_name = str(report.get("agent_name") or "").strip()
+        if agent_name:
+            payload["agent_name"] = agent_name
+        stage = str(report.get("stage") or "").strip()
+        if stage:
+            payload["stage"] = stage
+
+    # Long-form sections: everything on the report EXCEPT the weaponized body,
+    # stripped at every nesting level (Req 16.1/16.3). The server strips again
+    # defensively (Req 16.2), so this is belt-and-suspenders.
+    payload["sections"] = _strip_poc_script(report)
+
+    # Rendered artifact: render from a PoC-stripped copy so the "Proof of
+    # Concept" section carries only the description + presence, never the script
+    # body (Req 16.1 / Property 6). render_vulnerability_md embeds poc_script_code
+    # as a fenced block when present, which is exactly what must not leak.
+    stripped_report = {k: v for k, v in report.items() if k != POC_SCRIPT_KEY}
+    payload["rendered_markdown"] = render_vulnerability_md(stripped_report)
+
+    return payload
+
+
+def send_report(
+    bellu_base: str,
+    token: str,
+    run_id: str,
+    report: dict[str, Any],
+    *,
+    client: httpx.Client | None = None,
+    timeout: float = DEFAULT_REPORT_TIMEOUT,
+) -> None:
+    """POST one report artifact to ``/api/agent/findings/reports``, best-effort.
+
+    Builds the payload via :func:`build_report_payload` and POSTs it with the
+    service-account bearer token. This is a best-effort write-back and NEVER
+    raises: the full-artifact report is a complement to the thin
+    ``findings:ingest`` seam, so a failed (or unreachable) report post must never
+    fail the run it describes. Any transport/auth/build error is logged and
+    swallowed (Req 15.1, mirroring the status/trace write-backs).
+
+    No org is ever sent (Requirement 19.1): the service-account token identifies
+    the principal and the control plane resolves the org from it.
+    """
+    import httpx
+
+    try:
+        payload = build_report_payload(report, run_id)
+    except Exception:
+        logger.exception("failed to build report write-back payload; skipping")
+        return
+
+    url = f"{bellu_base.rstrip('/')}{REPORT_WRITE_BACK['path']}"
+    headers = {"Authorization": f"Bearer {token}"}
+
+    owns_client = client is None
+    http = client or httpx.Client(timeout=timeout)
+    try:
+        resp = http.request(
+            REPORT_WRITE_BACK["verb"],
+            url,
+            json=payload,
+            headers=headers,
+            timeout=timeout,
+        )
+        if resp.status_code >= _HTTP_BAD_REQUEST:
+            logger.warning(
+                "report write-back for %s returned HTTP %s",
+                payload.get("vuln_id"),
+                resp.status_code,
+            )
+    except Exception:
+        # Best-effort: a report post must never fail the run it describes.
+        logger.exception("report write-back failed; the thin ingest still stands")
+    finally:
+        if owns_client:
+            http.close()
+
+
 class BelluReporter:
     """Reports Strix findings to Bellu incrementally and on completion.
 
@@ -248,6 +436,13 @@ class BelluReporter:
         # Findings filed this run, in file order, keyed by vuln_id so a later
         # revision of the same finding replaces the earlier snapshot.
         self._pending: dict[str, StrixFinding] = {}
+        # Raw Strix report dicts seen via the incremental callback, keyed by
+        # vuln_id, so the FULL-artifact report write-back (sections + rendered
+        # markdown) can be sent alongside the thin ingest and reconciled on
+        # completion. vuln_ids whose report artifact the control plane has
+        # accepted, so the completion flush skips them.
+        self._report_payloads: dict[str, dict[str, Any]] = {}
+        self._reports_sent: set[str] = set()
 
     def attach(self, report_state: Any) -> None:
         """Wire incremental reporting onto a ReportState's found-callback.
@@ -260,10 +455,36 @@ class BelluReporter:
         report_state.vulnerability_found_callback = self._on_vulnerability_found
 
     def _on_vulnerability_found(self, report: dict[str, Any]) -> None:
-        """Incremental hook: map and report a single just-filed finding."""
+        """Incremental hook: map and report a single just-filed finding.
+
+        Two write-backs flow from each filed finding: the thin ``findings:ingest``
+        (via :meth:`report_batch`) and the FULL-artifact report (sections +
+        rendered markdown) via :meth:`_send_report`. The artifact send is
+        best-effort and never raises, so a failed report post cannot sink the
+        incremental ingest path.
+        """
         finding = strix_report_to_finding(report)
         self._pending[finding.vuln_id] = finding
+        # Keep the raw report so the completion flush can reconcile the artifact.
+        self._report_payloads[finding.vuln_id] = report
         self.report_batch([finding])
+        self._send_report(finding.vuln_id, report)
+
+    def _send_report(self, vuln_id: str, report: dict[str, Any]) -> None:
+        """Send the full report artifact for ``vuln_id``, best-effort.
+
+        Delegates to :func:`send_report`, which strips the weaponized PoC body
+        (Req 16.1) and never raises. On a successful attempt the ``vuln_id`` is
+        remembered so :meth:`flush_on_completion` does not re-send the artifact.
+        """
+        send_report(
+            self._bellu_base,
+            self._token,
+            self._run_id,
+            report,
+            client=self._client,
+        )
+        self._reports_sent.add(vuln_id)
 
     def report_batch(self, findings: list[StrixFinding]) -> dict[str, Any]:
         """Report an explicit batch now, returning the server's counts.
@@ -296,6 +517,14 @@ class BelluReporter:
         Returns the server's counts for the flushed batch (zeroed when nothing
         is outstanding).
         """
+        # Reconcile the FULL-artifact report for any finding whose raw report we
+        # captured incrementally but have not yet sent the artifact for. This is
+        # best-effort and never raises, so it cannot affect the thin-ingest flush
+        # below or the run's outcome (Req 15.1).
+        for vuln_id, report in self._report_payloads.items():
+            if vuln_id not in self._reports_sent:
+                self._send_report(vuln_id, report)
+
         outstanding = [
             f for vuln_id, f in self._pending.items() if vuln_id not in self._reported
         ]

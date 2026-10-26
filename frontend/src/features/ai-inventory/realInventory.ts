@@ -49,7 +49,7 @@ const KIND_CATEGORY: Record<string, AssetCategory> = {
 
 // Stable palette for the donut, cycled across whatever kinds are present.
 const PALETTE = [
-  'hsl(221 83% 60%)',
+  'hsl(262 83% 64%)',
   'hsl(161 84% 42%)',
   'hsl(43 96% 56%)',
   'hsl(262 83% 66%)',

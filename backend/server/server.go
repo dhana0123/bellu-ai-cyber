@@ -123,6 +123,11 @@ func (s *Server) Handler() http.Handler {
 			// handler resolves the tenant from the principal, never from input.
 			s.registerAgentRoutes(authed)
 
+			// Continuous monitoring: durable-first ingest (monitor:ingest),
+			// Mission Control events read (findings:read), and the agents-plane
+			// status write-back (agent:run). Tenant resolved from the principal.
+			s.registerMonitorRoutes(authed)
+
 			// Admin: users / roles / projects.
 			s.registerAdminRoutes(authed)
 

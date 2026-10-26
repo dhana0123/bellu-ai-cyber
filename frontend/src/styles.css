@@ -8,29 +8,33 @@
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Primary = black (the main CTA color). */
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    /* Secondary = Bellu Violet #8B5CF6 (the secondary accent). */
+    --secondary: 262 83% 58%;
+    --secondary-foreground: 0 0% 100%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent (hover/soft highlight) = Soft Lavender #EDE9FE. */
+    --accent: 251 100% 96%;
+    --accent-foreground: 262 60% 20%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    /* Focus ring follows the black primary. */
+    --ring: 0 0% 0%;
     --radius: 0.5rem;
 
     /* Popover (shadcn): light surface, slightly elevated vs background. */
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    /* Chart palette (shadcn Charts). Teal-led to echo Bellu's green accent. */
-    --chart-1: 173 58% 39%;
-    --chart-2: 221 83% 53%;
-    --chart-3: 262 83% 58%;
+    /* Chart palette (shadcn Charts). Violet-led to match the Bellu brand. */
+    --chart-1: 262 83% 58%; /* Bellu Violet #8B5CF6 */
+    --chart-2: 262 90% 70%; /* lighter violet (was brand blue) */
+    --chart-3: 173 58% 39%; /* teal accent */
     --chart-4: 43 96% 56%;
     --chart-5: 0 73% 54%;
     --sidebar-background: 0 0% 98%;
@@ -40,7 +44,7 @@
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 262 83% 58%; /* Bellu Violet focus ring */
   }
 
   /* OpenAI ChatGPT dark theme: #212121 main surface, #171717 sidebar,
@@ -50,10 +54,13 @@
     --foreground: 0 0% 93%; /* #ededed */
     --card: 0 0% 13%; /* same as surface; separated by borders */
     --card-foreground: 0 0% 93%;
-    --primary: 0 0% 98%; /* white primary */
-    --primary-foreground: 0 0% 10%; /* dark text on white */
-    --secondary: 0 0% 18%; /* #2d2d2d */
-    --secondary-foreground: 0 0% 93%;
+    /* Primary = black CTA. Pure black reads darker than the #212121 surface;
+       the subtle border token keeps it defined on dark backgrounds. */
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    /* Secondary = Bellu Violet #8B5CF6 (the secondary accent). */
+    --secondary: 262 83% 58%;
+    --secondary-foreground: 0 0% 100%;
     --muted: 0 0% 18%; /* #2d2d2d */
     --muted-foreground: 0 0% 69%; /* #b0b0b0 soft */
     --accent: 0 0% 19%; /* #303030 hover */
@@ -62,26 +69,27 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 24%; /* #3d3d3d subtle */
     --input: 0 0% 24%;
-    --ring: 0 0% 70%; /* neutral focus ring */
+    /* Focus ring follows the Bellu Violet secondary accent. */
+    --ring: 262 83% 70%;
 
     /* Popover: #2f2f2f elevated menu surface over the #212121 background. */
     --popover: 0 0% 18%;
     --popover-foreground: 0 0% 93%;
 
-    /* Chart palette tuned for the dark surface: green-led, high legibility. */
-    --chart-1: 161 84% 39%; /* #10a37f-ish Bellu green */
-    --chart-2: 213 94% 68%;
-    --chart-3: 258 90% 76%;
+    /* Chart palette tuned for the dark surface: violet-led, high legibility. */
+    --chart-1: 258 90% 76%; /* bright violet */
+    --chart-2: 262 83% 64%; /* Bellu Violet */
+    --chart-3: 161 84% 45%; /* teal accent */
     --chart-4: 43 96% 56%;
     --chart-5: 0 73% 60%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary: 262 83% 64%; /* Bellu Violet */
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 262 83% 70%; /* Bellu Violet focus ring */
   }
 
   /* ChatGPT uses a slightly darker sidebar than the main surface. */
@@ -151,20 +159,20 @@
   0% {
     transform: scale(1);
     box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 70%, transparent),
-      0 0 10px 2px color-mix(in srgb, var(--pulse-color, #3b82f6) 40%, transparent);
+      0 0 0 0 color-mix(in srgb, var(--pulse-color, #8b5cf6) 70%, transparent),
+      0 0 10px 2px color-mix(in srgb, var(--pulse-color, #8b5cf6) 40%, transparent);
   }
   50% {
     transform: scale(1.14);
     box-shadow:
-      0 0 0 10px color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
-      0 0 28px 8px color-mix(in srgb, var(--pulse-color, #3b82f6) 75%, transparent);
+      0 0 0 10px color-mix(in srgb, var(--pulse-color, #8b5cf6) 0%, transparent),
+      0 0 28px 8px color-mix(in srgb, var(--pulse-color, #8b5cf6) 75%, transparent);
   }
   100% {
     transform: scale(1);
     box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--pulse-color, #3b82f6) 0%, transparent),
-      0 0 10px 2px color-mix(in srgb, var(--pulse-color, #3b82f6) 40%, transparent);
+      0 0 0 0 color-mix(in srgb, var(--pulse-color, #8b5cf6) 0%, transparent),
+      0 0 10px 2px color-mix(in srgb, var(--pulse-color, #8b5cf6) 40%, transparent);
   }
 }
 

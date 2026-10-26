@@ -11,6 +11,7 @@ import (
 	"github.com/bellu/bellu-ai-cyber/internal/connector/capability"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/discovery"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
+	"github.com/bellu/bellu-ai-cyber/internal/store"
 )
 
 // progressPersistInterval throttles how often live discovery progress is
@@ -94,6 +95,19 @@ type Manager struct {
 	// Empty when no webhook secret is configured; the webhook handler then
 	// rejects all deliveries (fail-safe).
 	githubWebhookSecret []byte
+	// monitor is the optional monitor-event sink for the Phase 1 event taps
+	// (GitHub webhook + discovery completion). Nil when no monitoring is wired,
+	// in which case the taps are no-ops and connector behavior is unchanged.
+	monitor MonitorEmitter
+}
+
+// MonitorEmitter is the minimal monitor-event sink the connector's event taps
+// need. It is injected (rather than importing the server) so the connector
+// stays free of a transport dependency and no import cycle is created;
+// *store.Store satisfies it via its InsertMonitorEvent method. A nil emitter
+// disables the taps, so connectors wired without monitoring keep working.
+type MonitorEmitter interface {
+	InsertMonitorEvent(ctx context.Context, org int64, in store.MonitorEventInput) (int64, error)
 }
 
 // Options configures a Manager.
@@ -112,6 +126,9 @@ type Options struct {
 	// GitHubWebhookSecret authenticates inbound GitHub webhooks. Optional: when
 	// empty, the webhook handler rejects all deliveries.
 	GitHubWebhookSecret string
+	// Monitor is the optional monitor-event sink for the Phase 1 event taps
+	// (GitHub webhook + discovery completion). Nil disables the taps.
+	Monitor MonitorEmitter
 }
 
 // NewManager builds a Manager.
@@ -125,6 +142,7 @@ func NewManager(opts Options) *Manager {
 		githubClient:        opts.GitHubClient,
 		githubAppSlug:       opts.GitHubAppSlug,
 		githubWebhookSecret: []byte(opts.GitHubWebhookSecret),
+		monitor:             opts.Monitor,
 	}
 	if m.now == nil {
 		m.now = time.Now
@@ -594,6 +612,9 @@ func (m *Manager) scanGit(ctx context.Context, c *Connection, start Event) (*dis
 	if data, err := json.Marshal(sess.Progress); err == nil {
 		_ = m.repo.SaveSessionProgress(ctx, sess.ID, data)
 	}
+	// Resource tap: one monitor event per newly discovered repo at completion
+	// (best-effort; org is the connection's tenant, never a payload value).
+	m.emitDiscoveryMonitorEvents(ctx, c.OrgID, sess)
 	m.transitionByID(ctx, c.OrgID, c.ID, EventDiscoverDone)
 	return sess, nil
 }
@@ -635,6 +656,10 @@ func (m *Manager) runDiscovery(ctx context.Context, c *Connection, start Event) 
 			m.transitionByID(bg, orgID, connID, EventDiscoverFailed)
 			return
 		}
+		// Resource tap: one monitor event per newly discovered asset at
+		// completion (best-effort; org is the connection's tenant captured
+		// above, never a payload value).
+		m.emitDiscoveryMonitorEvents(bg, orgID, sess)
 		m.transitionByID(bg, orgID, connID, EventDiscoverDone)
 	}
 
@@ -660,6 +685,50 @@ func (m *Manager) runDiscovery(ctx context.Context, c *Connection, start Event) 
 	m.persistProgress(connID, sess.ID)
 
 	return sess, nil
+}
+
+// emitDiscoveryMonitorEvents is the discovery-completion resource tap. When a
+// discovery session completes it emits exactly one resource monitor event per
+// newly discovered asset (Requirement 4.4): source="discovery",
+// event_kind="resource", delivery_id = session id + ":" + asset id. The
+// per-asset granularity reachable at session completion is the session's
+// successfully-collected progress entries (each a repository for a git scan, a
+// resource table for a cloud discovery), so one event is emitted per completed
+// entry, keyed by the session id so a re-run yields fresh delivery ids.
+//
+// org is the connection's authoritative tenant (c.OrgID / the captured orgID),
+// never a payload value (tenant isolation). The tap is a no-op when no monitor
+// sink is wired, the session is nil, or the session did not complete. It is
+// best-effort: every emit error (including the duplicate sentinel) is swallowed
+// so a monitor-emit problem never disturbs discovery.
+func (m *Manager) emitDiscoveryMonitorEvents(ctx context.Context, org int64, sess *discovery.Session) {
+	if m.monitor == nil || sess == nil || sess.Status != discovery.SessComplete {
+		return
+	}
+	if sess.Progress == nil {
+		return
+	}
+	for _, t := range sess.Progress.Tables {
+		// Only successfully collected entries are "newly discovered" assets; a
+		// pending/errored entry collected nothing to triage.
+		if t.State != discovery.TableDone || t.Table == "" {
+			continue
+		}
+		payload, err := json.Marshal(map[string]any{
+			"discovery_session_id": sess.ID,
+			"asset_id":             t.Table,
+			"resources_collected":  t.Rows,
+		})
+		if err != nil {
+			continue
+		}
+		_, _ = m.monitor.InsertMonitorEvent(ctx, org, store.MonitorEventInput{
+			Source:     "discovery",
+			DeliveryID: sess.ID + ":" + t.Table,
+			EventKind:  "resource",
+			Payload:    payload,
+		})
+	}
 }
 
 // persistProgress subscribes to the live progress of a running session and

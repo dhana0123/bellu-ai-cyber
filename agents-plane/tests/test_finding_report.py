@@ -231,9 +231,12 @@ def test_reporter_reports_incrementally_on_found_callback() -> None:
 
     state.file({"id": "vuln-0001", "severity": "high", "target": "https://t.example.com"})
 
-    # The incremental hook fired exactly one POST for the just-filed finding.
-    assert len(seen) == 1
-    body = json.loads(seen[0].content.decode())
+    # The incremental hook fires the thin findings:ingest POST for the just-filed
+    # finding (it also fires the full report artifact on a separate path; that is
+    # asserted in test_reporter_sends_report_artifact_on_found_callback).
+    ingest = [r for r in seen if r.url.path == "/api/agent/findings:ingest"]
+    assert len(ingest) == 1
+    body = json.loads(ingest[0].content.decode())
     assert body["run_id"] == RUN_ID
     assert body["findings"][0]["raw_target"] == "https://t.example.com"
 
@@ -245,13 +248,17 @@ def test_reporter_flush_on_completion_skips_already_reported() -> None:
     reporter.attach(state)
 
     state.file({"id": "vuln-0001", "severity": "high", "target": "https://t.example.com"})
-    assert len(seen) == 1
+    # One thin-ingest POST was made incrementally for this finding.
+    ingest = [r for r in seen if r.url.path == "/api/agent/findings:ingest"]
+    assert len(ingest) == 1
+    sent_before = len(seen)
 
-    # Everything filed was already reported incrementally, so the completion
-    # flush is a no-op with no additional POST.
+    # Everything filed was already reported incrementally (both the thin ingest
+    # and the full report artifact), so the completion flush is a no-op with no
+    # additional POST on either seam.
     result = reporter.flush_on_completion()
     assert result == {"created": 0, "updated": 0, "rejected": 0}
-    assert len(seen) == 1
+    assert len(seen) == sent_before
 
 
 def test_reporter_flush_on_completion_sends_outstanding() -> None:
@@ -268,3 +275,219 @@ def test_reporter_flush_on_completion_sends_outstanding() -> None:
     assert len(seen) == 1
     body = json.loads(seen[0].content.decode())
     assert body["findings"][0]["raw_target"] == "https://late.example.com"
+
+
+# --- build_report_payload: team/blue mapping, PoC strip (task 21) -----------
+
+
+_WEAPONIZED = "import os; os.system('rm -rf /'); exfiltrate(secrets)"
+
+
+def _red_report() -> dict[str, Any]:
+    """A linked EXPLOIT-stage report carrying a weaponized PoC body."""
+    return {
+        "id": "vuln-0100",
+        "title": "SQL injection in login",
+        "severity": "critical",
+        "cvss": 9.1,
+        "cve": "CVE-2024-5555",
+        "bellu_entity_id": "Compute:aws:i-0red",
+        "bellu_asset_kind": "Compute",
+        "agent_name": "exploit-agent",
+        "description": "User input reaches the query unescaped.",
+        "impact": "Full database read.",
+        "technical_analysis": "The parameter is concatenated into SQL.",
+        "poc_description": "Send ' OR 1=1-- in the username field.",
+        "poc_script_code": _WEAPONIZED,
+        "remediation_steps": "Use parameterized queries.",
+        "evidence": "Returned all rows.",
+        "confidence": "high",
+        "fix_effort": "low",
+        "code_locations": [
+            {"file": "login.py", "start_line": 12, "snippet": "q = 'SELECT ...'"},
+        ],
+    }
+
+
+def _blue_report() -> dict[str, Any]:
+    """A raw-target REPORT-stage report with only a PoC description (no body)."""
+    return {
+        "id": "vuln-0101",
+        "title": "Missing security headers",
+        "severity": "low",
+        "target": "https://scanme.example.com",
+        "agent_name": "report-writer",
+        "description": "No CSP header present.",
+        "remediation_steps": "Add a Content-Security-Policy header.",
+        "poc_description": "Observe the absent header in the response.",
+    }
+
+
+def _contains(obj: Any, needle: str) -> bool:
+    """True when ``needle`` appears anywhere in the JSON serialization of obj."""
+    return needle in json.dumps(obj, default=str)
+
+
+def test_build_report_payload_red_maps_identity_and_sets_poc_available() -> None:
+    payload = tool.build_report_payload(_red_report(), RUN_ID)
+
+    # Identified by the SAME dedup key the thin ingest uses (asset_id+kind).
+    assert payload["asset_id"] == "Compute:aws:i-0red"
+    assert payload["asset_kind"] == "Compute"
+    assert payload["vuln_id"] == "vuln-0100"
+    assert payload["run_id"] == RUN_ID
+    assert payload["title"] == "SQL injection in login"
+    assert payload["severity"] == "critical"
+    # A PoC exists (description + script), so the flag is set — flag only.
+    assert payload["poc_available"] is True
+    # Stage signal sent so the server derives the team (prefer server-side).
+    assert payload["agent_name"] == "exploit-agent"
+    assert "team" not in payload
+
+
+def test_build_report_payload_blue_maps_raw_target_and_poc_available() -> None:
+    payload = tool.build_report_payload(_blue_report(), RUN_ID)
+
+    assert payload["raw_target"] == "https://scanme.example.com"
+    assert "asset_id" not in payload
+    assert payload["vuln_id"] == "vuln-0101"
+    assert payload["agent_name"] == "report-writer"
+    # A PoC description (no script) still counts as "a PoC exists".
+    assert payload["poc_available"] is True
+
+
+def test_build_report_payload_explicit_team_is_passed_through() -> None:
+    report = {**_red_report(), "team": "red"}
+    payload = tool.build_report_payload(report, RUN_ID)
+
+    assert payload["team"] == "red"
+    # An explicit team short-circuits the stage signal.
+    assert "agent_name" not in payload
+
+
+def test_build_report_payload_no_poc_sets_flag_false() -> None:
+    report = {"id": "vuln-0102", "title": "Info", "severity": "info", "target": "t"}
+    payload = tool.build_report_payload(report, RUN_ID)
+
+    assert payload["poc_available"] is False
+
+
+def test_build_report_payload_never_includes_poc_script_code() -> None:
+    payload = tool.build_report_payload(_red_report(), RUN_ID)
+
+    # Not at the top level, not in sections, not in the rendered markdown, and
+    # the weaponized body string appears nowhere in the serialized payload (P6).
+    assert "poc_script_code" not in payload
+    assert "poc_script_code" not in payload["sections"]
+    assert _WEAPONIZED not in payload["rendered_markdown"]
+    assert not _contains(payload, _WEAPONIZED)
+    assert not _contains(payload, "poc_script_code")
+    # The PoC *description* and presence flag survive — only the body is gone.
+    assert payload["poc_available"] is True
+    assert "' OR 1=1--" in payload["rendered_markdown"]
+
+
+def test_build_report_payload_strips_nested_poc_script_code() -> None:
+    report = {
+        "id": "vuln-0103",
+        "title": "Nested",
+        "severity": "high",
+        "target": "t",
+        "code_locations": [
+            {"file": "a.py", "poc_script_code": _WEAPONIZED},
+        ],
+        "extra": {"deep": {"poc_script_code": _WEAPONIZED}},
+    }
+    payload = tool.build_report_payload(report, RUN_ID)
+
+    # The weaponized body value is gone everywhere (Req 16.1 / Property 6),
+    # including inside list entries and arbitrarily deep nested dicts.
+    assert not _contains(payload, _WEAPONIZED)
+    # The poc_script_code KEY is removed at every nesting level in sections.
+    sections = payload["sections"]
+    assert "poc_script_code" not in sections["code_locations"][0]
+    assert "poc_script_code" not in sections["extra"]["deep"]
+    # Siblings around the stripped key are preserved.
+    assert sections["code_locations"][0]["file"] == "a.py"
+
+
+# --- send_report: best-effort write-back ------------------------------------
+
+
+def test_send_report_posts_payload_with_bearer_no_org() -> None:
+    seen, client = _capture()
+
+    tool.send_report(BASE, TOKEN, RUN_ID, _red_report(), client=client)
+
+    assert len(seen) == 1
+    req = seen[0]
+    assert str(req.url) == f"{BASE}/api/agent/findings/reports"
+    assert req.method == "POST"
+    assert req.headers["Authorization"] == f"Bearer {TOKEN}"
+
+    body = json.loads(req.content.decode())
+    assert body["run_id"] == RUN_ID
+    assert body["asset_id"] == "Compute:aws:i-0red"
+    # No org anywhere, and no weaponized body on the wire (P6).
+    assert "org" not in body
+    assert not _contains(body, _WEAPONIZED)
+    assert "poc_script_code" not in req.content.decode()
+
+
+def test_send_report_swallows_transport_error() -> None:
+    def boom(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("control plane unreachable")
+
+    client = httpx.Client(transport=httpx.MockTransport(boom))
+
+    # Best-effort: a transport error must never propagate out of the sender.
+    tool.send_report(BASE, TOKEN, RUN_ID, _red_report(), client=client)
+
+
+def test_send_report_swallows_http_error_status() -> None:
+    def server_error(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "temporarily unavailable"})
+
+    client = httpx.Client(transport=httpx.MockTransport(server_error))
+
+    # A 5xx is logged and swallowed, never raised.
+    tool.send_report(BASE, TOKEN, RUN_ID, _blue_report(), client=client)
+
+
+# --- BelluReporter: report artifact flows alongside thin ingest -------------
+
+
+def test_reporter_sends_report_artifact_on_found_callback() -> None:
+    seen, client = _capture()
+    reporter = BelluReporter(BASE, TOKEN, RUN_ID, client=client)
+    state = _FakeReportState()
+    reporter.attach(state)
+
+    state.file(_red_report())
+
+    # Two POSTs: the thin findings:ingest AND the full report artifact.
+    paths = sorted(req.url.path for req in seen)
+    assert "/api/agent/findings:ingest" in paths
+    assert "/api/agent/findings/reports" in paths
+
+    report_req = next(r for r in seen if r.url.path == "/api/agent/findings/reports")
+    body = report_req.content.decode()
+    # The weaponized body never reaches the wire on the report seam (P6).
+    assert _WEAPONIZED not in body
+    assert "poc_script_code" not in body
+
+
+def test_reporter_report_send_error_does_not_break_incremental() -> None:
+    # The report seam fails; the thin ingest seam succeeds. The found-callback
+    # must not raise (best-effort report write-back, Req 15.1).
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/agent/findings/reports":
+            raise httpx.ConnectError("report seam down")
+        return httpx.Response(200, json={"created": 1, "updated": 0, "rejected": 0})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    reporter = BelluReporter(BASE, TOKEN, RUN_ID, client=client)
+    state = _FakeReportState()
+    reporter.attach(state)
+
+    state.file(_red_report())  # must not raise

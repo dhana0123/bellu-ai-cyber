@@ -113,18 +113,18 @@ checks. Test sub-tasks are marked optional with `*`.
 
 ### Phase D — Read-only vertical slice end-to-end
 
-- [-] 12. Scan runner dispatch
+- [x] 12. Scan runner dispatch
   - Implement the Scan_Runner: consume launched runs, fetch and inject graph-context before the coordinator initializes the root, start the coordinator, drive to terminal state, and report status back to the Runs seam
   - _Requirements: 7.6, 2.1_
 
-- [ ] 13. Coordinator completion-boundary enforcement
-  - [-] 13.1 Enforce `root_complete` vs `child_complete` in the AgentCoordinator: `root_complete` from a non-root agent is rejected; `child_complete` from the root is treated as an error and does not close the scan; model statuses `running`, `waiting`, `completed`, `failed`, `budget_paused` with `waiting` while awaiting child/mailbox and `budget_paused` while budget exhausted
+- [x] 13. Coordinator completion-boundary enforcement
+  - [x] 13.1 Enforce `root_complete` vs `child_complete` in the AgentCoordinator: `root_complete` from a non-root agent is rejected; `child_complete` from the root is treated as an error and does not close the scan; model statuses `running`, `waiting`, `completed`, `failed`, `budget_paused` with `waiting` while awaiting child/mailbox and `budget_paused` while budget exhausted
     - _Requirements: 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9_
   - [ ]* 13.2 Write unit tests on the coordinator completion boundary
     - Non-root `root_complete` rejected; root `child_complete` errors without closing the scan; child `child_complete` returns result to parent mailbox and frees budget without terminating the scan
     - _Requirements: 2.6, 2.7, 2.8, 2.9_
 
-- [~] 14. Checkpoint — read-only graph-reasoning slice runs end-to-end
+- [x] 14. Checkpoint — read-only graph-reasoning slice runs end-to-end
   - Ensure all tests pass, ask the user if questions arise. The full read-only loop should run: launch -> graph-context -> live MCP -> findings ingested -> visible in Bellu.
 
 ### Phase E — Authorization-gated sandbox active testing
@@ -136,11 +136,11 @@ checks. Test sub-tasks are marked optional with `*`.
     - **Property 4: Authorization-scope gating** — over generated (scope, target) pairs, a sandbox action is permitted iff active testing is enabled and the target is in the allow list; absent scope permits nothing
     - **Validates: Requirements 8.3, 8.4, 8.5**
 
-- [-] 16. Docker sandbox behind the gate
+- [x] 16. Docker sandbox behind the gate
   - Wire `DockerSandbox.run_active_test` to call `gate.ensure_allowed(target)` before launching any container; implement entity->target resolution for Bellu-known targets where scope permits; no container launches for refused targets
   - _Requirements: 8.3, 8.5, 3.2_
 
-- [~] 17. Final checkpoint — end-to-end integration and safety review
+- [x] 17. Final checkpoint — end-to-end integration and safety review
   - Add an end-to-end integration test covering the full loop including an active test against an authorized throwaway target; assert tenant isolation (cross-org run/entity reads fail) and out-of-scope refusal both hold. Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

@@ -20,10 +20,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/bellu/bellu-ai-cyber/backend/server"
+	"github.com/bellu/bellu-ai-cyber/global-intel/database"
 	"github.com/bellu/bellu-ai-cyber/internal/auth"
 	"github.com/bellu/bellu-ai-cyber/internal/config"
 	"github.com/bellu/bellu-ai-cyber/internal/connector"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/discovery"
+	"github.com/bellu/bellu-ai-cyber/internal/finding"
+	"github.com/bellu/bellu-ai-cyber/internal/intelcorrelate"
+	"github.com/bellu/bellu-ai-cyber/internal/monitor"
 	"github.com/bellu/bellu-ai-cyber/internal/connector/provider"
 	connectoraws "github.com/bellu/bellu-ai-cyber/internal/connector/provider/aws"
 	connectorazure "github.com/bellu/bellu-ai-cyber/internal/connector/provider/azure"
@@ -111,6 +115,12 @@ func run() error {
 	// Inspector vulnerability findings fresh without a manual "discover".
 	startDiscoveryScheduler(ctx, st, connMgr)
 
+	// Scheduled re-correlation sweep (opt-in): re-runs intel correlation per org
+	// and upserts matches. It relies on the finding delta tap so unchanged
+	// still-open findings emit no monitor events (no re-trigger storm). Needs the
+	// graph to read assets; skipped when Memgraph is down.
+	startSweepScheduler(ctx, st, gw)
+
 	// MCP read surface: six tenant-scoped tools over the temporal graph. The
 	// Querier reads the two append-only logs (history + recent changes) and the
 	// graph writer backs the projection reads (inventory, detail, adjacency).
@@ -177,6 +187,76 @@ func startDiscoveryScheduler(ctx context.Context, st *store.Store, mgr *connecto
 		return
 	}
 	go sched.Run(ctx)
+}
+
+// startSweepScheduler launches the background re-correlation sweep when
+// BELLU_SWEEP_INTERVAL is set to a Go duration (e.g. "15m", "1h"). It is off by
+// default: re-correlation re-reads the whole graph per org, and it only adds
+// value once the finding delta tap is wired (the sweep itself emits nothing).
+// Values below the scheduler minimum are clamped up; "", "0" and "off" disable
+// it. It needs the graph to read assets, so it is skipped when Memgraph is down.
+// It stops with ctx on shutdown.
+func startSweepScheduler(ctx context.Context, st *store.Store, gw *graph.Writer) {
+	raw := strings.TrimSpace(os.Getenv("BELLU_SWEEP_INTERVAL"))
+	switch strings.ToLower(raw) {
+	case "", "0", "off", "false", "disabled":
+		log.Printf("monitor sweep scheduler disabled (set BELLU_SWEEP_INTERVAL, e.g. 15m, to enable)")
+		return
+	}
+	interval, err := time.ParseDuration(raw)
+	if err != nil || interval <= 0 {
+		log.Printf("warning: invalid BELLU_SWEEP_INTERVAL %q (%v); sweep scheduler disabled", raw, err)
+		return
+	}
+	if gw == nil {
+		log.Printf("monitor sweep scheduler disabled: graph unavailable (correlation reads graph assets)")
+		return
+	}
+
+	// Per-org correlator factory: the intel source is the shared canonical
+	// corpus; the graph reader is the deployment graph. intelcorrelate.New binds
+	// the two into a read-only matcher. (The matcher is read-only against the
+	// graph and never writes evidence.)
+	intel := database.New(st)
+	factory := monitor.CorrelatorFactoryFunc(func(_ int64) (monitor.Correlator, error) {
+		return intelcorrelate.New(gw, intel), nil
+	})
+	// Wire the vulnerability delta tap on the sweep's finding store: a
+	// nothing->open transition during a sweep emits exactly one monitor event,
+	// while a still-open re-upsert emits nothing (Requirements 5.2, 5.3). The
+	// *store.Store is the MonitorEmitter.
+	sweeper := monitor.NewSweeper(factory, finding.NewStore(st).WithMonitorEmitter(st))
+
+	sched, err := monitor.NewSweepScheduler(monitor.SweepSchedulerOptions{
+		Sweeper:  sweeper,
+		Interval: interval,
+		Orgs:     func(ctx context.Context) ([]int64, error) { return listOrgIDs(ctx, st) },
+	})
+	if err != nil {
+		log.Printf("warning: sweep scheduler not started: %v", err)
+		return
+	}
+	go sched.Run(ctx)
+}
+
+// listOrgIDs returns every org id so the sweep can run per tenant. Correlation
+// is org-resolved by the caller (never from a payload), so the sweep iterates
+// the tenant catalog rather than trusting request-supplied ids.
+func listOrgIDs(ctx context.Context, st *store.Store) ([]int64, error) {
+	rows, err := st.Pool().Query(ctx, `SELECT id FROM organizations ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list org ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan org id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // buildConnector wires the cloud-connector manager with the AWS adapter
@@ -304,6 +384,10 @@ func buildConnector(st *store.Store, gw *graph.Writer, cfg config.Config) *conne
 		GitHubClient:        mgrGitHub,
 		GitHubAppSlug:       ghSlug,
 		GitHubWebhookSecret: os.Getenv("BELLU_GITHUB_WEBHOOK_SECRET"),
+		// Monitor tap sink: the shared *store.Store is the MonitorEmitter, so the
+		// GitHub webhook and discovery-completion taps persist events into the
+		// durable monitor_events queue (best-effort).
+		Monitor: st,
 	})
 }
 

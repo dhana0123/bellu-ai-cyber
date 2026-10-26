@@ -35,5 +35,11 @@ func (s *Server) registerAgentRoutes(authed *gin.RouterGroup) {
 	fi.Use(s.auth.RequirePermission(auth.PermFindingsIngest)) // "findings:ingest"
 	{
 		fi.POST("/agent/findings:ingest", s.handleAgentFindingsIngest)
+		// Phase 3 report write-back: the plane sends the full generated report
+		// artifact (rendered markdown + long-form sections, PoC body stripped)
+		// per (finding_id, team). Gated by findings:ingest alongside the thin
+		// findings:ingest seam so all findings-write seams share one permission
+		// group (Req 15.1, 20.3).
+		fi.POST("/agent/findings/reports", s.handleAgentFindingReportIngest)
 	}
 }

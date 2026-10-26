@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '@/auth'
 import { Spinner } from '@/components/ui/spinner'
 import { AppShell } from '@/components/common/AppShell'
@@ -15,6 +15,7 @@ import AiEcosystemInventory from '@/features/ai-inventory/AiEcosystemInventory'
 import TraceGraphPage from '@/features/ai-spm/TraceGraphPage'
 import GraphExplorer from '@/features/graph-explorer/GraphExplorer'
 import Findings from '@/features/ai-spm/Findings'
+import { FindingDetail } from '@/features/issues/FindingDetail'
 import Vulnerabilities from '@/features/vulnerabilities/Vulnerabilities'
 import Investigate from '@/features/ai-spm/Investigate'
 // Add-on modules (Preview, mock-data).
@@ -60,6 +61,13 @@ function RequireAuth({ permission, children }: { permission?: string; children: 
     )
   }
   return <AppShell>{children}</AppShell>
+}
+
+// FindingDetailRoute pulls the finding id from the path (/findings/:id) and
+// renders the committed Finding Detail page for it.
+function FindingDetailRoute() {
+  const { id } = useParams<{ id: string }>()
+  return <FindingDetail id={id ?? ''} />
 }
 
 // Add-on (Preview) modules, each a mock-backed feature gated by its proposed
@@ -134,6 +142,14 @@ export default function App() {
         element={
           <RequireAuth permission="findings:read">
             <Findings />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/findings/:id"
+        element={
+          <RequireAuth permission="findings:read">
+            <FindingDetailRoute />
           </RequireAuth>
         }
       />

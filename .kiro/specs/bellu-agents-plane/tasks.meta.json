@@ -198,6 +198,11 @@
         "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
         "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
         "timestamp": 1792740138844
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740849578
       }
     ],
     "13.1 Enforce `root_complete` vs `child_complete` in the AgentCoordinator: `root_complete` from a non-root agent is rejected; `child_complete` from the root is treated as an error and does not close the scan; model statuses `running`, `waiting`, `completed`, `failed`, `budget_paused` with `waiting` while awaiting child/mailbox and `budget_paused` while budget exhausted": [
@@ -210,6 +215,11 @@
         "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
         "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
         "timestamp": 1792740136078
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740846576
       }
     ],
     "14. Checkpoint — read-only graph-reasoning slice runs end-to-end": [
@@ -217,6 +227,16 @@
         "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
         "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
         "timestamp": 1792738533175
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740865482
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740902094
       }
     ],
     "15.1 Implement `ActiveTestingGate`: default read-only refuses every sandbox action when scope is absent or disabled; when enabled, `ensure_allowed` permits only targets matched by `allow_targets` (hostname/IP/CIDR matching via `_compile_targets`/`_target_matches`); out-of-scope targets are refused and the refusal recorded": [
@@ -246,6 +266,11 @@
         "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
         "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
         "timestamp": 1792740137575
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740848109
       }
     ],
     "17. Final checkpoint — end-to-end integration and safety review": [
@@ -253,6 +278,16 @@
         "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
         "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
         "timestamp": 1792738541817
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740910180
+      },
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740938200
       }
     ],
     "7. Hard-fork the Strix engine into `agents-plane/`": [
@@ -316,6 +351,13 @@
         "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
         "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
         "timestamp": 1792740083220
+      }
+    ],
+    "13. Coordinator completion-boundary enforcement": [
+      {
+        "executionId": "51a1267c-4441-4a9c-94b0-a03531f01c03",
+        "chatSessionId": "sess_50c91fe9-9441-4b0e-b4a2-4d6599147775",
+        "timestamp": 1792740850872
       }
     ]
   }

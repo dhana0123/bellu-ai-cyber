@@ -25,7 +25,7 @@ const DEMO_INVENTORY: AiInventoryData = {
   ],
 
   by_type: [
-    { id: 'typ-1', label: 'Foundation Model', count: 187, color: 'hsl(221 83% 60%)' },
+    { id: 'typ-1', label: 'Foundation Model', count: 187, color: 'hsl(262 83% 64%)' },
     { id: 'typ-2', label: 'Autonomous Agent', count: 64, color: 'hsl(161 84% 42%)' },
     { id: 'typ-3', label: 'Integration Tool / Plugin', count: 50, color: 'hsl(43 96% 56%)' },
     { id: 'typ-4', label: 'MCP Server Host', count: 45, color: 'hsl(262 83% 66%)' },
