@@ -17,7 +17,6 @@ import GraphExplorer from '@/features/graph-explorer/GraphExplorer'
 import Findings from '@/features/ai-spm/Findings'
 import { FindingDetail } from '@/features/issues/FindingDetail'
 import Vulnerabilities from '@/features/vulnerabilities/Vulnerabilities'
-import Investigate from '@/features/ai-spm/Investigate'
 // Add-on modules (Preview, mock-data).
 import Gateway from '@/features/gateway/Gateway'
 import Runtime from '@/features/runtime/Runtime'
@@ -34,6 +33,7 @@ import ConnectorsPage from '@/features/platform/Connectors'
 import ConnectAwsPage from '@/features/platform/ConnectAws'
 import ConnectProviderPage from '@/features/platform/ConnectProvider'
 import RepositoriesPage from '@/features/platform/Repositories'
+import MissionControl from '@/features/monitoring/MissionControl'
 
 // RequireAuth gates a route: redirects to /login when unauthenticated and shows
 // a 403 notice (inside the shell) when the user lacks the required permission.
@@ -180,41 +180,10 @@ export default function App() {
         }
       />
       <Route
-        path="/ai-agents"
+        path="/mission-control"
         element={
-          <RequireAuth permission="graph:read">
-            <ModulePlaceholder
-              title="AI Agents"
-              blurb="Discovered AI agents across your environments."
-              preview={false}
-            />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/sessions"
-        element={
-          <RequireAuth permission="runtime:read">
-            <ModulePlaceholder title="Sessions" blurb="Live and historical AI runtime sessions." />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/evaluations"
-        element={
-          <RequireAuth permission="runtime:read">
-            <ModulePlaceholder
-              title="Evaluations"
-              blurb="Model and agent evaluation runs and scorecards."
-            />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/investigate"
-        element={
-          <RequireAuth permission="investigate">
-            <Investigate />
+          <RequireAuth permission="findings:read">
+            <MissionControl />
           </RequireAuth>
         }
       />
@@ -295,7 +264,6 @@ export default function App() {
       {/* Legacy path redirects (pre-migration routes) */}
       <Route path="/entities" element={<Navigate to="/inventory" replace />} />
       <Route path="/attack-paths" element={<Navigate to="/tracegraph" replace />} />
-      <Route path="/explain" element={<Navigate to="/investigate" replace />} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

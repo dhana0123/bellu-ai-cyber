@@ -20,3 +20,6 @@ run: mode=incremental raw-dir=intel-raw sources=[osv kev epss] postgres=postgres
   source kev   ok: 1756 canonical record(s)
   source epss  ok: 3928899 canonical record(s)
   correlate: upserted 408072 deduped vulnerabilit(ies)
+  correlate: recorded EPSS history for 2026-10-16
+  index: updated search layer with 408072 vulnerabilit(ies)
+==> 2026-10-26T05:21:37Z global-intel fetch complete

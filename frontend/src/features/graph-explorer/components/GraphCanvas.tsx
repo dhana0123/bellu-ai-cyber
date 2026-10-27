@@ -52,10 +52,12 @@ function paletteFor(theme: Theme): GraphPalette {
     ? {
         label: '#e5e7eb',
         labelHalo: '#111827',
-        edge: '#4b5563',
-        edgeDim: '#2a2f3a',
-        edgeIncident: '#94a3b8', // selection: clearer slate accent
-        edgeHover: '#5b6472', // hover: very soft, low-contrast accent
+        // Base edges are kept light/subtle so a focused node's incident edges
+        // (edgeIncident) clearly stand out against them.
+        edge: '#303745',
+        edgeDim: '#23272f',
+        edgeIncident: '#cbd5e1', // selection: bright slate accent, pops over light base
+        edgeHover: '#94a3b8', // hover: softer accent, still above the base
         nodeDim: '#374151',
         hoverBg: '#0b0f17', // darker shade behind the hovered label
         hoverText: '#f1f5f9',
@@ -63,10 +65,12 @@ function paletteFor(theme: Theme): GraphPalette {
     : {
         label: '#0f172a',
         labelHalo: '#ffffff',
-        edge: '#cbd5e1',
-        edgeDim: '#eef2f7',
-        edgeIncident: '#94a3b8', // selection: clearer slate accent
-        edgeHover: '#c7cdd6', // hover: very soft, low-contrast accent
+        // Base edges are kept light/subtle so a focused node's incident edges
+        // (edgeIncident) clearly stand out against them.
+        edge: '#e2e8f0',
+        edgeDim: '#f1f5f9',
+        edgeIncident: '#64748b', // selection: darker slate accent, pops over light base
+        edgeHover: '#94a3b8', // hover: softer accent, still above the base
         nodeDim: '#e2e8f0',
         hoverBg: '#1f2937', // dark box even in light theme, per request
         hoverText: '#f8fafc',

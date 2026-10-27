@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -29,6 +28,17 @@ import type { RepositoriesData, Repository, SeverityCounts } from '@/types/repos
 const GROUP_BY = ['None', 'Organization', 'Platform', 'Project', 'Service'] as const
 type GroupBy = (typeof GROUP_BY)[number]
 
+// Repository type (platform) filter options. 'all' shows every platform; the
+// rest map one-to-one to Repository['platform'] so filtering is a simple match.
+const REPO_TYPES = [
+  { key: 'all', label: 'All types' },
+  { key: 'github', label: 'GitHub' },
+  { key: 'gitlab', label: 'GitLab' },
+  { key: 'bitbucket', label: 'Bitbucket' },
+  { key: 'azure-devops', label: 'Azure DevOps' },
+] as const
+type RepoType = (typeof REPO_TYPES)[number]['key']
+
 // Severity → dot/text color, matching the C/H/M/L chips in the design.
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -37,19 +47,6 @@ function relativeTime(iso: string): string {
   if (h < 24) return `${h} hour${h > 1 ? 's' : ''} ago`
   const d = Math.floor(h / 24)
   return `${d} day${d > 1 ? 's' : ''} ago`
-}
-
-// A pill-style dropdown trigger used in the filter bar (visual only).
-function FilterPill({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
-    >
-      {label}
-      <ChevronDown className="h-3 w-3" />
-    </button>
-  )
 }
 
 const GIT_PROVIDERS = new Set(['github', 'gitlab', 'atlassian', 'bitbucket'])
@@ -106,9 +103,9 @@ export default function Repositories() {
   )
   const { current } = useProject()
   const projectId = current?.id
-  const [tab, setTab] = useState('organizational')
   const [groupBy, setGroupBy] = useState<GroupBy>('None')
   const [query, setQuery] = useState('')
+  const [repoType, setRepoType] = useState<RepoType>('all')
 
   // Real connected git repositories (GitHub/GitLab/Bitbucket). When one or more
   // git connectors exist, their repositories drive the table; otherwise the
@@ -158,14 +155,14 @@ export default function Repositories() {
     // Prefer real connected repositories when a git connector is present.
     const all = hasGitConnector ? connectorRepos : (data?.repositories ?? [])
     const q = query.trim().toLowerCase()
-    if (!q) return all
-    return all.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.organization.toLowerCase().includes(q) ||
-        r.project.toLowerCase().includes(q),
-    )
-  }, [data, query, hasGitConnector, connectorRepos])
+    return all.filter((r) => {
+      // Filter by repository type (platform). 'all' imposes no constraint.
+      if (repoType !== 'all' && r.platform !== repoType) return false
+      // Simple free-text search by name.
+      if (q && !r.name.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [data, query, repoType, hasGitConnector, connectorRepos])
 
   // toggleScan flips a repo's scan coverage against the backend and reflects the
   // result in the row. No-op for demo rows (those have no scanMeta entry).
@@ -205,15 +202,7 @@ export default function Repositories() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="organizational">Organizational</TabsTrigger>
-          <TabsTrigger value="personal">Personal</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Filter bar */}
+      {/* Filter bar: a simple name search plus a filter by repository type. */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -224,17 +213,26 @@ export default function Repositories() {
             className="h-8 w-56 pl-8 text-xs"
           />
         </div>
-        <FilterPill label="Organization" />
-        <FilterPill label="Platform" />
-        <FilterPill label="Scan Finding Severity" />
-        <FilterPill label="Visibility" />
-        <FilterPill label="Additional Branches Configured" />
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 rounded-md border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
-        >
-          <Plus className="h-3 w-3" /> More
-        </button>
+
+        {/* Filter by repository type (platform). */}
+        <div className="flex items-center gap-1">
+          {REPO_TYPES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setRepoType(t.key)}
+              className={cn(
+                'rounded-md border px-2.5 py-1.5 text-xs transition-colors',
+                repoType === t.key
+                  ? 'border-primary bg-primary/10 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-accent',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <span className="ml-auto text-xs text-muted-foreground">{repos.length} Repositories</span>
       </div>
 

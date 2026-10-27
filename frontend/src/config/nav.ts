@@ -2,20 +2,16 @@ import {
   Gauge,
   Boxes,
   GitBranch,
-  Bot,
   Bug,
   ShieldAlert,
-  Search,
   Radar,
+  Activity,
   Share2,
-  MessagesSquare,
-  FlaskConical,
   Cloud,
   Users,
   FolderKanban,
   KeyRound,
   Settings,
-  SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -53,7 +49,6 @@ export const navTree: NavNode[] = [
       { to: '/explorer', label: 'Knowledge Graph', icon: Share2, permission: 'graph:read' },
       { to: '/inventory', label: 'Inventory', icon: Boxes, permission: 'graph:read' },
       { to: '/repositories', label: 'Repositories', icon: GitBranch, permission: 'graph:read' },
-      { to: '/ai-agents', label: 'AI Agents', icon: Bot, permission: 'graph:read' },
     ],
   },
   {
@@ -64,14 +59,16 @@ export const navTree: NavNode[] = [
       { to: '/issues', label: 'Issues', icon: ShieldAlert, permission: 'findings:read' },
     ],
   },
-  { label: 'Investigate', icon: Search, to: '/investigate', permission: 'investigate' },
   {
-    label: 'Runtime',
-    icon: SlidersHorizontal,
-    preview: true,
+    label: 'Monitoring',
+    icon: Radar,
     children: [
-      { to: '/sessions', label: 'Sessions', icon: MessagesSquare, permission: 'runtime:read' },
-      { to: '/evaluations', label: 'Evaluations', icon: FlaskConical, permission: 'runtime:read' },
+      {
+        to: '/mission-control',
+        label: 'Mission Control',
+        icon: Activity,
+        permission: 'findings:read',
+      },
     ],
   },
   {

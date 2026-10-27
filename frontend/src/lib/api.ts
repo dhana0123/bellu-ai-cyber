@@ -30,6 +30,7 @@ import type {
   VerifyResult,
 } from '@/types/foundation'
 import type { GraphExplorerResponse, GraphFilter } from '@/types/graphExplorer'
+import type { MonitorEvent, RunDetail, RunTimelineEvent } from '@/types/monitoring'
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
@@ -119,6 +120,18 @@ export const realApi = {
     const qs = q.toString()
     return get<GraphExplorerResponse>(`/api/graph/explorer${qs ? `?${qs}` : ''}`)
   },
+
+  // monitoring / agent runs (continuous-monitoring-agents, findings:read)
+  // Mission Control grid: the caller's monitor events, newest-first. The server
+  // caps the limit at its configured maximum.
+  monitorEvents: (limit = 100) =>
+    get<{ events: MonitorEvent[] }>(`/api/monitor/events?limit=${limit}`),
+  // Run detail: header + the 11-stage stage-flow for one run.
+  agentRunDetail: (id: string) =>
+    get<RunDetail>(`/api/agent/runs/${encodeURIComponent(id)}/detail`),
+  // Run timeline: agent-start + handoff events, ascending by timestamp.
+  agentRunTimeline: (id: string) =>
+    get<{ events: RunTimelineEvent[] }>(`/api/agent/runs/${encodeURIComponent(id)}/timeline`),
 
   // findings / intelligence
   findings: (filters: FindingsFilter = {}) => {
