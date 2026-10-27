@@ -32,7 +32,8 @@ import { useTheme, type Theme } from '@/theme'
 import type { GraphEdge, GraphNode } from '@/types/graphExplorer'
 import { iconUrl, styleForKind } from '../lib/iconRegistry'
 import {
-  DEFAULT_DISPLAY_SETTINGS,
+  loadDisplaySettings,
+  saveDisplaySettings,
   type GraphDisplaySettings,
 } from '../lib/displaySettings'
 
@@ -494,9 +495,16 @@ export function GraphCanvas(props: GraphCanvasProps): JSX.Element {
   const { theme } = useTheme()
   const palette = useMemo(() => paletteFor(theme), [theme])
 
-  // On-canvas display settings (node/edge labels, arrows). Applied live to the
-  // Sigma instance via <SettingsApplier>; also seed the initial settings below.
-  const [display, setDisplay] = useState<GraphDisplaySettings>(DEFAULT_DISPLAY_SETTINGS)
+  // On-canvas display settings (node/edge labels, arrows), initialized from the
+  // persisted preference (read once). Applied live to the Sigma instance via
+  // <SettingsApplier>; also seeds the initial Sigma settings below. Persisted on
+  // every change so the choice survives reloads.
+  const initialDisplay = useMemo(() => loadDisplaySettings(), [])
+  const [display, setDisplay] = useState<GraphDisplaySettings>(initialDisplay)
+  const updateDisplay = (next: GraphDisplaySettings) => {
+    setDisplay(next)
+    saveDisplaySettings(next)
+  }
 
   // A key that changes whenever the working set is replaced, so SettingsApplier
   // re-asserts the edge-type override after LoadGraph rebuilds the edges.
@@ -509,9 +517,9 @@ export function GraphCanvas(props: GraphCanvasProps): JSX.Element {
     () => ({
       nodeProgramClasses: { image: NodeImageProgram },
       defaultNodeType: 'image',
-      defaultEdgeType: DEFAULT_DISPLAY_SETTINGS.arrows ? 'arrow' : 'line',
-      renderLabels: DEFAULT_DISPLAY_SETTINGS.nodeLabels,
-      renderEdgeLabels: DEFAULT_DISPLAY_SETTINGS.edgeLabels,
+      defaultEdgeType: initialDisplay.arrows ? 'arrow' : 'line',
+      renderLabels: initialDisplay.nodeLabels,
+      renderEdgeLabels: initialDisplay.edgeLabels,
       // Label de-cluttering: Sigma only draws labels that don't collide, using
       // a screen-space grid. A LOW density + a LARGER grid cell means fewer
       // labels show at once (only non-overlapping ones), and more are revealed
@@ -530,7 +538,7 @@ export function GraphCanvas(props: GraphCanvasProps): JSX.Element {
       // On hover, draw the node's label in a darker rounded box (theme-aware).
       defaultDrawNodeHover: makeDrawNodeHover(palette),
     }),
-    [palette],
+    [palette, initialDisplay],
   )
 
   if (!hasWebgl) {
@@ -580,7 +588,7 @@ export function GraphCanvas(props: GraphCanvasProps): JSX.Element {
         <ZoomControls />
       </SigmaContainer>
       {/* Right-side display settings menu (node/edge labels, arrows). */}
-      <DisplaySettingsMenu settings={display} onChange={setDisplay} />
+      <DisplaySettingsMenu settings={display} onChange={updateDisplay} />
     </div>
   )
 }

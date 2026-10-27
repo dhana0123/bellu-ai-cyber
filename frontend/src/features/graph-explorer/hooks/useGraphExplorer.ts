@@ -10,12 +10,13 @@
 // it is never stored and always appears first. selectView applies a view's
 // filter; saveView snapshots the current filter into a new persisted view.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '@/auth'
 import { client } from '@/lib/client'
 import { useAsync } from '@/useAsync'
 import type {
+  FacetCount,
   GraphFacets,
   GraphFilter,
   GraphNode,
@@ -48,9 +49,6 @@ export interface UseGraphExplorer {
   selectedId: string | null
   select: (id: string | null) => void
 }
-
-/** Empty facet buckets used before the first response resolves. */
-const EMPTY_FACETS: GraphFacets = { categories: [], providers: [], kinds: [] }
 
 /** A filter that constrains nothing — the "All Resources" baseline. */
 export const EMPTY_FILTER: GraphFilter = {
@@ -170,8 +168,47 @@ export function useGraphExplorer(): UseGraphExplorer {
   )
 
   const graphAvailable = data?.graphAvailable ?? false
-  const facets = data?.facets ?? EMPTY_FACETS
   const capped = data?.capped ?? false
+
+  // Keep the FULL set of facet rows stable across filter changes (Option B):
+  // selecting a facet updates the counts but never removes or reorders rows.
+  // We remember every facet key/label ever seen (the union, seeded by the first
+  // unfiltered load) and always render that known set, merging in the current
+  // response's counts (0 for a key absent from the filtered response).
+  const knownFacets = useRef<{
+    categories: Map<string, string>
+    providers: Map<string, string>
+    kinds: Map<string, string>
+  }>({ categories: new Map(), providers: new Map(), kinds: new Map() })
+
+  // Record any newly-seen keys/labels from the latest response.
+  if (data?.facets) {
+    for (const group of ['categories', 'providers', 'kinds'] as const) {
+      const known = knownFacets.current[group]
+      for (const f of data.facets[group]) {
+        if (!known.has(f.key)) known.set(f.key, f.label)
+      }
+    }
+  }
+
+  // Merge the known key set with the current counts so the row LIST is stable
+  // (every known key present) while counts reflect the active filter.
+  const facets: GraphFacets = useMemo(() => {
+    const build = (group: 'categories' | 'providers' | 'kinds'): FacetCount[] => {
+      const current = new Map((data?.facets?.[group] ?? []).map((f) => [f.key, f.count]))
+      return Array.from(knownFacets.current[group].entries()).map(([key, label]) => ({
+        key,
+        label,
+        count: current.get(key) ?? 0,
+      }))
+    }
+    return {
+      categories: build('categories'),
+      providers: build('providers'),
+      kinds: build('kinds'),
+    }
+    // Recompute whenever the response changes; knownFacets is a ref updated above.
+  }, [data])
   // Once any response (data) has been received the layout should persist across
   // subsequent filter refetches; useAsync keeps `data` during a refetch.
   const hasLoaded = data != null

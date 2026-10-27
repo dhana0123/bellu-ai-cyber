@@ -27,9 +27,14 @@ export interface FilterPanelProps {
 type FacetField = 'categories' | 'providers' | 'kinds'
 
 // Project server-supplied FacetCount buckets onto the {key,label,count} rows the
-// FacetSection expects. The shapes already align; this keeps the mapping explicit.
+// FacetSection expects, sorted by a STABLE key (label, then key) so the row
+// order never changes when counts change — e.g. checking a facet must not
+// reorder the list. The server may return counts in a count-based order that
+// shifts per filter; sorting client-side keeps the UI steady.
 function toRows(counts: FacetCount[]): FacetRow[] {
-  return counts.map((c) => ({ key: c.key, label: c.label, count: c.count }))
+  return counts
+    .map((c) => ({ key: c.key, label: c.label, count: c.count }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key))
 }
 
 // FilterPanel is the left control column: a New View / Saved Views tab toggle, a
