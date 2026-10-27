@@ -36,7 +36,11 @@ export default function Login() {
       {/* Left: form */}
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex items-center gap-2 font-medium">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-background">
+          {/* Brand mark: Bellu Violet → Logo Teal gradient. */}
+          <div
+            className="flex h-7 w-7 items-center justify-center rounded-md text-white shadow-sm"
+            style={{ backgroundImage: 'linear-gradient(135deg, #8B5CF6 0%, #2BC8B7 100%)' }}
+          >
             <ShieldCheck className="h-4 w-4" />
           </div>
           Bellu
@@ -93,24 +97,26 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right: brand panel */}
-      <div className="relative hidden overflow-hidden border-l bg-muted/30 lg:block">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(var(--foreground)/0.06),transparent_55%)]" />
+      {/* Right: brand panel — White → Bellu Violet brand gradient. */}
+      <div
+        className="relative hidden overflow-hidden border-l lg:block"
+        style={{ backgroundImage: 'linear-gradient(160deg, #FFFFFF 0%, #DDD6FE 45%, #8B5CF6 100%)' }}
+      >
         <div
-          className="absolute inset-0 opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.06]"
           style={{
             backgroundImage:
-              'linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)',
+              'linear-gradient(#2E1065 1px, transparent 1px), linear-gradient(90deg, #2E1065 1px, transparent 1px)',
             backgroundSize: '32px 32px',
           }}
         />
         <div className="relative flex h-full flex-col justify-end p-12">
           <blockquote className="space-y-3">
-            <p className="text-xl font-medium leading-relaxed">
+            <p className="text-xl font-medium leading-relaxed text-[#2E1065]">
               See every AI agent, model and MCP server — and the exact path from the internet to
               your sensitive data.
             </p>
-            <footer className="text-sm text-muted-foreground">Bellu — AI Security Graph</footer>
+            <footer className="text-sm font-medium text-[#2E1065]/70">Bellu — AI Security Graph</footer>
           </blockquote>
         </div>
       </div>

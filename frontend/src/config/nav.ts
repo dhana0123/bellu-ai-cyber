@@ -26,7 +26,9 @@ export interface NavLeaf {
 }
 
 // A primary sidebar entry. Either a direct link (has `to`) or a flyout parent
-// (has `children`). `preview` marks a mock-data (Preview) area.
+// (has `children`). `preview` marks a mock-data (Preview) area. `drawer` makes a
+// parent render as a SINGLE sidebar item that opens a full-height left sheet
+// listing its children, instead of an inline group.
 export interface NavNode {
   label: string
   icon: LucideIcon
@@ -34,6 +36,7 @@ export interface NavNode {
   end?: boolean
   permission?: string
   preview?: boolean
+  drawer?: boolean
   children?: NavLeaf[]
 }
 
@@ -42,6 +45,12 @@ export interface NavNode {
 // a parent is hidden when all its children are gated out).
 export const navTree: NavNode[] = [
   { label: 'Dashboard', icon: Gauge, to: '/dashboard', permission: 'graph:read' },
+  {
+    label: 'Mission Control',
+    icon: Activity,
+    to: '/mission-control',
+    permission: 'findings:read',
+  },
   {
     label: 'Discovery',
     icon: Radar,
@@ -55,31 +64,20 @@ export const navTree: NavNode[] = [
     label: 'Dangerous',
     icon: ShieldAlert,
     children: [
+      { to: '/findings', label: 'Findings', icon: Bug, permission: 'findings:read' },
       { to: '/vulnerabilities', label: 'Vulnerabilities', icon: Bug, permission: 'findings:read' },
       { to: '/issues', label: 'Issues', icon: ShieldAlert, permission: 'findings:read' },
     ],
   },
   {
-    label: 'Monitoring',
-    icon: Radar,
-    children: [
-      {
-        to: '/mission-control',
-        label: 'Mission Control',
-        icon: Activity,
-        permission: 'findings:read',
-      },
-    ],
-  },
-  {
     label: 'Platform',
-    icon: Cloud,
+    icon: Settings,
+    drawer: true,
     children: [
       { to: '/connectors', label: 'Cloud Connectors', icon: Cloud, permission: 'projects:read' },
       { to: '/users', label: 'Users', icon: Users, permission: 'users:read' },
       { to: '/projects', label: 'Projects', icon: FolderKanban, permission: 'projects:read' },
       { to: '/roles', label: 'Roles', icon: KeyRound, permission: 'users:read' },
-      { to: '/settings', label: 'Settings', icon: Settings, permission: 'projects:read' },
     ],
   },
 ]

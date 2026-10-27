@@ -36,15 +36,19 @@ export default function GraphExplorer(): JSX.Element {
   const [showQuery, setShowQuery] = useState(false)
   const [timeRange, setTimeRange] = useState<TimeRange>('all')
 
-  // Loading: show a centered spinner while the working set is fetched, matching
-  // the Dashboard page's loading treatment.
-  if (g.loading) {
+  // Initial load only: show a centered spinner while the FIRST working set is
+  // fetched. On later filter refetches we keep the layout and show an overlay
+  // on the graph area instead (see `refetching` below) so the UI never flickers.
+  if (g.loading && !g.hasLoaded) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="h-6 w-6" />
       </div>
     )
   }
+
+  // A refetch (e.g. a filter toggle) while data is already on screen.
+  const refetching = g.loading && g.hasLoaded
 
   // Error: surface an inline, non-blocking error message.
   if (g.error) {
@@ -122,23 +126,41 @@ export default function GraphExplorer(): JSX.Element {
           </p>
         )}
 
-        {viewMode === 'graph' ? (
-          <GraphCanvas
-            nodes={g.visibleNodes}
-            edges={g.visibleEdges}
-            selectedId={g.selectedId}
-            onSelect={g.select}
-            colorForCategory={colorForCategory}
-            onSwitchToTable={() => setViewMode('table')}
-          />
-        ) : (
-          <GraphTableView
-            nodes={g.visibleNodes}
-            edges={g.visibleEdges}
-            selectedId={g.selectedId}
-            onSelect={g.select}
-          />
-        )}
+        {/* Graph/table area. On a filter refetch, a non-blocking overlay shows
+            a spinner over the existing render so the UI stays steady (no
+            flicker / full-page unmount). */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {viewMode === 'graph' ? (
+            <GraphCanvas
+              nodes={g.visibleNodes}
+              edges={g.visibleEdges}
+              selectedId={g.selectedId}
+              onSelect={g.select}
+              colorForCategory={colorForCategory}
+              onSwitchToTable={() => setViewMode('table')}
+            />
+          ) : (
+            <GraphTableView
+              nodes={g.visibleNodes}
+              edges={g.visibleEdges}
+              selectedId={g.selectedId}
+              onSelect={g.select}
+            />
+          )}
+
+          {refetching && (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-[1px]"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 shadow-sm">
+                <Spinner className="h-4 w-4" />
+                <span className="text-sm text-muted-foreground">Updating graph…</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <NodeDetailPanel

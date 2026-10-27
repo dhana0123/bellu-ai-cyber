@@ -35,6 +35,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ProviderIcon } from '@/features/ai-inventory/components/category'
 import { DiscoveryProgress } from './DiscoveryProgress'
 import type { Connection, ConnectorStatus } from '@/types/foundation'
@@ -212,6 +220,8 @@ export default function ConnectorsPage() {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<number>(0)
   const [scanning, setScanning] = useState<number>(0)
+  // The connection pending deletion, shown in the confirm dialog (null = none).
+  const [confirmDelete, setConfirmDelete] = useState<Connection | null>(null)
 
   // Connected-section search + filter.
   const [query, setQuery] = useState('')
@@ -315,12 +325,13 @@ export default function ConnectorsPage() {
     }
   }, [runningKey, refreshQuiet])
 
+  // Performs the actual deletion once confirmed in the dialog.
   async function remove(id: number) {
-    if (!window.confirm('Delete this connection? This cannot be undone.')) return
     setDeleting(id)
     setError(null)
     try {
       await client.deleteConnector(id)
+      setConfirmDelete(null)
       await reload()
     } catch (e) {
       setError((e as Error).message)
@@ -625,7 +636,7 @@ export default function ConnectorsPage() {
                     )}
                     {canManage && (
                       <button
-                        onClick={() => remove(c.id)}
+                        onClick={() => setConfirmDelete(c)}
                         disabled={deleting === c.id}
                         className="ml-auto text-muted-foreground hover:text-destructive disabled:opacity-50"
                         title="Delete connection"
@@ -700,6 +711,57 @@ export default function ConnectorsPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Delete confirmation modal. */}
+      <Dialog
+        open={confirmDelete !== null}
+        onOpenChange={(o) => {
+          if (!o && deleting === 0) setConfirmDelete(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete connection?</DialogTitle>
+            <DialogDescription>
+              {confirmDelete && (
+                <>
+                  This will permanently remove the{' '}
+                  <span className="font-medium text-foreground">
+                    {confirmDelete.account_id ||
+                      PROVIDER_NAME[confirmDelete.provider] ||
+                      confirmDelete.provider}
+                  </span>{' '}
+                  connection and stop its scans. This cannot be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDelete(null)}
+              disabled={deleting !== 0}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => confirmDelete && void remove(confirmDelete.id)}
+              disabled={deleting !== 0}
+            >
+              {deleting !== 0 ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Deleting…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

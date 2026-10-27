@@ -14,7 +14,7 @@
 // The external props are unchanged, so GraphExplorer.tsx needs no rewiring.
 
 import { useEffect, useMemo, useState } from 'react'
-import { Minus, Plus, Maximize2 } from 'lucide-react'
+import { Minus, Plus, Maximize2, SlidersHorizontal, X } from 'lucide-react'
 import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import {
@@ -27,9 +27,14 @@ import { NodeImageProgram } from '@sigma/node-image'
 import '@react-sigma/core/lib/style.css'
 
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { useTheme, type Theme } from '@/theme'
 import type { GraphEdge, GraphNode } from '@/types/graphExplorer'
 import { iconUrl, styleForKind } from '../lib/iconRegistry'
+import {
+  DEFAULT_DISPLAY_SETTINGS,
+  type GraphDisplaySettings,
+} from '../lib/displaySettings'
 
 /**
  * Theme-aware colors for edges and labels so they read clearly on both themes:
@@ -58,7 +63,7 @@ function paletteFor(theme: Theme): GraphPalette {
         edgeDim: '#23272f',
         edgeIncident: '#cbd5e1', // selection: bright slate accent, pops over light base
         edgeHover: '#94a3b8', // hover: softer accent, still above the base
-        nodeDim: '#374151',
+        nodeDim: '#4b5563', // gently dimmed (muted slate), not blanked
         hoverBg: '#0b0f17', // darker shade behind the hovered label
         hoverText: '#f1f5f9',
       }
@@ -71,7 +76,7 @@ function paletteFor(theme: Theme): GraphPalette {
         edgeDim: '#f1f5f9',
         edgeIncident: '#64748b', // selection: darker slate accent, pops over light base
         edgeHover: '#94a3b8', // hover: softer accent, still above the base
-        nodeDim: '#e2e8f0',
+        nodeDim: '#cbd5e1', // gently dimmed (muted slate), not blanked
         hoverBg: '#1f2937', // dark box even in light theme, per request
         hoverText: '#f8fafc',
       }
@@ -313,14 +318,28 @@ function GraphEvents({
     sigma.setSetting('nodeReducer', (node, data) => {
       if (focus === null) return data
       if (node === focus) {
-        return { ...data, zIndex: 2, highlighted: true, forceLabel: true }
+        // Focused node: pop it (slightly larger, on top, label forced).
+        return {
+          ...data,
+          size: (data.size ?? 10) * 1.15,
+          zIndex: 2,
+          highlighted: true,
+          forceLabel: true,
+        }
       }
       if (graph.areNeighbors(focus, node)) {
-        // Connected neighbor: keep it bright and reveal its name.
+        // Connected neighbor: keep it full-strength and reveal its name.
         return { ...data, zIndex: 1, forceLabel: true }
       }
-      // Unrelated: dim it and drop its label so the neighborhood stands out.
-      return { ...data, color: palette.nodeDim, label: '', zIndex: 0 }
+      // Unrelated: keep the node fully intact (its icon, shape and size) but
+      // just dim it — fade the ring color and drop its label so the focused
+      // neighborhood reads as brighter by contrast, without blanking anything.
+      return {
+        ...data,
+        color: palette.nodeDim,
+        label: '',
+        zIndex: 0,
+      }
     })
 
     sigma.setSetting('edgeReducer', (edge, data) => {
@@ -329,15 +348,112 @@ function GraphEvents({
       const tgt = graph.target(edge)
       if (src === focus || tgt === focus) {
         // Edge connected to the focused node: softer on hover, clearer on select.
-        return { ...data, color: edgeAccent, size: edgeAccentSize, zIndex: 1 }
+        return { ...data, color: edgeAccent, size: edgeAccentSize, zIndex: 2 }
       }
-      return { ...data, color: palette.edgeDim, zIndex: 0 }
+      // Non-incident edge: keep it visible but very faint and thin so the
+      // incident edges carry the contrast.
+      return { ...data, color: palette.edgeDim, size: 0.4, zIndex: 0 }
     })
 
     sigma.refresh()
   }, [sigma, selectedId, palette, hovered])
 
   return null
+}
+
+// SettingsApplier lives inside <SigmaContainer> and pushes display-setting
+// changes onto the live Sigma instance (renderLabels / renderEdgeLabels /
+// directed arrows), refreshing so toggles take effect immediately without a
+// re-layout. The edge type is also reflected on every edge so arrows appear or
+// disappear consistently.
+function SettingsApplier({
+  settings,
+  reloadKey,
+}: {
+  settings: GraphDisplaySettings
+  // Changes whenever the graph is reloaded (new data), so the edge-type override
+  // is re-applied after LoadGraph rebuilds edges with their default type.
+  reloadKey: number
+}): null {
+  const sigma = useSigma()
+  useEffect(() => {
+    sigma.setSetting('renderLabels', settings.nodeLabels)
+    sigma.setSetting('renderEdgeLabels', settings.edgeLabels)
+    const edgeType = settings.arrows ? 'arrow' : 'line'
+    sigma.setSetting('defaultEdgeType', edgeType)
+    const graph = sigma.getGraph()
+    graph.forEachEdge((e) => graph.setEdgeAttribute(e, 'type', edgeType))
+    sigma.refresh()
+  }, [sigma, settings, reloadKey])
+  return null
+}
+
+// DisplaySettingsMenu is the small gear menu on the right of the graph. It
+// toggles render options (node labels, edge labels, directed arrows) via
+// switches. Open/close is local; the toggles lift to the parent so Sigma and
+// the menu stay in sync.
+function DisplaySettingsMenu({
+  settings,
+  onChange,
+}: {
+  settings: GraphDisplaySettings
+  onChange: (next: GraphDisplaySettings) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const rows: { key: keyof GraphDisplaySettings; label: string }[] = [
+    { key: 'nodeLabels', label: 'Node labels' },
+    { key: 'edgeLabels', label: 'Edge labels' },
+    { key: 'arrows', label: 'Directed arrows' },
+  ]
+  return (
+    <div className="absolute bottom-3 right-3 z-10">
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Display settings"
+        aria-expanded={open}
+        className="rounded-lg border border-border bg-background/80 shadow-sm backdrop-blur"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+      </Button>
+
+      {open && (
+        <div
+          role="group"
+          aria-label="Graph display settings"
+          className="absolute bottom-full right-0 mb-1 w-56 rounded-lg border border-border bg-popover p-3 shadow-md"
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Display
+            </span>
+            <button
+              type="button"
+              aria-label="Close"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setOpen(false)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <ul className="space-y-2.5">
+            {rows.map((r) => (
+              <li key={r.key} className="flex items-center justify-between gap-3">
+                <span className="text-sm">{r.label}</span>
+                <Switch
+                  checked={settings[r.key]}
+                  onCheckedChange={(v) => onChange({ ...settings, [r.key]: v })}
+                  aria-label={r.label}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** On-screen zoom controls bound to the Sigma camera. */
@@ -378,13 +494,24 @@ export function GraphCanvas(props: GraphCanvasProps): JSX.Element {
   const { theme } = useTheme()
   const palette = useMemo(() => paletteFor(theme), [theme])
 
+  // On-canvas display settings (node/edge labels, arrows). Applied live to the
+  // Sigma instance via <SettingsApplier>; also seed the initial settings below.
+  const [display, setDisplay] = useState<GraphDisplaySettings>(DEFAULT_DISPLAY_SETTINGS)
+
+  // A key that changes whenever the working set is replaced, so SettingsApplier
+  // re-asserts the edge-type override after LoadGraph rebuilds the edges.
+  const [reloadKey, setReloadKey] = useState(0)
+  useEffect(() => {
+    setReloadKey((k) => k + 1)
+  }, [nodes, edges])
+
   const settings = useMemo(
     () => ({
       nodeProgramClasses: { image: NodeImageProgram },
       defaultNodeType: 'image',
-      defaultEdgeType: 'arrow',
-      renderLabels: true,
-      renderEdgeLabels: true,
+      defaultEdgeType: DEFAULT_DISPLAY_SETTINGS.arrows ? 'arrow' : 'line',
+      renderLabels: DEFAULT_DISPLAY_SETTINGS.nodeLabels,
+      renderEdgeLabels: DEFAULT_DISPLAY_SETTINGS.edgeLabels,
       // Label de-cluttering: Sigma only draws labels that don't collide, using
       // a screen-space grid. A LOW density + a LARGER grid cell means fewer
       // labels show at once (only non-overlapping ones), and more are revealed
@@ -449,8 +576,11 @@ export function GraphCanvas(props: GraphCanvasProps): JSX.Element {
           palette={palette}
         />
         <GraphEvents selectedId={selectedId} onSelect={onSelect} palette={palette} />
+        <SettingsApplier settings={display} reloadKey={reloadKey} />
         <ZoomControls />
       </SigmaContainer>
+      {/* Right-side display settings menu (node/edge labels, arrows). */}
+      <DisplaySettingsMenu settings={display} onChange={setDisplay} />
     </div>
   )
 }

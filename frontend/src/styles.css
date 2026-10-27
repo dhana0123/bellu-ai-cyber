@@ -3,98 +3,104 @@
 @tailwind utilities;
 
 @layer base {
+  /* Bellu brand palette (light). Reference swatches:
+     Soft Lavender #EDE9FE · Pale Violet #DDD6FE · Bellu Violet #8B5CF6 ·
+     Deep Purple #2E1065 · Logo Lavender #9B99FE · Logo Teal #2BC8B7 ·
+     Graphite #20201E. Primary = Bellu Violet (brand CTA). */
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 258 45% 12%; /* near Deep Purple ink for brand-tinted text */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    /* Primary = black (the main CTA color). */
-    --primary: 0 0% 0%;
+    --card-foreground: 258 45% 12%;
+    /* Primary = Bellu Violet #8B5CF6 (the main CTA / brand color). */
+    --primary: 258 90% 66%;
     --primary-foreground: 0 0% 100%;
-    /* Secondary = Bellu Violet #8B5CF6 (the secondary accent). */
-    --secondary: 262 83% 58%;
+    /* Secondary = Deep Purple #2E1065 (strong brand ink for secondary CTAs). */
+    --secondary: 258 72% 23%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 255 60% 97%; /* soft violet-tinted muted surface */
+    --muted-foreground: 258 15% 45%;
     /* Accent (hover/soft highlight) = Soft Lavender #EDE9FE. */
     --accent: 251 100% 96%;
-    --accent-foreground: 262 60% 20%;
+    --accent-foreground: 258 72% 23%; /* Deep Purple on lavender */
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    /* Focus ring follows the black primary. */
-    --ring: 0 0% 0%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 255 45% 92%; /* Pale Violet-tinted hairline */
+    --input: 255 45% 92%;
+    /* Focus ring = Bellu Violet. */
+    --ring: 258 90% 66%;
     --radius: 0.5rem;
 
     /* Popover (shadcn): light surface, slightly elevated vs background. */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 258 45% 12%;
 
-    /* Chart palette (shadcn Charts). Violet-led to match the Bellu brand. */
-    --chart-1: 262 83% 58%; /* Bellu Violet #8B5CF6 */
-    --chart-2: 262 90% 70%; /* lighter violet (was brand blue) */
-    --chart-3: 173 58% 39%; /* teal accent */
-    --chart-4: 43 96% 56%;
-    --chart-5: 0 73% 54%;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 262 83% 58%; /* Bellu Violet focus ring */
+    /* Chart palette — Bellu brand ramp: violet-led with lavender + teal. */
+    --chart-1: 258 90% 66%; /* Bellu Violet #8B5CF6 */
+    --chart-2: 241 97% 80%; /* Logo Lavender #9B99FE */
+    --chart-3: 172 65% 48%; /* Logo Teal #2BC8B7 */
+    --chart-4: 258 72% 40%; /* mid purple */
+    --chart-5: 255 92% 92%; /* Pale Violet #DDD6FE */
+
+    /* Sidebar: brand-tinted light surface with Bellu Violet active state. */
+    --sidebar-background: 255 60% 98%;
+    --sidebar-foreground: 258 25% 28%;
+    --sidebar-primary: 258 90% 66%; /* Bellu Violet active item */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 251 100% 96%; /* Soft Lavender hover */
+    --sidebar-accent-foreground: 258 72% 23%;
+    --sidebar-border: 255 45% 91%;
+    --sidebar-ring: 258 90% 66%; /* Bellu Violet focus ring */
   }
 
-  /* OpenAI ChatGPT dark theme: #212121 main surface, #171717 sidebar,
-     #ededed text, #c9c9c9 muted, #10a37f green accent, soft #2f2f2f borders. */
+  /* Bellu brand dark theme: Graphite #20201E main surface, a deeper
+     purple-graphite sidebar, lavender text, Bellu Violet brand accent. */
   .dark {
-    --background: 0 0% 13%; /* #212121 main surface */
-    --foreground: 0 0% 93%; /* #ededed */
-    --card: 0 0% 13%; /* same as surface; separated by borders */
-    --card-foreground: 0 0% 93%;
-    /* Primary = black CTA. Pure black reads darker than the #212121 surface;
-       the subtle border token keeps it defined on dark backgrounds. */
-    --primary: 0 0% 0%;
+    --background: 60 3% 12%; /* Graphite #20201E */
+    --foreground: 255 92% 95%; /* pale-lavender ink */
+    --card: 60 3% 12%; /* same as surface; separated by borders */
+    --card-foreground: 255 92% 95%;
+    /* Primary = Bellu Violet #8B5CF6 (brand CTA), brightened for the dark surface. */
+    --primary: 258 90% 70%;
     --primary-foreground: 0 0% 100%;
-    /* Secondary = Bellu Violet #8B5CF6 (the secondary accent). */
-    --secondary: 262 83% 58%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 18%; /* #2d2d2d */
-    --muted-foreground: 0 0% 69%; /* #b0b0b0 soft */
-    --accent: 0 0% 19%; /* #303030 hover */
-    --accent-foreground: 0 0% 93%;
+    /* Secondary = Logo Lavender #9B99FE (softer brand accent on dark). */
+    --secondary: 241 97% 80%;
+    --secondary-foreground: 258 72% 15%;
+    --muted: 258 8% 18%; /* violet-tinted graphite */
+    --muted-foreground: 255 20% 72%;
+    --accent: 258 20% 20%; /* deep-violet hover over graphite */
+    --accent-foreground: 255 92% 95%;
     --destructive: 0 73% 54%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 24%; /* #3d3d3d subtle */
-    --input: 0 0% 24%;
-    /* Focus ring follows the Bellu Violet secondary accent. */
-    --ring: 262 83% 70%;
+    --border: 258 10% 24%; /* subtle violet-graphite hairline */
+    --input: 258 10% 24%;
+    /* Focus ring = Bellu Violet. */
+    --ring: 258 90% 72%;
 
-    /* Popover: #2f2f2f elevated menu surface over the #212121 background. */
-    --popover: 0 0% 18%;
-    --popover-foreground: 0 0% 93%;
+    /* Popover: elevated graphite menu surface over the background. */
+    --popover: 258 8% 16%;
+    --popover-foreground: 255 92% 95%;
 
-    /* Chart palette tuned for the dark surface: violet-led, high legibility. */
-    --chart-1: 258 90% 76%; /* bright violet */
-    --chart-2: 262 83% 64%; /* Bellu Violet */
-    --chart-3: 161 84% 45%; /* teal accent */
-    --chart-4: 43 96% 56%;
-    --chart-5: 0 73% 60%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 262 83% 64%; /* Bellu Violet */
+    /* Chart palette tuned for the dark surface: brand violet + lavender + teal. */
+    --chart-1: 258 90% 76%; /* bright Bellu Violet */
+    --chart-2: 241 97% 80%; /* Logo Lavender #9B99FE */
+    --chart-3: 172 65% 52%; /* Logo Teal #2BC8B7 */
+    --chart-4: 258 72% 55%; /* mid purple */
+    --chart-5: 255 92% 88%; /* Pale Violet */
+
+    --sidebar-background: 258 10% 9%; /* deep purple-graphite */
+    --sidebar-foreground: 255 40% 92%;
+    --sidebar-primary: 258 90% 70%; /* Bellu Violet active item */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 262 83% 70%; /* Bellu Violet focus ring */
+    --sidebar-accent: 258 16% 17%; /* violet hover */
+    --sidebar-accent-foreground: 255 92% 95%;
+    --sidebar-border: 258 12% 18%;
+    --sidebar-ring: 258 90% 72%; /* Bellu Violet focus ring */
   }
 
-  /* ChatGPT uses a slightly darker sidebar than the main surface. */
+  /* Brand dark sidebar reads slightly deeper than the Graphite surface. */
   .dark .cg-sidebar {
-    background-color: #171717;
+    background-color: #17141f; /* deep purple-graphite */
   }
 
   /* Hide the scrollbar in the collapsed icon rail so icons stay centered. */

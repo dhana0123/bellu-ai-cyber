@@ -28,6 +28,9 @@ import { applyFilter } from '../lib/applyFilter'
 /** Public shape consumed by the GraphExplorer page and its children. */
 export interface UseGraphExplorer {
   loading: boolean
+  /** True once the first response has arrived; stays true across refetches so
+   *  filter changes show an overlay instead of unmounting the whole page. */
+  hasLoaded: boolean
   error: string | null
   graphAvailable: boolean // false => degraded banner, canvas disabled, table still works
   facets: GraphFacets
@@ -169,6 +172,9 @@ export function useGraphExplorer(): UseGraphExplorer {
   const graphAvailable = data?.graphAvailable ?? false
   const facets = data?.facets ?? EMPTY_FACETS
   const capped = data?.capped ?? false
+  // Once any response (data) has been received the layout should persist across
+  // subsequent filter refetches; useAsync keeps `data` during a refetch.
+  const hasLoaded = data != null
 
   // Derive the visible set via applyFilter, memoized so the node/edge arrays keep
   // referential stability across renders (important for memoized pixi sprites).
@@ -236,6 +242,7 @@ export function useGraphExplorer(): UseGraphExplorer {
 
   return {
     loading,
+    hasLoaded,
     error,
     graphAvailable,
     facets,

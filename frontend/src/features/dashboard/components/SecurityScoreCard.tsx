@@ -7,7 +7,7 @@ import type { ChartConfig } from '@/components/ui/chart'
 import { TrendChip } from './TrendChip'
 import type { SecurityScore } from '@/types/dashboard'
 
-const SCORE_COLOR = 'hsl(161 84% 39%)' // Bellu green
+const SCORE_COLOR = 'hsl(var(--chart-1))' // Bellu Violet (brand) — theme-aware
 
 // Card 4 — Security Score. A prominent donut showing the posture score plus a
 // supporting historical area chart.

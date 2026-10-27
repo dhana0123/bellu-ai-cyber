@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-do
 import { useAuth } from '@/auth'
 import { Spinner } from '@/components/ui/spinner'
 import { AppShell } from '@/components/common/AppShell'
-import { ModulePlaceholder } from '@/components/common/ModulePlaceholder'
 
 // Migrated AI-SPM foundation pages (TypeScript + shadcn + charts).
 import Login from '@/features/ai-spm/Login'
@@ -248,18 +247,7 @@ export default function App() {
           </RequireAuth>
         }
       />
-      <Route
-        path="/settings"
-        element={
-          <RequireAuth permission="projects:read">
-            <ModulePlaceholder
-              title="Settings"
-              blurb="Platform configuration and preferences."
-              preview={false}
-            />
-          </RequireAuth>
-        }
-      />
+
 
       {/* Legacy path redirects (pre-migration routes) */}
       <Route path="/entities" element={<Navigate to="/inventory" replace />} />

@@ -6,8 +6,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import type { ChartConfig } from '@/components/ui/chart'
 import type { OpenedResolvedPoint } from '@/types/dashboard'
 
-const OPENED = 'hsl(0 73% 54%)'
-const RESOLVED = 'hsl(161 84% 39%)'
+const OPENED = 'hsl(0 73% 54%)' // opened (bad) — semantic red
+const RESOLVED = 'hsl(var(--chart-3))' // resolved (good) — Logo Teal (brand)
 
 // Card 6 — Opened and Resolved Issues. A dual-line area (burn-up) chart tracking
 // cumulative opened vs resolved issues over the past 30 days.

@@ -20,8 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
 import type { BadgeProps } from '@/components/ui/badge'
-import type { FindingDetailResponse } from '@/types/foundation'
+// The committed, spec'd Finding Detail page (red/blue team + remediation,
+// Unvalidated status, cited intel, evidence, update history; PoC flag only).
+import { FindingDetail } from '@/features/issues/FindingDetail'
 
 const ALL = '__all__'
 
@@ -157,126 +166,20 @@ export default function Findings() {
         </CardContent>
       </Card>
 
-      {selected != null && <FindingDetail id={selected} onClose={() => setSelected(null)} />}
+      {/* Drill-in: the spec'd Finding Detail (with remediation) in a slide-over. */}
+      <Sheet open={selected != null} onOpenChange={(o) => !o && setSelected(null)}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>Finding detail</SheetTitle>
+            <SheetDescription>
+              Red/blue team findings and remediation for this match.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">{selected != null && <FindingDetail id={selected} />}</div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
 
-// FindingDetail loads a single finding with its cited intelligence and evidence
-// trail. Field casing is PascalCase (backend has no json tags on these types).
-function FindingDetail({ id, onClose }: { id: number; onClose: () => void }) {
-  const { loading, error, data } = useAsync<FindingDetailResponse>(() => client.finding(id), [id])
-  const finding = data?.finding
-  const intel = data?.intel
-  const evidence = data?.evidence ?? []
 
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
-          <CardTitle className="text-base">Finding detail</CardTitle>
-          <CardDescription>Cited intelligence and the evidence behind this match.</CardDescription>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Close
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loading && (
-          <div className="flex h-24 items-center justify-center">
-            <Spinner />
-          </div>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {!loading && !error && (
-          <>
-            {finding && (
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant={severityVariant(finding.Severity)}>
-                  {finding.Severity || 'info'}
-                </Badge>
-                <span className="text-muted-foreground">risk</span>
-                <span className="font-mono">{Math.round(finding.RiskScore)}</span>
-                <span className="text-muted-foreground">·</span>
-                <span className="font-mono text-xs">{finding.AssetID}</span>
-                <span className="text-xs text-muted-foreground">({finding.AssetKind})</span>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Cited intelligence</h3>
-              {intel ? (
-                <div className="rounded-md border bg-muted/30 p-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono">{intel.ID}</span>
-                    {intel.KnownExploited && <Badge variant="danger">KEV</Badge>}
-                    {typeof intel.EPSS === 'number' && (
-                      <span className="text-xs text-muted-foreground">
-                        EPSS {intel.EPSS.toFixed(3)}
-                      </span>
-                    )}
-                    {intel.CVSS?.Score != null && (
-                      <span className="text-xs text-muted-foreground">CVSS {intel.CVSS.Score}</span>
-                    )}
-                  </div>
-                  {intel.Summary && <p className="mt-2 text-muted-foreground">{intel.Summary}</p>}
-                  {(intel.Aliases ?? []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {intel.Aliases.map((a) => (
-                        <Badge key={a} variant="outline">
-                          {a}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  {(intel.Affected ?? []).length > 0 && (
-                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      {intel.Affected.map((ap, i) => (
-                        <li key={i} className="font-mono">
-                          {ap.Purl}
-                          {(ap.Ranges ?? []).map((r, j) => (
-                            <span key={j}>
-                              {' '}
-                              [{r.Introduced || '0'}, {r.Fixed || '∞'})
-                            </span>
-                          ))}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No intelligence record resolved for{' '}
-                  <span className="font-mono">{finding?.VulnID}</span>.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Evidence trail</h3>
-              {evidence.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No evidence recorded.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {evidence.map((ev, i) => (
-                    <li key={i} className="rounded-md border bg-muted/30 p-3 text-sm">
-                      <Badge variant="ai">{ev.Collector}</Badge> observed{' '}
-                      <strong>{ev.ResourceType}</strong>{' '}
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {ev.ResourceID}
-                      </span>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        run {ev.RunID} · raw {String(ev.RawEventID).slice(0, 12)}…
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
